@@ -13,7 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  setup-environments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create environments if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for env in production staging development preview; do
+            gh api repos/${{ github.repository }}/environments/$env -X PUT 2>/dev/null || true
+          done
+
   deploy:
+    needs: setup-environments
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name == 'staging' && 'staging' || 'development' }}
     env:

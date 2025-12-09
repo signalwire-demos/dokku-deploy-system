@@ -12,7 +12,18 @@ env:
   APP_NAME: ${{ github.event.repository.name }}-pr-${{ github.event.pull_request.number }}
 
 jobs:
+  setup-environments:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create preview environment if needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/environments/preview -X PUT 2>/dev/null || true
+
   deploy:
+    needs: setup-environments
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     environment: preview

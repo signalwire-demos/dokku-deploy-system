@@ -7,7 +7,8 @@
 # Triggers:
 #   1. repository_dispatch: Immediate cleanup when a repo is deleted (via webhook)
 #   2. workflow_dispatch: Manual cleanup for a specific app
-#   3. schedule: Daily orphan cleanup (removes apps whose repos no longer exist)
+#   3. schedule: Daily orphan cleanup (removes apps whose repos no longer exist,
+#                or PR previews whose PRs are closed)
 #
 # Required Secrets:
 #   - DOKKU_HOST: Dokku server hostname
@@ -116,12 +117,23 @@ jobs:
             exit 0
           fi
 
-          # Also check for environment variants
+          # Also check for environment variants and PR previews
           APPS_TO_CLEANUP="$APP_NAME"
+
+          # Check for -staging and -dev variants
           for suffix in "-staging" "-dev"; do
             VARIANT="${APP_NAME}${suffix}"
             if ssh dokku apps:exists "$VARIANT" 2>/dev/null; then
               APPS_TO_CLEANUP="$APPS_TO_CLEANUP $VARIANT"
+            fi
+          done
+
+          # Check for PR preview apps (-pr-*)
+          ALL_APPS=$(ssh dokku apps:list | tail -n +2)
+          for EXISTING_APP in $ALL_APPS; do
+            if [[ "$EXISTING_APP" =~ ^${APP_NAME}-pr-[0-9]+$ ]]; then
+              echo "Found PR preview app: $EXISTING_APP"
+              APPS_TO_CLEANUP="$APPS_TO_CLEANUP $EXISTING_APP"
             fi
           done
 
@@ -189,15 +201,36 @@ jobs:
           ORPHANS=""
 
           for APP in $DOKKU_APPS; do
-            # Extract base app name (remove -staging, -dev suffixes)
-            BASE_APP=$(echo "$APP" | sed 's/-staging$//' | sed 's/-dev$//')
+            # Check if this is a PR preview app
+            if [[ "$APP" =~ ^(.+)-pr-([0-9]+)$ ]]; then
+              BASE_APP="${BASH_REMATCH[1]}"
+              PR_NUMBER="${BASH_REMATCH[2]}"
 
-            # Check if repo exists in the org
-            if ! gh repo view "${GH_ORG}/${BASE_APP}" --json name >/dev/null 2>&1; then
-              echo "Orphaned app found: $APP (repo ${GH_ORG}/${BASE_APP} not found)"
-              ORPHANS="$ORPHANS $APP"
+              # Check if repo exists
+              if ! gh repo view "${GH_ORG}/${BASE_APP}" --json name >/dev/null 2>&1; then
+                echo "Orphaned PR preview: $APP (repo ${GH_ORG}/${BASE_APP} not found)"
+                ORPHANS="$ORPHANS $APP"
+              else
+                # Repo exists, check if PR is still open
+                PR_STATE=$(gh pr view "$PR_NUMBER" --repo "${GH_ORG}/${BASE_APP}" --json state -q '.state' 2>/dev/null || echo "NOT_FOUND")
+                if [ "$PR_STATE" != "OPEN" ]; then
+                  echo "Orphaned PR preview: $APP (PR #$PR_NUMBER is $PR_STATE)"
+                  ORPHANS="$ORPHANS $APP"
+                else
+                  echo "App OK: $APP (PR #$PR_NUMBER is open)"
+                fi
+              fi
             else
-              echo "App OK: $APP (repo exists)"
+              # Regular app - extract base name (remove -staging, -dev suffixes)
+              BASE_APP=$(echo "$APP" | sed 's/-staging$//' | sed 's/-dev$//')
+
+              # Check if repo exists in the org
+              if ! gh repo view "${GH_ORG}/${BASE_APP}" --json name >/dev/null 2>&1; then
+                echo "Orphaned app found: $APP (repo ${GH_ORG}/${BASE_APP} not found)"
+                ORPHANS="$ORPHANS $APP"
+              else
+                echo "App OK: $APP (repo exists)"
+              fi
             fi
           done
 

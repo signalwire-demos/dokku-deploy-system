@@ -80,9 +80,9 @@ git push -u origin main
 | `develop` | Development | `app-dev.yourdomain.com` |
 | PR #42 | Preview | `app-pr-42.yourdomain.com` |
 
-## GitHub Secrets (Already Configured at Org Level)
+## GitHub Secrets (Infrastructure Only)
 
-These secrets are already configured organization-wide:
+These secrets are configured organization-wide for infrastructure:
 
 | Secret | Description |
 |--------|-------------|
@@ -90,19 +90,36 @@ These secrets are already configured organization-wide:
 | `DOKKU_SSH_PRIVATE_KEY` | SSH key for deployments |
 | `BASE_DOMAIN` | Base domain for apps |
 
-For app-specific secrets, add them to your repository's settings.
+**Note**: These are infrastructure secrets. App-specific config uses Environment Variables.
 
-## Adding App-Specific Secrets
+## Adding App-Specific Configuration
 
-1. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Add your secret (e.g., `API_KEY`, `STRIPE_SECRET`)
+For app configuration, use **GitHub Environment Variables** (not secrets):
 
-Use in your app via environment variables:
+1. Go to your repo → **Settings** → **Environments**
+2. Select the environment (e.g., `production`)
+3. Under **Environment variables**, add your config
+
+| Variable | Example |
+|----------|---------|
+| `SIGNALWIRE_SPACE_NAME` | `myspace` |
+| `SIGNALWIRE_PROJECT_ID` | `abc-123` |
+| `SIGNALWIRE_TOKEN` | `PTxxx` |
+| `RAPIDAPI_KEY` | `your-key` |
+
+**Why Variables instead of Secrets?**
+- Variables are visible in logs (easier debugging)
+- Variables can be edited after creation
+- The workflow dynamically sets all variables on each deploy
+- Config is cleared and reset to ensure changes apply
+
+Use in your app:
 ```python
 import os
-api_key = os.environ.get('API_KEY')
+api_key = os.environ.get('RAPIDAPI_KEY')
 ```
+
+**For truly sensitive values** (like production database passwords), you can still use GitHub Secrets at the repository level.
 
 ## Health Checks
 

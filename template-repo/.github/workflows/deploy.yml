@@ -67,7 +67,7 @@ jobs:
 
       - name: Configure env
         env:
-          ALL_SECRETS: ${{ toJSON(secrets) }}
+          ALL_VARS: ${{ toJSON(vars) }}
         run: |
           APP_NAME="${{ steps.vars.outputs.app_name }}"
           DOMAIN="${APP_NAME}.${{ secrets.BASE_DOMAIN }}"
@@ -75,16 +75,14 @@ jobs:
           # Start with required vars
           CONFIG_VARS="APP_ENV=${{ steps.vars.outputs.environment }} APP_URL=https://${DOMAIN} AGENT_NAME=${APP_NAME}"
 
-          # Loop through all secrets and add them (skip GitHub's internal ones)
-          for key in $(echo "$ALL_SECRETS" | jq -r 'keys[]'); do
-            # Skip GitHub internal secrets and deployment-only secrets
-            case "$key" in
-              github_token|GITHUB_TOKEN|DOKKU_*|BASE_DOMAIN|SLACK_WEBHOOK_URL) continue ;;
-            esac
-            value=$(echo "$ALL_SECRETS" | jq -r --arg k "$key" '.[$k]')
+          # Loop through all environment variables from GitHub environment
+          for key in $(echo "$ALL_VARS" | jq -r 'keys[]'); do
+            value=$(echo "$ALL_VARS" | jq -r --arg k "$key" '.[$k]')
             [ -n "$value" ] && CONFIG_VARS="$CONFIG_VARS $key=$value"
           done
 
+          # Clear existing config and set fresh values to ensure changes are applied
+          ssh dokku config:clear --no-restart $APP_NAME 2>/dev/null || true
           ssh dokku config:set --no-restart $APP_NAME $CONFIG_VARS
 
       - name: Deploy

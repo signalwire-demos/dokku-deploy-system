@@ -249,13 +249,41 @@ ssh dokku@server run myapp env
 
 ---
 
-## GitHub Secrets Required
+## GitHub Secrets (Infrastructure)
 
 | Secret | Description |
 |--------|-------------|
 | `DOKKU_HOST` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | Deploy SSH key |
 | `BASE_DOMAIN` | Base domain |
+
+---
+
+## GitHub Environment Variables (App Config)
+
+Configure in: Repo → Settings → Environments → [env] → Environment variables
+
+| Variable | Example |
+|----------|---------|
+| `SIGNALWIRE_SPACE_NAME` | `myspace` |
+| `SIGNALWIRE_PROJECT_ID` | `abc-123` |
+| `SIGNALWIRE_TOKEN` | `PTxxx` |
+| `RAPIDAPI_KEY` | `xxx` |
+
+```bash
+# Add variable via CLI
+gh api repos/ORG/REPO/environments/production/variables \
+  -X POST -f name=VAR_NAME -f value=VAR_VALUE
+
+# List variables
+gh api repos/ORG/REPO/environments/production/variables \
+  --jq '.variables[].name'
+```
+
+**Note**: Variables (not secrets) are used for app config because:
+- They're visible in logs for debugging
+- They can be edited after creation
+- The workflow clears and resets all config on each deploy
 
 ---
 

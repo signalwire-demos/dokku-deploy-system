@@ -268,11 +268,11 @@ Copy the entire output including:
 
 ---
 
-## Step 5: Configure GitHub Organization Secrets
+## Step 5: Configure GitHub Organization Secrets (Infrastructure Only)
 
 ### 5.1 Set Organization-Level Secrets
 
-These secrets will be available to all repositories in the organization.
+These secrets are for **infrastructure only** - the core deployment system. App-specific configuration uses Environment Variables (Step 5.4).
 
 ```bash
 # Ensure you're authenticated with the org token
@@ -310,27 +310,68 @@ DOKKU_SSH_PRIVATE_KEY
 BASE_DOMAIN
 ```
 
-### 5.3 Optional: Set Additional Org-Level Secrets
+### 5.3 Optional: Set Slack Webhook (Org-Level)
 
 ```bash
-# Slack webhook for notifications
+# Slack webhook for deployment notifications
 gh secret set SLACK_WEBHOOK_URL \
   --org signalwire-demos \
   --visibility all \
   --body "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-
-# Common API keys used across projects
-gh secret set COMMON_API_KEY \
-  --org signalwire-demos \
-  --visibility all \
-  --body "your-api-key"
 ```
+
+### 5.4 Configure App-Specific Environment Variables
+
+For app-specific configuration, use **GitHub Environment Variables** (not secrets). This is the recommended approach because:
+
+- Variables are visible in workflow logs (easier debugging)
+- Variables can be edited after creation (secrets cannot)
+- The workflow dynamically reads all variables using `toJSON(vars)`
+- The workflow clears Dokku config before setting, ensuring changes are applied
+
+**To configure environment variables:**
+
+1. Go to your repository → **Settings** → **Environments**
+2. Select the environment (e.g., `production`)
+3. Under **Environment variables** (not secrets), add your variables
+
+**Example variables for a SignalWire app:**
+
+| Variable | Example Value |
+|----------|---------------|
+| `SIGNALWIRE_SPACE_NAME` | `myspace` |
+| `SIGNALWIRE_PROJECT_ID` | `abc123-def456` |
+| `SIGNALWIRE_TOKEN` | `PTxxxxxxxx` |
+| `SWML_BASIC_AUTH_USER` | `admin` |
+| `SWML_BASIC_AUTH_PASSWORD` | `securepass` |
+| `RAPIDAPI_KEY` | `your-api-key` |
+
+**Via CLI:**
+
+```bash
+# Set an environment variable for the production environment
+gh api repos/signalwire-demos/myapp/environments/production/variables \
+  -X POST \
+  -f name=SIGNALWIRE_SPACE_NAME \
+  -f value=myspace
+
+# List environment variables
+gh api repos/signalwire-demos/myapp/environments/production/variables \
+  --jq '.variables[].name'
+```
+
+**Important**: The deploy workflow automatically:
+1. Reads all environment variables from the GitHub Environment
+2. Clears existing Dokku config (`config:clear`)
+3. Sets all variables fresh (`config:set`)
+
+This ensures that any changes to variables are always applied.
 
 ---
 
 ## Step 6: Create GitHub Environments
 
-Environments must be created at the repository level. You'll do this for each repo, but here's a script to do it:
+Environments can be created automatically by the deploy workflow, or manually. The workflow will auto-create environments if they don't exist, but you may want to create them manually to configure variables first:
 
 ### 6.1 Create Environment Setup Script
 
@@ -591,12 +632,16 @@ gh api orgs/signalwire-demos --jq '.login'
 gh repo list signalwire-demos --limit 5
 gh api orgs/signalwire-demos/actions/secrets --jq '.secrets[].name'
 
-# === Set Org Secrets ===
+# === Set Org Secrets (Infrastructure Only) ===
 gh secret set DOKKU_HOST --org signalwire-demos --visibility all --body "host"
 gh secret set DOKKU_SSH_PRIVATE_KEY --org signalwire-demos --visibility all < key
 gh secret set BASE_DOMAIN --org signalwire-demos --visibility all --body "domain"
 
-# === Create Environments ===
+# === Set Environment Variables (App Config) ===
+gh api repos/ORG/REPO/environments/production/variables -X POST -f name=VAR -f value=val
+gh api repos/ORG/REPO/environments/production/variables --jq '.variables[].name'
+
+# === Create Environments (auto-created by workflow too) ===
 gh api -X PUT "repos/ORG/REPO/environments/production"
 gh api -X PUT "repos/ORG/REPO/environments/staging"
 gh api -X PUT "repos/ORG/REPO/environments/development"

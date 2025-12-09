@@ -93,26 +93,51 @@ TTL: 300
 # 2. Add private key to GitHub Secrets
 ```
 
-### 4. Configure GitHub Secrets
+### 4. Configure GitHub Secrets (Infrastructure Only)
 
 Add to your GitHub organization (Settings → Secrets → Actions):
 
-| Secret | Value |
-|--------|-------|
-| `DOKKU_HOST` | `dokku.yourdomain.com` |
-| `DOKKU_SSH_PRIVATE_KEY` | (generated private key) |
-| `BASE_DOMAIN` | `yourdomain.com` |
+| Secret | Value | Purpose |
+|--------|-------|---------|
+| `DOKKU_HOST` | `dokku.yourdomain.com` | Server hostname |
+| `DOKKU_SSH_PRIVATE_KEY` | (generated private key) | SSH authentication |
+| `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
 
-### 5. Create GitHub Environments
+**Note**: Org-level secrets are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
 
-Create these environments in your repos:
+### 5. Configure Environment Variables (App Config)
 
-- `production`
-- `staging`
-- `development`
-- `preview`
+For app-specific configuration, use **GitHub Environment Variables** (not secrets):
 
-### 6. Initialize a Project
+1. Go to your repo → **Settings** → **Environments**
+2. Select an environment (e.g., `production`)
+3. Add variables under **Environment variables** (not secrets)
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `SIGNALWIRE_SPACE_NAME` | `myspace` | SignalWire space |
+| `SIGNALWIRE_PROJECT_ID` | `abc-123` | SignalWire project |
+| `SIGNALWIRE_TOKEN` | `PTxxx` | SignalWire token |
+| `RAPIDAPI_KEY` | `xxx` | API keys |
+
+**Why Variables instead of Secrets?**
+- Variables are visible in logs (easier debugging)
+- Variables can be edited after creation
+- The workflow uses `toJSON(vars)` to dynamically set all environment variables
+- The workflow clears Dokku config before setting to ensure changes are applied
+
+### 6. Create GitHub Environments
+
+Create these environments in your repos (or let the workflow create them automatically):
+
+- `production` - for `main` branch
+- `staging` - for `staging` branch
+- `development` - for `develop` branch
+- `preview` - for pull requests
+
+**Note**: The deploy workflow automatically creates these environments if they don't exist.
+
+### 7. Initialize a Project
 
 ```bash
 # Copy template files to your project
@@ -121,7 +146,7 @@ Create these environments in your repos:
 # Or manually copy from template-repo/
 ```
 
-### 7. Deploy!
+### 8. Deploy!
 
 ```bash
 git push origin main  # Deploys to production

@@ -109,8 +109,11 @@ jobs:
           fi
 
       - name: Notify Slack
-        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
           APP_NAME="${{ steps.vars.outputs.app_name }}"
           DOMAIN="${APP_NAME}.${{ secrets.BASE_DOMAIN }}"
           if [ "${{ steps.verify.outputs.status }}" == "success" ]; then
@@ -133,4 +136,4 @@ jobs:
                 \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
               }]
             }" \
-            ${{ secrets.SLACK_WEBHOOK_URL }} || true
+            "$SLACK_WEBHOOK_URL" || true

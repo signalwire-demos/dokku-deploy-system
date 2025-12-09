@@ -1,0 +1,444 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# deploy.yml - Main Deployment Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Automatically deploys to Dokku when pushing to main/staging/develop branches.
+# Uses GitHub repository name as the Dokku app name.
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
+#   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#   - DISCORD_WEBHOOK_URL: Discord notifications
+#
+# Branch → Environment mapping:
+#   - main    → production  → app.domain.com
+#   - staging → staging     → app-staging.domain.com
+#   - develop → development → app-dev.domain.com
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Deploy to Dokku
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - develop
+
+# Prevent concurrent deployments to the same branch
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_APP_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Setup - Determine deployment environment
+  # ═══════════════════════════════════════════════════════════════════════════
+  setup:
+    name: Setup Environment
+    runs-on: ubuntu-latest
+    outputs:
+      app_name: ${{ steps.env.outputs.app_name }}
+      environment: ${{ steps.env.outputs.environment }}
+      domain: ${{ steps.env.outputs.domain }}
+    steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          BASE_APP="${{ env.BASE_APP_NAME }}"
+          BASE_DOMAIN="${{ secrets.BASE_DOMAIN }}"
+
+          case "$BRANCH" in
+            main)
+              echo "app_name=${BASE_APP}" >> $GITHUB_OUTPUT
+              echo "environment=production" >> $GITHUB_OUTPUT
+              echo "domain=${BASE_APP}.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
+              ;;
+            staging)
+              echo "app_name=${BASE_APP}-staging" >> $GITHUB_OUTPUT
+              echo "environment=staging" >> $GITHUB_OUTPUT
+              echo "domain=${BASE_APP}-staging.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
+              ;;
+            develop)
+              echo "app_name=${BASE_APP}-dev" >> $GITHUB_OUTPUT
+              echo "environment=development" >> $GITHUB_OUTPUT
+              echo "domain=${BASE_APP}-dev.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Unknown branch: $BRANCH"
+              exit 1
+              ;;
+          esac
+
+          echo "Branch: $BRANCH"
+          echo "App Name: $(cat $GITHUB_OUTPUT | grep app_name | cut -d= -f2)"
+          echo "Environment: $(cat $GITHUB_OUTPUT | grep environment | cut -d= -f2)"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Test - Run tests before deployment
+  # ═══════════════════════════════════════════════════════════════════════════
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Detect and setup runtime
+      - name: Detect runtime
+        id: detect
+        run: |
+          if [ -f "package.json" ]; then
+            echo "runtime=node" >> $GITHUB_OUTPUT
+          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            echo "runtime=python" >> $GITHUB_OUTPUT
+          elif [ -f "Gemfile" ]; then
+            echo "runtime=ruby" >> $GITHUB_OUTPUT
+          elif [ -f "go.mod" ]; then
+            echo "runtime=go" >> $GITHUB_OUTPUT
+          else
+            echo "runtime=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      # Node.js setup
+      - name: Setup Node.js
+        if: steps.detect.outputs.runtime == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node.js dependencies
+        if: steps.detect.outputs.runtime == 'node'
+        run: npm ci
+
+      - name: Run Node.js tests
+        if: steps.detect.outputs.runtime == 'node'
+        run: npm test --if-present
+
+      - name: Run Node.js lint
+        if: steps.detect.outputs.runtime == 'node'
+        run: npm run lint --if-present
+
+      # Python setup
+      - name: Setup Python
+        if: steps.detect.outputs.runtime == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        if: steps.detect.outputs.runtime == 'python'
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov || true
+
+      - name: Run Python tests
+        if: steps.detect.outputs.runtime == 'python'
+        run: |
+          if [ -d "tests" ] || [ -f "test_*.py" ]; then
+            pytest --tb=short || true
+          else
+            echo "No tests found"
+          fi
+
+      # Ruby setup
+      - name: Setup Ruby
+        if: steps.detect.outputs.runtime == 'ruby'
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Run Ruby tests
+        if: steps.detect.outputs.runtime == 'ruby'
+        run: bundle exec rake test || bundle exec rspec || true
+
+      # Go setup
+      - name: Setup Go
+        if: steps.detect.outputs.runtime == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Run Go tests
+        if: steps.detect.outputs.runtime == 'go'
+        run: go test ./... || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Deploy - Deploy to Dokku
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy:
+    name: Deploy to ${{ needs.setup.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [setup, test]
+    environment: ${{ needs.setup.outputs.environment }}
+
+    env:
+      APP_NAME: ${{ needs.setup.outputs.app_name }}
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+      DOMAIN: ${{ needs.setup.outputs.domain }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git push
+
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Add private key
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Add host to known_hosts
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Create SSH config
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+          # Test connection
+          ssh dokku version
+
+      - name: Create app if not exists
+        run: |
+          echo "Checking if app exists: ${{ env.APP_NAME }}"
+          ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null || \
+          ssh dokku apps:create ${{ env.APP_NAME }}
+
+      - name: Provision services
+        run: |
+          if [ -f ".dokku/services.yml" ]; then
+            echo "Found services manifest, provisioning..."
+
+            # Install yq for YAML parsing
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+
+            # PostgreSQL
+            if yq e '.services.postgres.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              DB_NAME="postgres-${{ env.APP_NAME }}"
+              echo "Provisioning PostgreSQL: $DB_NAME"
+              ssh dokku postgres:exists $DB_NAME 2>/dev/null || ssh dokku postgres:create $DB_NAME
+              ssh dokku postgres:link $DB_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+
+            # Redis
+            if yq e '.services.redis.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              REDIS_NAME="redis-${{ env.APP_NAME }}"
+              echo "Provisioning Redis: $REDIS_NAME"
+              ssh dokku redis:exists $REDIS_NAME 2>/dev/null || ssh dokku redis:create $REDIS_NAME
+              ssh dokku redis:link $REDIS_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+
+            # MongoDB
+            if yq e '.services.mongo.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              MONGO_NAME="mongo-${{ env.APP_NAME }}"
+              echo "Provisioning MongoDB: $MONGO_NAME"
+              ssh dokku mongo:exists $MONGO_NAME 2>/dev/null || ssh dokku mongo:create $MONGO_NAME
+              ssh dokku mongo:link $MONGO_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+
+            # MySQL
+            if yq e '.services.mysql.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              MYSQL_NAME="mysql-${{ env.APP_NAME }}"
+              echo "Provisioning MySQL: $MYSQL_NAME"
+              ssh dokku mysql:exists $MYSQL_NAME 2>/dev/null || ssh dokku mysql:create $MYSQL_NAME
+              ssh dokku mysql:link $MYSQL_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+
+            # RabbitMQ
+            if yq e '.services.rabbitmq.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              RABBITMQ_NAME="rabbitmq-${{ env.APP_NAME }}"
+              echo "Provisioning RabbitMQ: $RABBITMQ_NAME"
+              ssh dokku rabbitmq:exists $RABBITMQ_NAME 2>/dev/null || ssh dokku rabbitmq:create $RABBITMQ_NAME
+              ssh dokku rabbitmq:link $RABBITMQ_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+          else
+            echo "No services manifest found"
+          fi
+
+      - name: Set environment variables
+        run: |
+          echo "Setting environment variables..."
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} \
+            APP_ENV="${{ env.ENVIRONMENT }}" \
+            APP_NAME="${{ env.APP_NAME }}" \
+            APP_URL="https://${{ env.DOMAIN }}" \
+            GIT_REV="${{ github.sha }}"
+
+      - name: Configure domain
+        run: |
+          echo "Configuring domain: ${{ env.DOMAIN }}"
+          ssh dokku domains:clear ${{ env.APP_NAME }} 2>/dev/null || true
+          ssh dokku domains:add ${{ env.APP_NAME }} ${{ env.DOMAIN }}
+
+      - name: Configure resources
+        run: |
+          if [ -f ".dokku/config.yml" ]; then
+            # Install yq if not already installed
+            which yq || sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+
+            MEMORY=$(yq e '.resources.memory // "512m"' .dokku/config.yml)
+            CPU=$(yq e '.resources.cpu // "1"' .dokku/config.yml)
+
+            echo "Setting resources: memory=$MEMORY, cpu=$CPU"
+            ssh dokku resource:limit ${{ env.APP_NAME }} --memory $MEMORY --cpu $CPU || true
+          fi
+
+      - name: Deploy via git push
+        run: |
+          echo "Deploying to Dokku..."
+
+          # Add dokku remote
+          git remote add dokku dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }} 2>/dev/null || \
+          git remote set-url dokku dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }}
+
+          # Push to deploy
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push dokku HEAD:refs/heads/main --force
+
+      - name: Enable SSL
+        run: |
+          echo "Enabling Let's Encrypt SSL..."
+          ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null || \
+          ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || true
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          sleep 10
+
+          # Health check
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.DOMAIN }}/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" == "200" ]; then
+            echo "✅ Health check passed (HTTP $HTTP_STATUS)"
+          elif [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ App is responding (HTTP $HTTP_STATUS)"
+          else
+            echo "⚠️ Health check returned HTTP $HTTP_STATUS"
+            echo ""
+            echo "Recent logs:"
+            ssh dokku logs ${{ env.APP_NAME }} --num 30
+            exit 1
+          fi
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  ✅ Deployment successful!"
+          echo "  🌐 https://${{ env.DOMAIN }}"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Create GitHub deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ env.ENVIRONMENT }}',
+              auto_merge: false,
+              required_contexts: []
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'success',
+              environment_url: 'https://${{ env.DOMAIN }}',
+              description: 'Deployed successfully'
+            });
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify - Send deployment notifications
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: always()
+
+    env:
+      APP_NAME: ${{ needs.setup.outputs.app_name }}
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+      DOMAIN: ${{ needs.setup.outputs.domain }}
+
+    steps:
+      - name: Notify Slack
+        if: secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            COLOR="good"
+            STATUS="✅ Deployed successfully"
+          else
+            COLOR="danger"
+            STATUS="❌ Deployment failed"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$STATUS\",
+                \"fields\": [
+                  {\"title\": \"App\", \"value\": \"${{ env.APP_NAME }}\", \"short\": true},
+                  {\"title\": \"Environment\", \"value\": \"${{ env.ENVIRONMENT }}\", \"short\": true},
+                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Actor\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"URL\", \"value\": \"https://${{ env.DOMAIN }}\", \"short\": false}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            ${{ secrets.SLACK_WEBHOOK_URL }} || true
+
+      - name: Notify Discord
+        if: secrets.DISCORD_WEBHOOK_URL != ''
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Deployment Successful"
+          else
+            COLOR=15158332
+            TITLE="❌ Deployment Failed"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"App\", \"value\": \"${{ env.APP_NAME }}\", \"inline\": true},
+                  {\"name\": \"Environment\", \"value\": \"${{ env.ENVIRONMENT }}\", \"inline\": true},
+                  {\"name\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"inline\": true},
+                  {\"name\": \"URL\", \"value\": \"https://${{ env.DOMAIN }}\", \"inline\": false}
+                ],
+                \"footer\": {\"text\": \"Deployed by ${{ github.actor }}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }} || true

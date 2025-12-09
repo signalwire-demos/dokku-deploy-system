@@ -1,0 +1,196 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# scheduled.yml - Scheduled Maintenance Tasks
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Runs scheduled maintenance tasks:
+#   - Cleanup orphaned preview apps
+#   - Renew SSL certificates
+#   - Health checks
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Scheduled Tasks
+
+on:
+  schedule:
+    # Run daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cleanup-previews
+          - renew-certs
+          - health-check
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Cleanup Orphaned Preview Apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  cleanup-previews:
+    name: Cleanup Orphaned Previews
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'cleanup-previews'
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: List and cleanup orphaned preview apps
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Checking for orphaned preview apps..."
+
+          # Get all apps with -pr- in the name
+          PREVIEW_APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | grep -E ".*-pr-[0-9]+" || true)
+
+          if [ -z "$PREVIEW_APPS" ]; then
+            echo "No preview apps found"
+            exit 0
+          fi
+
+          echo "Found preview apps:"
+          echo "$PREVIEW_APPS"
+          echo ""
+
+          for APP in $PREVIEW_APPS; do
+            # Extract PR number from app name
+            PR_NUMBER=$(echo "$APP" | grep -oE "pr-[0-9]+" | grep -oE "[0-9]+")
+            # Extract repo name (everything before -pr-)
+            REPO_NAME=$(echo "$APP" | sed "s/-pr-${PR_NUMBER}//")
+
+            echo "Checking $APP (PR #$PR_NUMBER for $REPO_NAME)..."
+
+            # Query GitHub API for PR status
+            PR_STATE=$(gh api "repos/${{ github.repository_owner }}/${REPO_NAME}/pulls/${PR_NUMBER}" --jq '.state' 2>/dev/null || echo "unknown")
+
+            if [ "$PR_STATE" == "closed" ] || [ "$PR_STATE" == "unknown" ]; then
+              echo "  → PR is $PR_STATE, destroying app..."
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                apps:destroy "$APP" --force || true
+              echo "  ✓ Destroyed"
+            else
+              echo "  → PR is $PR_STATE, keeping app"
+            fi
+          done
+
+          echo ""
+          echo "Cleanup complete!"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Renew SSL Certificates
+  # ═══════════════════════════════════════════════════════════════════════════
+  renew-certs:
+    name: Renew SSL Certificates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'renew-certs'
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Renew all certificates
+        run: |
+          echo "Renewing SSL certificates..."
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            letsencrypt:auto-renew
+
+          echo ""
+          echo "Certificate status:"
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            letsencrypt:list || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Health Check All Apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  health-check:
+    name: Health Check All Apps
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'health-check'
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Check all apps
+        run: |
+          echo "Running health checks..."
+          echo ""
+
+          # Get all apps
+          APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | tail -n +2)
+
+          HEALTHY=0
+          UNHEALTHY=0
+          RESULTS=""
+
+          for APP in $APPS; do
+            # Get app domain
+            DOMAIN=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
+
+            if [ -z "$DOMAIN" ]; then
+              RESULTS="$RESULTS\n⚠️  $APP: No domain configured"
+              continue
+            fi
+
+            # Check health endpoint
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" --max-time 10 2>/dev/null || echo "000")
+
+            if [ "$HTTP_STATUS" == "000" ]; then
+              # Try root endpoint
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo "000")
+            fi
+
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              RESULTS="$RESULTS\n✅ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              HEALTHY=$((HEALTHY + 1))
+            else
+              RESULTS="$RESULTS\n❌ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              UNHEALTHY=$((UNHEALTHY + 1))
+            fi
+          done
+
+          echo -e "$RESULTS"
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Summary: $HEALTHY healthy, $UNHEALTHY unhealthy"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Exit with error if any apps are unhealthy
+          if [ "$UNHEALTHY" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Notify on failures
+        if: failure() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "⚠️ Health check detected unhealthy apps",
+              "attachments": [{
+                "color": "warning",
+                "fields": [
+                  {"title": "Workflow", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }' \
+            ${{ secrets.SLACK_WEBHOOK_URL }} || true

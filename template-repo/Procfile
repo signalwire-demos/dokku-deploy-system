@@ -1,0 +1,69 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Procfile - Process definitions for Dokku/Heroku
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Format: <process-type>: <command>
+#
+# The 'web' process receives HTTP traffic on $PORT.
+# Other processes (worker, scheduler, etc.) run in the background.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Python (FastAPI/Django/Flask)
+# ─────────────────────────────────────────────────────────────────────────────
+# FastAPI with uvicorn:
+web: uvicorn app:app --host 0.0.0.0 --port $PORT
+
+# FastAPI with gunicorn (production, multiple workers):
+# web: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --worker-class uvicorn.workers.UvicornWorker
+
+# Django:
+# web: gunicorn myproject.wsgi --bind 0.0.0.0:$PORT --workers 2
+
+# Flask:
+# web: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Node.js
+# ─────────────────────────────────────────────────────────────────────────────
+# Express/generic Node:
+# web: node server.js
+
+# With npm:
+# web: npm start
+
+# Next.js:
+# web: npm run start
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruby (Rails)
+# ─────────────────────────────────────────────────────────────────────────────
+# Rails with Puma:
+# web: bundle exec puma -C config/puma.rb
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Go
+# ─────────────────────────────────────────────────────────────────────────────
+# Go binary:
+# web: bin/myapp
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Background Workers
+# ─────────────────────────────────────────────────────────────────────────────
+# Celery worker:
+# worker: celery -A myapp worker -l info
+
+# Sidekiq:
+# worker: bundle exec sidekiq
+
+# Node.js worker:
+# worker: node worker.js
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Release Phase (runs before deployment)
+# ─────────────────────────────────────────────────────────────────────────────
+# Database migrations:
+# release: python manage.py migrate --noinput
+# release: bundle exec rails db:migrate
+# release: npx prisma migrate deploy

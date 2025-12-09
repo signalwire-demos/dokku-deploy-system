@@ -1,0 +1,48 @@
+{
+  "name": "my-app",
+  "description": "My application deployed with Dokku",
+  "repository": "https://github.com/myorg/my-app",
+  "keywords": ["dokku", "deployment"],
+  "env": {
+    "APP_ENV": {
+      "description": "Application environment (production, staging, development, preview)",
+      "value": "production"
+    },
+    "APP_NAME": {
+      "description": "Application name",
+      "required": false
+    },
+    "APP_URL": {
+      "description": "Public URL of the application",
+      "required": false
+    },
+    "SECRET_KEY": {
+      "description": "Secret key for encryption/signing",
+      "generator": "secret"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "stack": "heroku-22",
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "web check",
+        "path": "/health"
+      }
+    ]
+  },
+  "scripts": {
+    "postdeploy": "echo 'Deployment complete!'"
+  }
+}

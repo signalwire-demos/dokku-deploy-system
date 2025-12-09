@@ -1,0 +1,159 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# rollback.yml - Manual Rollback Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Manually trigger a rollback to a previous release.
+# Useful when a deployment causes issues and you need to quickly revert.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name to rollback (leave empty for repo name)'
+        required: false
+        type: string
+      environment:
+        description: 'Environment suffix'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      release:
+        description: 'Release version to rollback to (leave empty for previous)'
+        required: false
+        type: string
+      confirm:
+        description: 'Type "ROLLBACK" to confirm'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'ROLLBACK'
+
+    steps:
+      - name: Determine app name
+        id: app
+        run: |
+          BASE_APP="${{ github.event.inputs.app_name }}"
+          if [ -z "$BASE_APP" ]; then
+            BASE_APP="${{ github.event.repository.name }}"
+          fi
+
+          case "${{ github.event.inputs.environment }}" in
+            production)
+              APP_NAME="$BASE_APP"
+              ;;
+            staging)
+              APP_NAME="${BASE_APP}-staging"
+              ;;
+            development)
+              APP_NAME="${BASE_APP}-dev"
+              ;;
+          esac
+
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "Rolling back: $APP_NAME"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: List available releases
+        run: |
+          echo "Available releases for ${{ steps.app.outputs.app_name }}:"
+          echo ""
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            releases:list ${{ steps.app.outputs.app_name }} || \
+            echo "No releases found (or releases plugin not available)"
+
+      - name: Get current release
+        id: current
+        run: |
+          CURRENT=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:get ${{ steps.app.outputs.app_name }} GIT_REV 2>/dev/null || echo "unknown")
+          echo "current_rev=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Current revision: $CURRENT"
+
+      - name: Perform rollback
+        run: |
+          APP="${{ steps.app.outputs.app_name }}"
+          RELEASE="${{ github.event.inputs.release }}"
+
+          if [ -n "$RELEASE" ]; then
+            echo "Rolling back $APP to release $RELEASE..."
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              releases:rollback "$APP" "$RELEASE"
+          else
+            echo "Rolling back $APP to previous release..."
+            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              releases:rollback "$APP"
+          fi
+
+      - name: Verify rollback
+        run: |
+          APP="${{ steps.app.outputs.app_name }}"
+
+          # Get app domain
+          DOMAIN=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
+
+          if [ -z "$DOMAIN" ]; then
+            echo "⚠️ No domain found for $APP"
+            exit 0
+          fi
+
+          echo "Waiting for app to restart..."
+          sleep 15
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" --max-time 10 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Rollback successful! App is responding with HTTP $HTTP_STATUS"
+            echo "🌐 https://$DOMAIN"
+          else
+            echo "⚠️ App returned HTTP $HTTP_STATUS after rollback"
+            echo "Check logs: ssh dokku@server logs $APP"
+          fi
+
+      - name: Notify
+        if: secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data '{
+              "text": "🔄 Rollback performed",
+              "attachments": [{
+                "color": "warning",
+                "fields": [
+                  {"title": "App", "value": "${{ steps.app.outputs.app_name }}", "short": true},
+                  {"title": "Environment", "value": "${{ github.event.inputs.environment }}", "short": true},
+                  {"title": "Previous Rev", "value": "${{ steps.current.outputs.current_rev }}", "short": false},
+                  {"title": "Triggered by", "value": "${{ github.actor }}", "short": true}
+                ]
+              }]
+            }' \
+            ${{ secrets.SLACK_WEBHOOK_URL }} || true
+
+  cancelled:
+    name: Rollback Cancelled
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm != 'ROLLBACK'
+    steps:
+      - name: Cancelled
+        run: |
+          echo "❌ Rollback cancelled - confirmation text did not match"
+          echo "You entered: '${{ github.event.inputs.confirm }}'"
+          echo "Expected: 'ROLLBACK'"
+          exit 1

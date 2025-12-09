@@ -1,0 +1,313 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# preview.yml - Pull Request Preview Environments
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Creates temporary preview environments for pull requests.
+# Automatically deploys when a PR is opened/updated and destroys when closed.
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
+#   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
+#
+# Preview URL format: {app-name}-pr-{pr-number}.{base-domain}
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# Prevent concurrent operations on the same PR
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false  # Don't cancel cleanup jobs
+
+env:
+  BASE_APP_NAME: ${{ github.event.repository.name }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  APP_NAME: ${{ github.event.repository.name }}-pr-${{ github.event.pull_request.number }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Deploy Preview
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    environment: preview
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Create preview app
+        run: |
+          echo "Creating preview app: ${{ env.APP_NAME }}"
+          ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null || \
+          ssh dokku apps:create ${{ env.APP_NAME }}
+
+      - name: Provision shared services
+        run: |
+          if [ -f ".dokku/services.yml" ]; then
+            # Install yq
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+
+            # PostgreSQL - use shared preview database
+            if yq e '.services.postgres.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              SHARED=$(yq e '.services.postgres.environments.preview.shared // false' .dokku/services.yml)
+              if [ "$SHARED" == "true" ]; then
+                DB_NAME="postgres-preview-shared"
+              else
+                DB_NAME="postgres-${{ env.APP_NAME }}"
+              fi
+              echo "Provisioning PostgreSQL: $DB_NAME"
+              ssh dokku postgres:exists $DB_NAME 2>/dev/null || ssh dokku postgres:create $DB_NAME
+              ssh dokku postgres:link $DB_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+
+            # Redis - use shared preview instance
+            if yq e '.services.redis.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              SHARED=$(yq e '.services.redis.environments.preview.shared // false' .dokku/services.yml)
+              if [ "$SHARED" == "true" ]; then
+                REDIS_NAME="redis-preview-shared"
+              else
+                REDIS_NAME="redis-${{ env.APP_NAME }}"
+              fi
+              echo "Provisioning Redis: $REDIS_NAME"
+              ssh dokku redis:exists $REDIS_NAME 2>/dev/null || ssh dokku redis:create $REDIS_NAME
+              ssh dokku redis:link $REDIS_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
+          fi
+
+      - name: Configure preview environment
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Configuring preview environment..."
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} \
+            APP_ENV="preview" \
+            APP_NAME="${{ env.APP_NAME }}" \
+            APP_URL="https://$DOMAIN" \
+            PR_NUMBER="${{ env.PR_NUMBER }}" \
+            GIT_REV="${{ github.sha }}"
+
+          # Configure domain
+          ssh dokku domains:clear ${{ env.APP_NAME }} 2>/dev/null || true
+          ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN"
+
+          # Set resource limits (smaller for previews)
+          ssh dokku resource:limit ${{ env.APP_NAME }} --memory 256m --cpu 0.5 || true
+
+      - name: Deploy preview
+        run: |
+          echo "Deploying preview..."
+
+          git remote add dokku dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }} 2>/dev/null || \
+          git remote set-url dokku dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }}
+
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push dokku HEAD:refs/heads/main --force
+
+      - name: Enable SSL
+        run: |
+          echo "Enabling SSL..."
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || true
+
+      - name: Add HTTP authentication (optional)
+        run: |
+          # Protect preview apps with basic auth if configured
+          if [ -n "${{ secrets.PREVIEW_AUTH_USER }}" ] && [ -n "${{ secrets.PREVIEW_AUTH_PASSWORD }}" ]; then
+            echo "Enabling HTTP authentication..."
+            ssh dokku http-auth:enable ${{ env.APP_NAME }} \
+              "${{ secrets.PREVIEW_AUTH_USER }}" \
+              "${{ secrets.PREVIEW_AUTH_PASSWORD }}" || true
+          fi
+
+      - name: Verify deployment
+        id: verify
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Waiting for preview to be ready..."
+          sleep 15
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Preview is ready!"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            # Try without /health
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "✅ Preview is ready!"
+              echo "status=success" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Preview returned HTTP $HTTP_STATUS"
+              echo "status=warning" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          echo "url=https://$DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const domain = `${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}`;
+            const url = `https://${domain}`;
+            const status = '${{ steps.verify.outputs.status }}' === 'success' ? '✅ Deployed' : '⚠️ Deployed (check logs)';
+
+            // Find existing bot comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Preview Environment')
+            );
+
+            const body = `## 🚀 Preview Environment
+
+            | Status | URL |
+            |--------|-----|
+            | ${status} | [${url}](${url}) |
+
+            **Commit:** \`${{ github.sha }}\`
+            **Branch:** \`${{ github.head_ref }}\`
+
+            ---
+            <sub>This preview will be automatically destroyed when the PR is closed or merged.</sub>`;
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Cleanup Preview
+  # ═══════════════════════════════════════════════════════════════════════════
+  cleanup-preview:
+    name: Cleanup Preview
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Cleanup preview services
+        run: |
+          if [ -f ".dokku/services.yml" ]; then
+            # Install yq
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+
+            # Only destroy non-shared services
+            # PostgreSQL
+            SHARED=$(yq e '.services.postgres.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              DB_NAME="postgres-${{ env.APP_NAME }}"
+              echo "Destroying PostgreSQL: $DB_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                postgres:destroy $DB_NAME --force 2>/dev/null || true
+            fi
+
+            # Redis
+            SHARED=$(yq e '.services.redis.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              REDIS_NAME="redis-${{ env.APP_NAME }}"
+              echo "Destroying Redis: $REDIS_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                redis:destroy $REDIS_NAME --force 2>/dev/null || true
+            fi
+          fi
+
+      - name: Destroy preview app
+        run: |
+          echo "Destroying preview app: ${{ env.APP_NAME }}"
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:destroy ${{ env.APP_NAME }} --force || true
+
+      - name: Update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Preview Environment')
+            );
+
+            if (botComment) {
+              const mergedOrClosed = context.payload.pull_request.merged ? 'merged' : 'closed';
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: `## 🚀 Preview Environment
+
+                | Status |
+                |--------|
+                | 🗑️ Destroyed (PR ${mergedOrClosed}) |
+
+                ---
+                <sub>Preview environments are automatically cleaned up when PRs are closed.</sub>`
+              });
+            }

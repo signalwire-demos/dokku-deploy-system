@@ -41,6 +41,11 @@ on:
         required: false
         type: boolean
         default: false
+      force:
+        description: 'Force delete even if repo still exists (dangerous!)'
+        required: false
+        type: boolean
+        default: false
 
   # Daily orphan cleanup
   schedule:
@@ -97,6 +102,33 @@ jobs:
 
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "Target app: $APP_NAME"
+
+      - name: Safety check - verify repo doesn't exist
+        if: steps.target.outputs.app_name != '' && github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+          FORCE: ${{ inputs.force || 'false' }}
+          GH_ORG: signalwire-demos
+        run: |
+          echo "Checking if repo ${GH_ORG}/${APP_NAME} still exists..."
+
+          if gh repo view "${GH_ORG}/${APP_NAME}" --json name >/dev/null 2>&1; then
+            echo ""
+            echo "⚠️  WARNING: Repository ${GH_ORG}/${APP_NAME} still exists!"
+            echo ""
+
+            if [ "$FORCE" == "true" ]; then
+              echo "Force flag is set - proceeding with cleanup anyway."
+            else
+              echo "Aborting cleanup to prevent accidental deletion."
+              echo ""
+              echo "If you really want to delete this app, re-run with force=true"
+              exit 1
+            fi
+          else
+            echo "✓ Repository not found - safe to proceed with cleanup."
+          fi
 
       - name: Cleanup specific app
         if: steps.target.outputs.app_name != ''

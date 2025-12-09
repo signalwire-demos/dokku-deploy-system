@@ -90,8 +90,47 @@ jobs:
           fi
 
       - name: Verify
+        id: verify
         run: |
           APP_NAME="${{ steps.vars.outputs.app_name }}"
           DOMAIN="${APP_NAME}.${{ secrets.BASE_DOMAIN }}"
           sleep 10
-          curl -sf "https://${DOMAIN}/health" && echo "HTTPS OK: https://${DOMAIN}" || curl -sf "http://${DOMAIN}/health" && echo "HTTP only: http://${DOMAIN}" || echo "Check logs"
+          if curl -sf "https://${DOMAIN}/health"; then
+            echo "HTTPS OK: https://${DOMAIN}"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "url=https://${DOMAIN}" >> $GITHUB_OUTPUT
+          elif curl -sf "http://${DOMAIN}/health"; then
+            echo "HTTP only: http://${DOMAIN}"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "url=http://${DOMAIN}" >> $GITHUB_OUTPUT
+          else
+            echo "Check logs"
+            echo "status=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify Slack
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        run: |
+          APP_NAME="${{ steps.vars.outputs.app_name }}"
+          DOMAIN="${APP_NAME}.${{ secrets.BASE_DOMAIN }}"
+          if [ "${{ steps.verify.outputs.status }}" == "success" ]; then
+            COLOR="good"
+            STATUS="✅ Deployed"
+          else
+            COLOR="danger"
+            STATUS="❌ Deploy failed"
+          fi
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$STATUS: $APP_NAME\",
+                \"fields\": [
+                  {\"title\": \"Environment\", \"value\": \"${{ steps.vars.outputs.environment }}\", \"short\": true},
+                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"URL\", \"value\": \"https://$DOMAIN\", \"short\": false}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            ${{ secrets.SLACK_WEBHOOK_URL }} || true

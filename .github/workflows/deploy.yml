@@ -67,7 +67,6 @@ jobs:
     outputs:
       app_name: ${{ steps.env.outputs.app_name }}
       environment: ${{ steps.env.outputs.environment }}
-      domain: ${{ steps.env.outputs.domain }}
     steps:
       - name: Create environments if needed
         env:
@@ -82,23 +81,19 @@ jobs:
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           BASE_APP="${{ env.BASE_APP_NAME }}"
-          BASE_DOMAIN="${{ secrets.BASE_DOMAIN }}"
 
           case "$BRANCH" in
             main)
               echo "app_name=${BASE_APP}" >> $GITHUB_OUTPUT
               echo "environment=production" >> $GITHUB_OUTPUT
-              echo "domain=${BASE_APP}.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
               ;;
             staging)
               echo "app_name=${BASE_APP}-staging" >> $GITHUB_OUTPUT
               echo "environment=staging" >> $GITHUB_OUTPUT
-              echo "domain=${BASE_APP}-staging.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
               ;;
             develop)
               echo "app_name=${BASE_APP}-dev" >> $GITHUB_OUTPUT
               echo "environment=development" >> $GITHUB_OUTPUT
-              echo "domain=${BASE_APP}-dev.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "Unknown branch: $BRANCH"
@@ -213,7 +208,7 @@ jobs:
     env:
       APP_NAME: ${{ needs.setup.outputs.app_name }}
       ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-      DOMAIN: ${{ needs.setup.outputs.domain }}
+      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
 
     steps:
       - name: Checkout code
@@ -444,7 +439,7 @@ jobs:
     env:
       APP_NAME: ${{ needs.setup.outputs.app_name }}
       ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-      DOMAIN: ${{ needs.setup.outputs.domain }}
+      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
 
     steps:
       - name: Notify Slack

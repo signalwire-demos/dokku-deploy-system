@@ -311,6 +311,25 @@ def health():
 
 ---
 
+## Cleanup
+
+```bash
+# Manual cleanup via GitHub Actions
+# Go to: dokku-deploy-system → Actions → Cleanup App → Run workflow
+
+# Automatic cleanup runs daily at 6 AM UTC:
+# - Removes apps whose repos no longer exist
+# - Removes PR previews for closed PRs
+# - Cleans up all associated services
+
+# Direct SSH cleanup (use with caution)
+ssh dokku@server apps:destroy myapp --force
+ssh dokku@server postgres:destroy postgres-myapp --force
+ssh dokku@server redis:destroy redis-myapp --force
+```
+
+---
+
 ## Help
 
 - Slack: #deployments

@@ -10,6 +10,7 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 - **Zero-downtime** - Health checks ensure smooth deployments
 - **Service provisioning** - PostgreSQL, Redis, etc. created automatically
 - **Multi-environment** - Production, staging, development, preview
+- **Automatic cleanup** - Orphaned apps and closed PR previews removed daily
 - **Rollback support** - Easy rollback to previous releases
 - **Developer CLI** - Simple command-line tool for common operations
 
@@ -19,7 +20,8 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 dokku-deploy-system/
 ├── .github/workflows/      # Reusable workflows (called by other repos)
 │   ├── deploy.yml          # Reusable deploy workflow
-│   └── preview.yml         # Reusable preview workflow
+│   ├── preview.yml         # Reusable preview workflow
+│   └── cleanup.yml         # Automatic orphan cleanup (daily)
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
 │   ├── 02-dokku-install.sh
@@ -102,6 +104,37 @@ That's it! The reusable workflows handle:
 - Configuring domains and SSL
 - Health checks and Slack notifications
 - Preview environment creation/cleanup
+
+## Automatic Cleanup
+
+The system includes automatic cleanup of orphaned apps:
+
+- **Daily at 6 AM UTC**: Scans all Dokku apps and removes:
+  - Apps whose GitHub repos no longer exist
+  - PR preview apps for closed/merged pull requests
+  - All associated services (PostgreSQL, Redis, etc.)
+
+- **Manual cleanup**: Run from the Actions tab in `dokku-deploy-system`:
+  ```
+  Actions → Cleanup App → Run workflow
+  ```
+  Options:
+  - `app_name`: Specific app to destroy
+  - `dry_run`: Preview what would be deleted
+  - `include_services`: Also destroy linked services
+
+### Required Secret for Cleanup
+
+Add `GH_ORG_TOKEN` to org secrets (fine-grained PAT with Metadata read access):
+
+```bash
+gh secret set GH_ORG_TOKEN \
+  --org signalwire-demos \
+  --visibility all \
+  --body "github_pat_xxx"
+```
+
+This token allows the cleanup workflow to check if repos/PRs still exist.
 
 ## Quick Start
 

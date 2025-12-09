@@ -145,6 +145,7 @@ app.get('/health', (req, res) => {
 2. GitHub Actions automatically deploys a preview
 3. Preview URL is posted as a comment on the PR
 4. Preview is destroyed when PR is closed/merged
+5. Daily cleanup catches any missed previews (6 AM UTC)
 
 ## Common Tasks
 

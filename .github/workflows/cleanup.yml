@@ -1,0 +1,267 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# cleanup.yml - App Cleanup Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Removes Dokku apps and their associated services.
+#
+# Triggers:
+#   1. repository_dispatch: Immediate cleanup when a repo is deleted (via webhook)
+#   2. workflow_dispatch: Manual cleanup for a specific app
+#   3. schedule: Daily orphan cleanup (removes apps whose repos no longer exist)
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key
+#   - GH_ORG_TOKEN: GitHub token with repo read access (for orphan detection)
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Cleanup App
+
+on:
+  # Triggered by org webhook relay when a repo is deleted
+  repository_dispatch:
+    types: [repo-deleted]
+
+  # Manual trigger for specific app cleanup
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name to destroy (e.g., myapp, myapp-staging, myapp-dev)'
+        required: true
+        type: string
+      include_services:
+        description: 'Also destroy linked services'
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Dry run (show what would be deleted without deleting)'
+        required: false
+        type: boolean
+        default: false
+
+  # Daily orphan cleanup
+  schedule:
+    - cron: '0 6 * * *'  # 6 AM UTC daily
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Cleanup - Destroy app and services
+  # ═══════════════════════════════════════════════════════════════════════════
+  cleanup:
+    name: Cleanup App
+    runs-on: ubuntu-latest
+    # Skip scheduled runs if this is not the main workflow repo
+    if: github.event_name != 'schedule' || github.repository == 'signalwire-demos/dokku-deploy-system'
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+          ssh dokku version
+
+      - name: Determine app to cleanup
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            # From webhook - repo was deleted
+            APP_NAME="${{ github.event.client_payload.repo_name }}"
+            echo "Triggered by repo deletion webhook"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger
+            APP_NAME="${{ inputs.app_name }}"
+            echo "Triggered manually"
+          else
+            # Scheduled - will handle in orphan detection step
+            APP_NAME=""
+            echo "Scheduled orphan cleanup"
+          fi
+
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "Target app: $APP_NAME"
+
+      - name: Cleanup specific app
+        if: steps.target.outputs.app_name != ''
+        env:
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          INCLUDE_SERVICES: ${{ inputs.include_services || 'true' }}
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Cleaning up: $APP_NAME"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Include services: $INCLUDE_SERVICES"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Check if app exists
+          if ! ssh dokku apps:exists "$APP_NAME" 2>/dev/null; then
+            echo "App $APP_NAME does not exist, skipping..."
+            exit 0
+          fi
+
+          # Also check for environment variants
+          APPS_TO_CLEANUP="$APP_NAME"
+          for suffix in "-staging" "-dev"; do
+            VARIANT="${APP_NAME}${suffix}"
+            if ssh dokku apps:exists "$VARIANT" 2>/dev/null; then
+              APPS_TO_CLEANUP="$APPS_TO_CLEANUP $VARIANT"
+            fi
+          done
+
+          for APP in $APPS_TO_CLEANUP; do
+            echo ""
+            echo "Processing: $APP"
+            echo "─────────────────────────────────────────────────────"
+
+            if [ "$INCLUDE_SERVICES" == "true" ]; then
+              # List of service types to check
+              SERVICES="postgres redis mongo mysql rabbitmq elasticsearch"
+
+              for SERVICE in $SERVICES; do
+                SERVICE_NAME="${SERVICE}-${APP}"
+
+                # Check if service exists
+                if ssh dokku ${SERVICE}:exists "$SERVICE_NAME" 2>/dev/null; then
+                  echo "Found service: $SERVICE_NAME"
+
+                  if [ "$DRY_RUN" == "true" ]; then
+                    echo "  [DRY RUN] Would unlink and destroy $SERVICE_NAME"
+                  else
+                    echo "  Unlinking $SERVICE_NAME from $APP..."
+                    ssh dokku ${SERVICE}:unlink "$SERVICE_NAME" "$APP" 2>/dev/null || true
+
+                    echo "  Destroying $SERVICE_NAME..."
+                    ssh dokku ${SERVICE}:destroy "$SERVICE_NAME" --force 2>/dev/null || true
+                  fi
+                fi
+              done
+            fi
+
+            # Destroy the app
+            if [ "$DRY_RUN" == "true" ]; then
+              echo "[DRY RUN] Would destroy app: $APP"
+            else
+              echo "Destroying app: $APP..."
+              ssh dokku apps:destroy "$APP" --force
+            fi
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Cleanup complete!"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Cleanup orphaned apps (scheduled)
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          GH_ORG: signalwire-demos
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Scanning for orphaned apps..."
+          echo "═══════════════════════════════════════════════════════"
+
+          # Get list of all Dokku apps
+          DOKKU_APPS=$(ssh dokku apps:list | tail -n +2)
+
+          if [ -z "$DOKKU_APPS" ]; then
+            echo "No apps found on Dokku server"
+            exit 0
+          fi
+
+          ORPHANS=""
+
+          for APP in $DOKKU_APPS; do
+            # Extract base app name (remove -staging, -dev suffixes)
+            BASE_APP=$(echo "$APP" | sed 's/-staging$//' | sed 's/-dev$//')
+
+            # Check if repo exists in the org
+            if ! gh repo view "${GH_ORG}/${BASE_APP}" --json name >/dev/null 2>&1; then
+              echo "Orphaned app found: $APP (repo ${GH_ORG}/${BASE_APP} not found)"
+              ORPHANS="$ORPHANS $APP"
+            else
+              echo "App OK: $APP (repo exists)"
+            fi
+          done
+
+          if [ -z "$ORPHANS" ]; then
+            echo ""
+            echo "No orphaned apps found!"
+            exit 0
+          fi
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Cleaning up orphaned apps..."
+          echo "═══════════════════════════════════════════════════════"
+
+          for APP in $ORPHANS; do
+            echo ""
+            echo "Cleaning up orphan: $APP"
+            echo "─────────────────────────────────────────────────────"
+
+            # Cleanup services
+            SERVICES="postgres redis mongo mysql rabbitmq elasticsearch"
+            for SERVICE in $SERVICES; do
+              SERVICE_NAME="${SERVICE}-${APP}"
+              if ssh dokku ${SERVICE}:exists "$SERVICE_NAME" 2>/dev/null; then
+                echo "  Destroying service: $SERVICE_NAME"
+                ssh dokku ${SERVICE}:unlink "$SERVICE_NAME" "$APP" 2>/dev/null || true
+                ssh dokku ${SERVICE}:destroy "$SERVICE_NAME" --force 2>/dev/null || true
+              fi
+            done
+
+            # Destroy the app
+            echo "  Destroying app: $APP"
+            ssh dokku apps:destroy "$APP" --force
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Orphan cleanup complete!"
+          echo "═══════════════════════════════════════════════════════"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify - Send cleanup notifications
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: cleanup
+    if: always() && needs.cleanup.result == 'success'
+
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          APP_NAME: ${{ inputs.app_name || github.event.client_payload.repo_name || 'orphan cleanup' }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"warning\",
+                \"title\": \"🗑️ App Cleanup\",
+                \"text\": \"Cleaned up: $APP_NAME\",
+                \"footer\": \"Triggered by ${{ github.event_name }}\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true

@@ -103,6 +103,70 @@ jobs:
               ssh dokku redis:exists $REDIS_NAME 2>/dev/null || ssh dokku redis:create $REDIS_NAME
               ssh dokku redis:link $REDIS_NAME ${{ env.APP_NAME }} 2>/dev/null || true
             fi
+
+            # MongoDB
+            if yq e '.services.mongo.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              PREVIEW_ENABLED=$(yq e '.services.mongo.environments.preview.enabled // true' .dokku/services.yml)
+              if [ "$PREVIEW_ENABLED" != "false" ]; then
+                SHARED=$(yq e '.services.mongo.environments.preview.shared // false' .dokku/services.yml)
+                if [ "$SHARED" == "true" ]; then
+                  MONGO_NAME="mongo-preview-shared"
+                else
+                  MONGO_NAME="mongo-${{ env.APP_NAME }}"
+                fi
+                echo "Provisioning MongoDB: $MONGO_NAME"
+                ssh dokku mongo:exists $MONGO_NAME 2>/dev/null || ssh dokku mongo:create $MONGO_NAME
+                ssh dokku mongo:link $MONGO_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+              fi
+            fi
+
+            # MySQL
+            if yq e '.services.mysql.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              PREVIEW_ENABLED=$(yq e '.services.mysql.environments.preview.enabled // true' .dokku/services.yml)
+              if [ "$PREVIEW_ENABLED" != "false" ]; then
+                SHARED=$(yq e '.services.mysql.environments.preview.shared // false' .dokku/services.yml)
+                if [ "$SHARED" == "true" ]; then
+                  MYSQL_NAME="mysql-preview-shared"
+                else
+                  MYSQL_NAME="mysql-${{ env.APP_NAME }}"
+                fi
+                echo "Provisioning MySQL: $MYSQL_NAME"
+                ssh dokku mysql:exists $MYSQL_NAME 2>/dev/null || ssh dokku mysql:create $MYSQL_NAME
+                ssh dokku mysql:link $MYSQL_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+              fi
+            fi
+
+            # RabbitMQ
+            if yq e '.services.rabbitmq.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              PREVIEW_ENABLED=$(yq e '.services.rabbitmq.environments.preview.enabled // true' .dokku/services.yml)
+              if [ "$PREVIEW_ENABLED" != "false" ]; then
+                SHARED=$(yq e '.services.rabbitmq.environments.preview.shared // false' .dokku/services.yml)
+                if [ "$SHARED" == "true" ]; then
+                  RABBITMQ_NAME="rabbitmq-preview-shared"
+                else
+                  RABBITMQ_NAME="rabbitmq-${{ env.APP_NAME }}"
+                fi
+                echo "Provisioning RabbitMQ: $RABBITMQ_NAME"
+                ssh dokku rabbitmq:exists $RABBITMQ_NAME 2>/dev/null || ssh dokku rabbitmq:create $RABBITMQ_NAME
+                ssh dokku rabbitmq:link $RABBITMQ_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+              fi
+            fi
+
+            # Elasticsearch
+            if yq e '.services.elasticsearch.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              PREVIEW_ENABLED=$(yq e '.services.elasticsearch.environments.preview.enabled // true' .dokku/services.yml)
+              if [ "$PREVIEW_ENABLED" != "false" ]; then
+                SHARED=$(yq e '.services.elasticsearch.environments.preview.shared // false' .dokku/services.yml)
+                if [ "$SHARED" == "true" ]; then
+                  ES_NAME="elasticsearch-preview-shared"
+                else
+                  ES_NAME="elasticsearch-${{ env.APP_NAME }}"
+                fi
+                echo "Provisioning Elasticsearch: $ES_NAME"
+                ssh dokku elasticsearch:exists $ES_NAME 2>/dev/null || ssh dokku elasticsearch:create $ES_NAME
+                ssh dokku elasticsearch:link $ES_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+              fi
+            fi
           fi
 
       - name: Configure preview environment
@@ -271,6 +335,42 @@ jobs:
               echo "Destroying Redis: $REDIS_NAME"
               ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
                 redis:destroy $REDIS_NAME --force 2>/dev/null || true
+            fi
+
+            # MongoDB
+            SHARED=$(yq e '.services.mongo.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              MONGO_NAME="mongo-${{ env.APP_NAME }}"
+              echo "Destroying MongoDB: $MONGO_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                mongo:destroy $MONGO_NAME --force 2>/dev/null || true
+            fi
+
+            # MySQL
+            SHARED=$(yq e '.services.mysql.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              MYSQL_NAME="mysql-${{ env.APP_NAME }}"
+              echo "Destroying MySQL: $MYSQL_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                mysql:destroy $MYSQL_NAME --force 2>/dev/null || true
+            fi
+
+            # RabbitMQ
+            SHARED=$(yq e '.services.rabbitmq.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              RABBITMQ_NAME="rabbitmq-${{ env.APP_NAME }}"
+              echo "Destroying RabbitMQ: $RABBITMQ_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                rabbitmq:destroy $RABBITMQ_NAME --force 2>/dev/null || true
+            fi
+
+            # Elasticsearch
+            SHARED=$(yq e '.services.elasticsearch.environments.preview.shared // false' .dokku/services.yml 2>/dev/null)
+            if [ "$SHARED" != "true" ]; then
+              ES_NAME="elasticsearch-${{ env.APP_NAME }}"
+              echo "Destroying Elasticsearch: $ES_NAME"
+              ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                elasticsearch:destroy $ES_NAME --force 2>/dev/null || true
             fi
           fi
 

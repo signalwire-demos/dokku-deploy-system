@@ -273,6 +273,14 @@ jobs:
               ssh dokku rabbitmq:exists $RABBITMQ_NAME 2>/dev/null || ssh dokku rabbitmq:create $RABBITMQ_NAME
               ssh dokku rabbitmq:link $RABBITMQ_NAME ${{ env.APP_NAME }} 2>/dev/null || true
             fi
+
+            # Elasticsearch
+            if yq e '.services.elasticsearch.enabled' .dokku/services.yml 2>/dev/null | grep -q "true"; then
+              ES_NAME="elasticsearch-${{ env.APP_NAME }}"
+              echo "Provisioning Elasticsearch: $ES_NAME"
+              ssh dokku elasticsearch:exists $ES_NAME 2>/dev/null || ssh dokku elasticsearch:create $ES_NAME
+              ssh dokku elasticsearch:link $ES_NAME ${{ env.APP_NAME }} 2>/dev/null || true
+            fi
           else
             echo "No services manifest found"
           fi

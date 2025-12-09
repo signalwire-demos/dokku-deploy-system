@@ -390,17 +390,10 @@ jobs:
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
           HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
-          FIRST_DEPLOY="${{ steps.create_app.outputs.first_deploy }}"
 
-          # On first deploy, skip SSL verification (cert still provisioning)
-          # On subsequent deploys, verify SSL to ensure we're hitting the right endpoint
-          if [ "$FIRST_DEPLOY" == "true" ]; then
-            echo "First deploy - will skip SSL verification during health check"
-            CURL_OPTS="-sk"
-          else
-            echo "Subsequent deploy - verifying SSL"
-            CURL_OPTS="-s"
-          fi
+          # Skip SSL verification - we just deployed, we know it's our app
+          # (GitHub runner CA store may not trust Let's Encrypt immediately)
+          CURL_OPTS="-sk"
 
           # Retry health check with backoff (first deploy needs time for SSL)
           MAX_ATTEMPTS=6

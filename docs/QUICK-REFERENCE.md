@@ -316,6 +316,13 @@ def health():
 ```bash
 # Manual cleanup via GitHub Actions
 # Go to: dokku-deploy-system → Actions → Cleanup App → Run workflow
+# Options:
+#   - app_name: App to destroy
+#   - dry_run: Preview only (default: false)
+#   - include_services: Also destroy services (default: true)
+#   - force: Override safety check (default: false)
+#
+# Safety: Aborts if repo still exists (unless force=true)
 
 # Automatic cleanup runs daily at 6 AM UTC:
 # - Removes apps whose repos no longer exist

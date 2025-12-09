@@ -122,6 +122,10 @@ The system includes automatic cleanup of orphaned apps:
   - `app_name`: Specific app to destroy
   - `dry_run`: Preview what would be deleted
   - `include_services`: Also destroy linked services
+  - `force`: Override safety check (required if repo still exists)
+
+  **Safety check**: Manual cleanup verifies the repo doesn't exist before deleting.
+  If the repo still exists, cleanup is aborted unless `force=true`.
 
 ### Required Secret for Cleanup
 

@@ -170,16 +170,26 @@ jobs:
           fi
 
       - name: Configure preview environment
+        env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
         run: |
           DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
 
           echo "Configuring preview environment..."
-          ssh dokku config:set --no-restart ${{ env.APP_NAME }} \
-            APP_ENV="preview" \
-            APP_NAME="${{ env.APP_NAME }}" \
-            APP_URL="https://$DOMAIN" \
-            PR_NUMBER="${{ env.PR_NUMBER }}" \
-            GIT_REV="${{ github.sha }}"
+
+          # Start with required vars
+          CONFIG_VARS="APP_ENV=preview APP_NAME=${{ env.APP_NAME }} APP_URL=https://$DOMAIN AGENT_NAME=${{ env.APP_NAME }} PR_NUMBER=${{ env.PR_NUMBER }} GIT_REV=${{ github.sha }}"
+
+          # Loop through all secrets and add them (skip deployment-only secrets)
+          for key in $(echo "$ALL_SECRETS" | jq -r 'keys[]'); do
+            case "$key" in
+              github_token|GITHUB_TOKEN|DOKKU_*|BASE_DOMAIN|SLACK_WEBHOOK_URL|PREVIEW_AUTH_*) continue ;;
+            esac
+            value=$(echo "$ALL_SECRETS" | jq -r --arg k "$key" '.[$k]')
+            [ -n "$value" ] && CONFIG_VARS="$CONFIG_VARS $key=$value"
+          done
+
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} $CONFIG_VARS
 
           # Configure domain
           ssh dokku domains:clear ${{ env.APP_NAME }} 2>/dev/null || true

@@ -57,7 +57,7 @@ On a fresh Ubuntu 22.04 server:
 
 ```bash
 # Clone this repo
-git clone https://github.com/yourorg/dokku-deploy-system.git
+git clone https://github.com/signalwire-demos/dokku-deploy-system.git
 cd dokku-deploy-system/server-setup
 
 # Run all setup scripts
@@ -156,7 +156,7 @@ git push origin main  # Deploys to production
 
 ```bash
 # Download
-curl -o dokku-cli https://raw.githubusercontent.com/yourorg/dokku-deploy-system/main/cli/dokku-cli
+curl -o dokku-cli https://raw.githubusercontent.com/signalwire-demos/dokku-deploy-system/main/cli/dokku-cli
 chmod +x dokku-cli
 sudo mv dokku-cli /usr/local/bin/
 

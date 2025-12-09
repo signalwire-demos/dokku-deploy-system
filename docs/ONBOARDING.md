@@ -26,10 +26,10 @@ Before you begin, ensure you have:
 
 ```bash
 # Option A: Use GitHub template feature
-gh repo create myorg/my-new-app --template myorg/app-template --private
+gh repo create signalwire-demos/my-new-app --template signalwire-demos/app-template --private
 
 # Option B: Copy from existing repo
-git clone https://github.com/myorg/app-template my-new-app
+git clone https://github.com/signalwire-demos/app-template my-new-app
 cd my-new-app
 rm -rf .git
 git init
@@ -61,7 +61,7 @@ git init
 ```bash
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/myorg/my-new-app.git
+git remote add origin https://github.com/signalwire-demos/my-new-app.git
 git push -u origin main
 ```
 
@@ -200,7 +200,7 @@ For easier local management:
 
 ```bash
 # Download CLI
-curl -o dokku-cli https://raw.githubusercontent.com/myorg/dokku-deploy-system/main/cli/dokku-cli
+curl -o dokku-cli https://raw.githubusercontent.com/signalwire-demos/dokku-deploy-system/main/cli/dokku-cli
 chmod +x dokku-cli
 sudo mv dokku-cli /usr/local/bin/
 

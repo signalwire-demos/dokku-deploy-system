@@ -59,9 +59,7 @@ jobs:
           DOMAIN="${APP_NAME}.${{ secrets.BASE_DOMAIN }}"
           ssh dokku config:set --no-restart $APP_NAME \
             APP_ENV="${{ steps.vars.outputs.environment }}" \
-            APP_URL="https://${DOMAIN}" \
-            SWML_BASIC_AUTH_USER="${{ secrets.SWML_BASIC_AUTH_USER }}" \
-            SWML_BASIC_AUTH_PASSWORD="${{ secrets.SWML_BASIC_AUTH_PASSWORD }}"
+            APP_URL="https://${DOMAIN}"
 
       - name: Deploy
         run: |

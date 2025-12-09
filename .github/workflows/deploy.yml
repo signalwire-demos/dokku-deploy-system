@@ -242,10 +242,17 @@ jobs:
           ssh dokku version
 
       - name: Create app if not exists
+        id: create_app
         run: |
           echo "Checking if app exists: ${{ env.APP_NAME }}"
-          ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null || \
-          ssh dokku apps:create ${{ env.APP_NAME }}
+          if ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null; then
+            echo "App already exists"
+            echo "first_deploy=false" >> $GITHUB_OUTPUT
+          else
+            echo "Creating new app..."
+            ssh dokku apps:create ${{ env.APP_NAME }}
+            echo "first_deploy=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Unlock app
         run: |
@@ -383,6 +390,17 @@ jobs:
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
           HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
+          FIRST_DEPLOY="${{ steps.create_app.outputs.first_deploy }}"
+
+          # On first deploy, skip SSL verification (cert still provisioning)
+          # On subsequent deploys, verify SSL to ensure we're hitting the right endpoint
+          if [ "$FIRST_DEPLOY" == "true" ]; then
+            echo "First deploy - will skip SSL verification during health check"
+            CURL_OPTS="-sk"
+          else
+            echo "Subsequent deploy - verifying SSL"
+            CURL_OPTS="-s"
+          fi
 
           # Retry health check with backoff (first deploy needs time for SSL)
           MAX_ATTEMPTS=6
@@ -393,8 +411,7 @@ jobs:
             echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
             sleep $WAIT_TIME
 
-            # Use -k to skip SSL verification (cert may still be provisioning)
-            HTTP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl $CURL_OPTS -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
 
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_STATUS)"

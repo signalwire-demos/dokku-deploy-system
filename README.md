@@ -17,6 +17,9 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 
 ```
 dokku-deploy-system/
+├── .github/workflows/      # Reusable workflows (called by other repos)
+│   ├── deploy.yml          # Reusable deploy workflow
+│   └── preview.yml         # Reusable preview workflow
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
 │   ├── 02-dokku-install.sh
@@ -25,14 +28,12 @@ dokku-deploy-system/
 │   ├── 05-global-config.sh
 │   ├── 06-server-hardening.sh
 │   └── setup-all.sh
-├── github-workflows/       # GitHub Actions workflows
-│   ├── deploy.yml          # Main deployment
-│   ├── preview.yml         # PR preview environments
+├── github-workflows/       # Legacy workflows (deprecated)
 │   ├── scheduled.yml       # Maintenance tasks
 │   ├── rollback.yml        # Manual rollback
 │   └── custom-domain.yml   # Add custom domains
 ├── template-repo/          # Template for new projects
-│   ├── .github/workflows/
+│   ├── .github/workflows/  # Minimal callers to reusable workflows
 │   ├── .dokku/
 │   ├── Procfile
 │   ├── CHECKS
@@ -48,6 +49,59 @@ dokku-deploy-system/
     ├── TROUBLESHOOTING.md
     └── QUICK-REFERENCE.md
 ```
+
+## Reusable Workflows
+
+This repo provides **reusable workflows** that other repos can call. This means:
+- Deploy logic lives in ONE place (this repo)
+- Project repos have minimal ~15-line workflow files
+- Updates to deployment logic apply to ALL repos automatically
+
+### Usage in Your Project
+
+Create these two files in your project:
+
+**`.github/workflows/deploy.yml`**:
+```yaml
+name: Deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, staging, develop]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: signalwire-demos/dokku-deploy-system/.github/workflows/deploy.yml@main
+    secrets: inherit
+```
+
+**`.github/workflows/preview.yml`**:
+```yaml
+name: Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+
+jobs:
+  preview:
+    uses: signalwire-demos/dokku-deploy-system/.github/workflows/preview.yml@main
+    secrets: inherit
+```
+
+That's it! The reusable workflows handle:
+- Creating the Dokku app
+- Setting environment variables from your GitHub Environment
+- Deploying via git push
+- Configuring domains and SSL
+- Health checks and Slack notifications
+- Preview environment creation/cleanup
 
 ## Quick Start
 

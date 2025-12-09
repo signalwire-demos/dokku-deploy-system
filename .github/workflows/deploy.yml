@@ -379,25 +379,41 @@ jobs:
       - name: Verify deployment
         run: |
           echo "Verifying deployment..."
-          sleep 10
 
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
+          HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
 
-          # Health check
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.DOMAIN }}${HEALTH_PATH}" 2>/dev/null || echo "000")
+          # Retry health check with backoff (first deploy needs time for SSL)
+          MAX_ATTEMPTS=6
+          ATTEMPT=1
+          WAIT_TIME=10
 
-          if [ "$HTTP_STATUS" == "200" ]; then
-            echo "✅ Health check passed (HTTP $HTTP_STATUS)"
-          elif [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-            echo "✅ App is responding (HTTP $HTTP_STATUS)"
-          else
-            echo "⚠️ Health check returned HTTP $HTTP_STATUS"
-            echo ""
-            echo "Recent logs:"
-            ssh dokku logs ${{ env.APP_NAME }} --num 30
-            exit 1
-          fi
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
+            sleep $WAIT_TIME
+
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+
+            if [ "$HTTP_STATUS" == "200" ]; then
+              echo "✅ Health check passed (HTTP $HTTP_STATUS)"
+              break
+            elif [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "✅ App is responding (HTTP $HTTP_STATUS)"
+              break
+            else
+              echo "⚠️ Health check returned HTTP $HTTP_STATUS"
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo ""
+                echo "Health check failed after $MAX_ATTEMPTS attempts"
+                echo "Recent logs:"
+                ssh dokku logs ${{ env.APP_NAME }} --num 30
+                exit 1
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+              WAIT_TIME=$((WAIT_TIME + 10))
+            fi
+          done
 
           echo ""
           echo "═══════════════════════════════════════════════════════"

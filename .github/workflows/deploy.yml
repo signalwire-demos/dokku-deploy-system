@@ -393,7 +393,8 @@ jobs:
             echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
             sleep $WAIT_TIME
 
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+            # Use -k to skip SSL verification (cert may still be provisioning)
+            HTTP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
 
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_STATUS)"

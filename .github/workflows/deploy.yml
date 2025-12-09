@@ -448,7 +448,6 @@ jobs:
 
     steps:
       - name: Notify Slack
-        if: secrets.SLACK_WEBHOOK_URL != ''
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
@@ -479,7 +478,6 @@ jobs:
             "$SLACK_WEBHOOK_URL" || true
 
       - name: Notify Discord
-        if: secrets.DISCORD_WEBHOOK_URL != ''
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |

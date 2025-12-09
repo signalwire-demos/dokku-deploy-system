@@ -377,34 +377,24 @@ jobs:
           GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             git push dokku HEAD:refs/heads/main --force
 
-      - name: Enable SSL
-        run: |
-          echo "Enabling Let's Encrypt SSL..."
-          ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null || \
-          ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || true
-
       - name: Verify deployment
         run: |
-          echo "Verifying deployment..."
+          echo "Verifying deployment via HTTP..."
 
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
-          HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
+          # Use HTTP for health check - SSL will be enabled next
+          HEALTH_URL="http://${{ env.DOMAIN }}${HEALTH_PATH}"
 
-          # Skip SSL verification - we just deployed, we know it's our app
-          # (GitHub runner CA store may not trust Let's Encrypt immediately)
-          CURL_OPTS="-sk"
-
-          # Retry health check with backoff (first deploy needs time for SSL)
           MAX_ATTEMPTS=6
           ATTEMPT=1
-          WAIT_TIME=10
+          WAIT_TIME=5
 
           while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
             echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
             sleep $WAIT_TIME
 
-            HTTP_STATUS=$(curl $CURL_OPTS -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
 
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_STATUS)"
@@ -422,9 +412,18 @@ jobs:
                 exit 1
               fi
               ATTEMPT=$((ATTEMPT + 1))
-              WAIT_TIME=$((WAIT_TIME + 10))
+              WAIT_TIME=$((WAIT_TIME + 5))
             fi
           done
+
+      - name: Enable SSL
+        run: |
+          echo "Enabling Let's Encrypt SSL..."
+          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
+            echo "SSL already active"
+          else
+            ssh dokku letsencrypt:enable ${{ env.APP_NAME }}
+          fi
 
           echo ""
           echo "═══════════════════════════════════════════════════════"

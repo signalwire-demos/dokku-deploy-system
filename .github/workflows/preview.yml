@@ -240,11 +240,42 @@ jobs:
           GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             git push dokku HEAD:refs/heads/main --force
 
+      - name: Verify deployment
+        id: verify
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Verifying preview via HTTP..."
+          sleep 10
+
+          # Use HTTP for health check - SSL will be enabled next
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$DOMAIN/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Preview is ready!"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            # Try without /health
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$DOMAIN/" 2>/dev/null || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "✅ Preview is ready!"
+              echo "status=success" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Preview returned HTTP $HTTP_STATUS"
+              echo "status=warning" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          echo "url=https://$DOMAIN" >> $GITHUB_OUTPUT
+
       - name: Enable SSL
         run: |
           echo "Enabling SSL..."
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
-          ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || true
+          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
+            echo "SSL already active"
+          else
+            ssh dokku letsencrypt:enable ${{ env.APP_NAME }}
+          fi
 
       - name: Add HTTP authentication (optional)
         env:
@@ -258,33 +289,6 @@ jobs:
               "$PREVIEW_AUTH_USER" \
               "$PREVIEW_AUTH_PASSWORD" || true
           fi
-
-      - name: Verify deployment
-        id: verify
-        run: |
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
-
-          echo "Waiting for preview to be ready..."
-          sleep 15
-
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" 2>/dev/null || echo "000")
-
-          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-            echo "✅ Preview is ready!"
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            # Try without /health
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/" 2>/dev/null || echo "000")
-            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-              echo "✅ Preview is ready!"
-              echo "status=success" >> $GITHUB_OUTPUT
-            else
-              echo "⚠️ Preview returned HTTP $HTTP_STATUS"
-              echo "status=warning" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-          echo "url=https://$DOMAIN" >> $GITHUB_OUTPUT
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7

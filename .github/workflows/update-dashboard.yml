@@ -124,10 +124,24 @@ jobs:
             # Get app URL
             URL="https://${APP}.${BASE_DOMAIN}"
 
-            # Check if app is running (trim whitespace)
-            RUNNING=$(ssh dokku ps:report "$APP" --ps-running 2>/dev/null | tr -d '[:space:]' || echo "false")
-            echo "  RUNNING='$RUNNING'"
-            if [ "$RUNNING" = "true" ]; then
+            # Get container info via ps:inspect
+            CONTAINER_INFO=$(ssh dokku ps:inspect "$APP" 2>/dev/null || echo "{}")
+            STARTED_AT=$(echo "$CONTAINER_INFO" | jq -r '.[0].State.StartedAt // empty' 2>/dev/null || echo "")
+            IS_RUNNING=$(echo "$CONTAINER_INFO" | jq -r '.[0].State.Running // false' 2>/dev/null || echo "false")
+            echo "  IS_RUNNING='$IS_RUNNING' STARTED_AT='$STARTED_AT'"
+
+            # Calculate uptime in seconds
+            UPTIME_SECONDS=0
+            if [ -n "$STARTED_AT" ] && [ "$STARTED_AT" != "null" ]; then
+              START_EPOCH=$(date -d "$STARTED_AT" +%s 2>/dev/null || echo "0")
+              NOW_EPOCH=$(date +%s)
+              if [ "$START_EPOCH" -gt 0 ]; then
+                UPTIME_SECONDS=$((NOW_EPOCH - START_EPOCH))
+              fi
+            fi
+            echo "  UPTIME_SECONDS=$UPTIME_SECONDS"
+
+            if [ "$IS_RUNNING" = "true" ]; then
               STATUS="running"
             else
               STATUS="stopped"
@@ -175,6 +189,7 @@ jobs:
             "commit_sha": "$COMMIT_SHA",
             "uptime": {
               "status": "$UPTIME_STATUS",
+              "uptime_seconds": $UPTIME_SECONDS,
               "response_time_ms": $RESPONSE_MS,
               "last_check": "$TIMESTAMP"
             }

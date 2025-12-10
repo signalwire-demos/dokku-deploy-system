@@ -9,7 +9,7 @@
 #
 # Required Secrets:
 #   - DASHBOARD_TOKEN: Fine-grained PAT with Contents (read/write) permission
-#                      for pushing to gh-pages branch
+#   - DOKKU_HOST, DOKKU_SSH_PRIVATE_KEY, BASE_DOMAIN: For sync-from-dokku
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -50,6 +50,9 @@ on:
         required: false
         type: string
         default: ''
+    secrets:
+      DASHBOARD_TOKEN:
+        required: true
 
   workflow_dispatch:
     inputs:
@@ -57,8 +60,7 @@ on:
         description: 'Action'
         type: choice
         options:
-          - refresh-all
-          - init
+          - sync-from-dokku
 
 jobs:
   update-dashboard:
@@ -69,16 +71,100 @@ jobs:
       - name: Checkout gh-pages branch
         uses: actions/checkout@v4
         with:
+          repository: signalwire-demos/dokku-deploy-system
           ref: gh-pages
           fetch-depth: 0
           token: ${{ secrets.DASHBOARD_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Setup SSH (for sync)
+        if: inputs.action == 'sync-from-dokku'
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Sync from Dokku
+        if: inputs.action == 'sync-from-dokku'
+        env:
+          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+        run: |
+          mkdir -p dashboard
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "Fetching apps from Dokku..."
+          APPS=$(ssh dokku apps:list | tail -n +2)
+
+          # Start building JSON
+          echo '{"last_updated":"'"$TIMESTAMP"'","apps":[' > dashboard/apps.json
+
+          FIRST=true
+          for APP in $APPS; do
+            echo "Processing: $APP"
+
+            # Determine environment from app name
+            if [[ "$APP" == *"-pr-"* ]]; then
+              ENV="preview"
+            elif [[ "$APP" == *"-staging" ]]; then
+              ENV="staging"
+            elif [[ "$APP" == *"-dev" ]]; then
+              ENV="development"
+            else
+              ENV="production"
+            fi
+
+            # Get app URL
+            URL="https://${APP}.${BASE_DOMAIN}"
+
+            # Check if app is running
+            STATUS="unknown"
+            if ssh dokku ps:report "$APP" --ps-running 2>/dev/null | grep -q "true"; then
+              STATUS="running"
+            fi
+
+            # Add comma separator
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              echo "," >> dashboard/apps.json
+            fi
+
+            # Add app entry
+            cat >> dashboard/apps.json << APPJSON
+          {
+            "name": "$APP",
+            "status": "$STATUS",
+            "environment": "$ENV",
+            "url": "$URL",
+            "last_deploy": "$TIMESTAMP",
+            "last_deploy_by": "sync",
+            "commit_sha": "",
+            "uptime": {
+              "status": "$STATUS",
+              "response_time_ms": 0,
+              "last_check": "$TIMESTAMP"
+            }
+          }
+          APPJSON
+          done
+
+          echo ']}' >> dashboard/apps.json
+
+          echo ""
+          echo "Dashboard synced with $(echo "$APPS" | wc -w | tr -d ' ') apps"
+          cat dashboard/apps.json
 
       - name: Update apps.json
+        if: inputs.action != 'sync-from-dokku'
         run: |
           # Initialize apps.json if it doesn't exist
           if [ ! -f dashboard/apps.json ]; then
@@ -94,13 +180,6 @@ jobs:
           COMMIT_SHA="${{ inputs.commit_sha }}"
           ACTOR="${{ inputs.actor }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # For refresh-all, just update timestamp
-          if [ "$ACTION" == "refresh-all" ] || [ "$ACTION" == "init" ]; then
-            jq --arg ts "$TIMESTAMP" '.last_updated = $ts' dashboard/apps.json > tmp.json && mv tmp.json dashboard/apps.json
-            echo "Dashboard refreshed at $TIMESTAMP"
-            exit 0
-          fi
 
           # Update or add app entry
           if [ "$ACTION" == "deploy" ]; then
@@ -179,6 +258,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update dashboard: ${{ inputs.app_name }} ${{ inputs.action }}"
+            git commit -m "Update dashboard: ${{ inputs.app_name || 'sync' }} ${{ inputs.action }}"
             git push
           fi

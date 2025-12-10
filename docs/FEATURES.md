@@ -130,7 +130,7 @@ Backups are stored on the Dokku server at:
 First-time setup on the Dokku server:
 
 ```bash
-sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo}
+sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo,rabbitmq,elasticsearch}
 sudo chown -R dokku:dokku /var/backups/dokku
 ```
 

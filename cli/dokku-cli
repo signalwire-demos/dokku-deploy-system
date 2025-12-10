@@ -424,7 +424,7 @@ cmd_db() {
             echo ""
             echo "Server backups (/var/backups/dokku/):"
             ssh -i "$SSH_KEY" "dokku@$DOKKU_HOST" "
-              for service in postgres mysql redis mongo; do
+              for service in postgres mysql redis mongo rabbitmq elasticsearch; do
                 DIR=\"/var/backups/dokku/\$service/$APP\"
                 if [ -d \"\$DIR\" ]; then
                   echo \"  \$service:\"

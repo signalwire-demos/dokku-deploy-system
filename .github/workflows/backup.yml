@@ -15,7 +15,7 @@
 #   - SLACK_WEBHOOK_URL: Slack notifications
 #
 # Server Setup Required:
-#   sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo}
+#   sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo,rabbitmq,elasticsearch}
 #   sudo chown -R dokku:dokku /var/backups/dokku
 #
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -39,6 +39,8 @@ on:
           - mysql
           - redis
           - mongo
+          - rabbitmq
+          - elasticsearch
         default: all
       reason:
         description: 'Backup reason (for logging)'
@@ -192,6 +194,42 @@ jobs:
                 else
                   echo "    ❌ Failed to backup"
                 fi
+              fi
+            fi
+
+            # RabbitMQ (export definitions - queues are transient)
+            if [ "$SERVICE_FILTER" == "all" ] || [ "$SERVICE_FILTER" == "rabbitmq" ]; then
+              RABBITMQ_NAME="rabbitmq-$APP"
+              if ssh dokku rabbitmq:exists "$RABBITMQ_NAME" 2>/dev/null; then
+                BACKUP_DIR="/var/backups/dokku/rabbitmq/$APP"
+                BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.json.gz"
+
+                echo "  Backing up RabbitMQ definitions: $RABBITMQ_NAME"
+                ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+                # Export definitions (exchanges, queues, bindings, users, vhosts, permissions, policies)
+                ssh dokku rabbitmq:export "$RABBITMQ_NAME" 2>/dev/null | gzip | \
+                  ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"
+
+                if [ $? -eq 0 ]; then
+                  SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'")
+                  echo "    ✅ Saved: $BACKUP_FILE ($SIZE)"
+                  echo "    ⚠️  Note: Only definitions exported, messages are not included"
+                  BACKUP_COUNT=$((BACKUP_COUNT + 1))
+                  BACKUP_LIST="$BACKUP_LIST\n• $APP (rabbitmq): $SIZE"
+                else
+                  echo "    ❌ Failed to backup"
+                fi
+              fi
+            fi
+
+            # Elasticsearch (snapshot - requires manual setup)
+            if [ "$SERVICE_FILTER" == "elasticsearch" ]; then
+              ES_NAME="elasticsearch-$APP"
+              if ssh dokku elasticsearch:exists "$ES_NAME" 2>/dev/null; then
+                echo "  ⚠️  Elasticsearch: $ES_NAME"
+                echo "    Elasticsearch backups require snapshot repository configuration."
+                echo "    See: https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-restore.html"
+                echo "    Skipping automatic backup."
               fi
             fi
           done

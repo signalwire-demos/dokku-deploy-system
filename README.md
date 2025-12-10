@@ -8,11 +8,15 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 - **Preview environments** - Every PR gets its own live URL
 - **Automatic SSL** - Let's Encrypt certificates provisioned automatically
 - **Zero-downtime** - Health checks ensure smooth deployments
-- **Service provisioning** - PostgreSQL, Redis, etc. created automatically
+- **Service provisioning** - PostgreSQL, Redis, MySQL, MongoDB, RabbitMQ, Elasticsearch
 - **Multi-environment** - Production, staging, development, preview
 - **Automatic cleanup** - Orphaned apps and closed PR previews removed daily
 - **Rollback support** - Easy rollback to previous releases
 - **Developer CLI** - Simple command-line tool for common operations
+- **Deploy locks** - Block deployments during incidents or maintenance
+- **Release tasks** - Run migrations/commands after deploy
+- **Database backups** - Scheduled daily backups with retention policy
+- **Deploy dashboard** - GitHub Pages dashboard showing all app status
 
 ## Directory Structure
 
@@ -21,9 +25,12 @@ dokku-deploy-system/
 ├── .github/workflows/      # Workflows
 │   ├── deploy.yml          # Reusable deploy workflow (called by other repos)
 │   ├── preview.yml         # Reusable preview workflow (called by other repos)
-│   ├── scheduled.yml       # Daily maintenance (cleanup, certs, health checks)
+│   ├── scheduled.yml       # Daily maintenance (cleanup, certs, health checks, backups)
 │   ├── cleanup.yml         # Manual app cleanup with safety checks
-│   └── rollback.yml        # Manual rollback workflow
+│   ├── rollback.yml        # Manual rollback workflow
+│   ├── lock.yml            # Deploy lock management
+│   ├── backup.yml          # Manual database backup
+│   └── update-dashboard.yml # Dashboard update (called by deploy/cleanup)
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
 │   ├── 02-dokku-install.sh
@@ -38,6 +45,10 @@ dokku-deploy-system/
 │   ├── Procfile
 │   ├── CHECKS
 │   └── ...
+├── dashboard/              # Deploy dashboard (GitHub Pages)
+│   ├── index.html
+│   ├── style.css
+│   └── apps.json
 ├── cli/                    # Developer CLI tool
 │   └── dokku-cli
 ├── scripts/                # Utility scripts
@@ -47,7 +58,8 @@ dokku-deploy-system/
 └── docs/                   # Documentation
     ├── ONBOARDING.md
     ├── TROUBLESHOOTING.md
-    └── QUICK-REFERENCE.md
+    ├── QUICK-REFERENCE.md
+    └── FEATURES.md
 ```
 
 ## Reusable Workflows
@@ -164,6 +176,120 @@ Options:
 - `environment`: production, staging, or development
 - `release`: Specific release version (leave empty for previous)
 - `confirm`: Type "ROLLBACK" to confirm
+
+## Deploy Locks
+
+Block deployments during incidents, maintenance, or hotfix periods:
+
+```
+Actions → Deploy Lock → Run workflow
+```
+Options:
+- `app_name`: App to lock/unlock
+- `action`: `lock`, `unlock`, or `status`
+- `reason`: Why the app is locked
+
+When locked, all deployments (including previews) are blocked until unlocked.
+
+**Via CLI:**
+```bash
+dokku-cli lock myapp "Hotfix in progress"
+dokku-cli lock:status myapp
+dokku-cli unlock myapp
+```
+
+## Release Tasks
+
+Run post-deployment commands like database migrations automatically.
+
+Add to your `.dokku/config.yml`:
+
+```yaml
+release:
+  tasks:
+    - name: "Database migrations"
+      command: "python manage.py migrate --no-input"
+      timeout: 120
+    - name: "Clear cache"
+      command: "python manage.py clear_cache"
+      timeout: 30
+```
+
+Tasks run after git push, before health check. If any task fails, the deployment fails.
+
+## Database Backups
+
+Automatic daily backups at 2 AM UTC, plus manual backups on demand.
+
+**Scheduled Backups:**
+- Runs daily for all apps with linked databases
+- PostgreSQL, MySQL, Redis, MongoDB, RabbitMQ supported
+- 14-day retention with automatic cleanup
+- Stored at `/var/backups/dokku/{service}/{app}/`
+
+**Manual Backup:**
+```
+Actions → Database Backup → Run workflow
+```
+
+**Via CLI:**
+```bash
+dokku-cli db myapp backup postgres           # Download locally
+dokku-cli db myapp backup-server postgres    # Save to server
+dokku-cli db myapp list-backups              # List available backups
+dokku-cli db myapp restore backup.gz postgres
+```
+
+**Server Setup Required:**
+```bash
+sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo,rabbitmq,elasticsearch}
+sudo chown -R dokku:dokku /var/backups/dokku
+```
+
+## Deploy Dashboard
+
+Static HTML dashboard showing all deployed applications, updated automatically after each deployment.
+
+**Dashboard URL:** `https://signalwire-demos.github.io/dokku-deploy-system/`
+
+### Dashboard Setup
+
+1. **Create the `gh-pages` branch:**
+   ```bash
+   cd dokku-deploy-system
+   git checkout --orphan gh-pages
+   git rm -rf .
+   cp -r dashboard/* .
+   git add .
+   git commit -m "Initialize dashboard"
+   git push origin gh-pages
+   git checkout main
+   ```
+
+2. **Enable GitHub Pages:**
+   - Go to repo Settings → Pages
+   - Source: Deploy from branch
+   - Branch: `gh-pages` / `root`
+   - Save
+
+3. **Grant workflow permissions:**
+   - Go to repo Settings → Actions → General
+   - Workflow permissions: Read and write permissions
+   - Save
+
+The dashboard auto-updates after:
+- Each deployment (success or failure)
+- Health checks (daily at 6 AM UTC)
+- App cleanup
+
+### Dashboard Features
+
+- Real-time status of all apps (healthy/degraded/down)
+- Environment filtering (production, staging, development, preview)
+- Search functionality
+- Response time metrics
+- Last deploy timestamp and actor
+- Auto-refresh every 5 minutes
 
 ## Quick Start
 
@@ -297,9 +423,18 @@ dokku-cli config:set myapp KEY=value
 dokku-cli deploy myapp
 dokku-cli rollback myapp
 
+# Deploy locks
+dokku-cli lock myapp "reason"
+dokku-cli unlock myapp
+dokku-cli lock:status myapp
+
 # Database
 dokku-cli db myapp create postgres
 dokku-cli db myapp connect postgres
+dokku-cli db myapp backup postgres
+dokku-cli db myapp backup-server postgres
+dokku-cli db myapp list-backups
+dokku-cli db myapp restore backup.gz postgres
 
 # See all commands
 dokku-cli help
@@ -345,6 +480,7 @@ services:
 
 - [Setup Guide](docs/SETUP-GUIDE.md) - **Start here** - Complete installation instructions
 - [Onboarding Guide](docs/ONBOARDING.md) - Getting started for developers
+- [Features Guide](docs/FEATURES.md) - Deploy locks, release tasks, backups, dashboard
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
 - [Quick Reference](docs/QUICK-REFERENCE.md) - One-page command reference
 

@@ -1,0 +1,248 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# backup.yml - Database Backup Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Manual database backup workflow. Creates backups of linked databases and stores
+# them on the Dokku server in /var/backups/dokku/{service}/{app}/
+#
+# Backups are gzip-compressed and named with timestamp: YYYYMMDD_HHMMSS.gz
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#
+# Server Setup Required:
+#   sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo}
+#   sudo chown -R dokku:dokku /var/backups/dokku
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Database Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name (leave empty for all apps)'
+        required: false
+        type: string
+      service:
+        description: 'Service type to backup'
+        required: false
+        type: choice
+        options:
+          - all
+          - postgres
+          - mysql
+          - redis
+          - mongo
+        default: all
+      reason:
+        description: 'Backup reason (for logging)'
+        required: false
+        type: string
+        default: 'Manual backup'
+
+jobs:
+  backup:
+    name: Backup ${{ inputs.app_name || 'all apps' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Backup databases
+        id: backup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          APP_FILTER="${{ inputs.app_name }}"
+          SERVICE_FILTER="${{ inputs.service }}"
+          REASON="${{ inputs.reason }}"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Database Backup"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Time: $TIMESTAMP"
+          echo "  App: ${APP_FILTER:-all}"
+          echo "  Service: ${SERVICE_FILTER:-all}"
+          echo "  Reason: $REASON"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          # Get list of apps
+          if [ -n "$APP_FILTER" ]; then
+            APPS="$APP_FILTER"
+          else
+            APPS=$(ssh dokku apps:list | tail -n +2)
+          fi
+
+          BACKUP_COUNT=0
+          BACKUP_LIST=""
+
+          for APP in $APPS; do
+            echo "Checking app: $APP"
+
+            # PostgreSQL
+            if [ "$SERVICE_FILTER" == "all" ] || [ "$SERVICE_FILTER" == "postgres" ]; then
+              DB_NAME="postgres-$APP"
+              if ssh dokku postgres:exists "$DB_NAME" 2>/dev/null; then
+                BACKUP_DIR="/var/backups/dokku/postgres/$APP"
+                BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+                echo "  Backing up PostgreSQL: $DB_NAME"
+                ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+                ssh dokku postgres:export "$DB_NAME" 2>/dev/null | gzip | \
+                  ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"
+
+                if [ $? -eq 0 ]; then
+                  SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'")
+                  echo "    ✅ Saved: $BACKUP_FILE ($SIZE)"
+                  BACKUP_COUNT=$((BACKUP_COUNT + 1))
+                  BACKUP_LIST="$BACKUP_LIST\n• $APP (postgres): $SIZE"
+                else
+                  echo "    ❌ Failed to backup"
+                fi
+              fi
+            fi
+
+            # MySQL
+            if [ "$SERVICE_FILTER" == "all" ] || [ "$SERVICE_FILTER" == "mysql" ]; then
+              DB_NAME="mysql-$APP"
+              if ssh dokku mysql:exists "$DB_NAME" 2>/dev/null; then
+                BACKUP_DIR="/var/backups/dokku/mysql/$APP"
+                BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+                echo "  Backing up MySQL: $DB_NAME"
+                ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+                ssh dokku mysql:export "$DB_NAME" 2>/dev/null | gzip | \
+                  ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"
+
+                if [ $? -eq 0 ]; then
+                  SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'")
+                  echo "    ✅ Saved: $BACKUP_FILE ($SIZE)"
+                  BACKUP_COUNT=$((BACKUP_COUNT + 1))
+                  BACKUP_LIST="$BACKUP_LIST\n• $APP (mysql): $SIZE"
+                else
+                  echo "    ❌ Failed to backup"
+                fi
+              fi
+            fi
+
+            # Redis (RDB dump)
+            if [ "$SERVICE_FILTER" == "all" ] || [ "$SERVICE_FILTER" == "redis" ]; then
+              REDIS_NAME="redis-$APP"
+              if ssh dokku redis:exists "$REDIS_NAME" 2>/dev/null; then
+                BACKUP_DIR="/var/backups/dokku/redis/$APP"
+                BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.rdb.gz"
+
+                echo "  Backing up Redis: $REDIS_NAME"
+                ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+                ssh dokku redis:export "$REDIS_NAME" 2>/dev/null | gzip | \
+                  ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"
+
+                if [ $? -eq 0 ]; then
+                  SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'")
+                  echo "    ✅ Saved: $BACKUP_FILE ($SIZE)"
+                  BACKUP_COUNT=$((BACKUP_COUNT + 1))
+                  BACKUP_LIST="$BACKUP_LIST\n• $APP (redis): $SIZE"
+                else
+                  echo "    ❌ Failed to backup"
+                fi
+              fi
+            fi
+
+            # MongoDB
+            if [ "$SERVICE_FILTER" == "all" ] || [ "$SERVICE_FILTER" == "mongo" ]; then
+              MONGO_NAME="mongo-$APP"
+              if ssh dokku mongo:exists "$MONGO_NAME" 2>/dev/null; then
+                BACKUP_DIR="/var/backups/dokku/mongo/$APP"
+                BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+                echo "  Backing up MongoDB: $MONGO_NAME"
+                ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+                ssh dokku mongo:export "$MONGO_NAME" 2>/dev/null | gzip | \
+                  ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"
+
+                if [ $? -eq 0 ]; then
+                  SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'")
+                  echo "    ✅ Saved: $BACKUP_FILE ($SIZE)"
+                  BACKUP_COUNT=$((BACKUP_COUNT + 1))
+                  BACKUP_LIST="$BACKUP_LIST\n• $APP (mongo): $SIZE"
+                else
+                  echo "    ❌ Failed to backup"
+                fi
+              fi
+            fi
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Backup Summary"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Total backups created: $BACKUP_COUNT"
+          echo "═══════════════════════════════════════════════════════"
+
+          echo "backup_count=$BACKUP_COUNT" >> $GITHUB_OUTPUT
+          echo "backup_list=$BACKUP_LIST" >> $GITHUB_OUTPUT
+
+      - name: Cleanup old backups
+        run: |
+          echo "Cleaning up backups older than 14 days..."
+          ssh dokku@${{ secrets.DOKKU_HOST }} "find /var/backups/dokku -type f -mtime +14 -delete 2>/dev/null || true"
+          echo "Cleanup complete"
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          BACKUP_COUNT="${{ steps.backup.outputs.backup_count }}"
+
+          if [ "$BACKUP_COUNT" -gt 0 ]; then
+            COLOR="good"
+            TITLE="Database Backup Complete"
+            TEXT="$BACKUP_COUNT database(s) backed up"
+          else
+            COLOR="warning"
+            TITLE="Database Backup"
+            TEXT="No databases found to backup"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"text\": \"$TEXT\",
+                \"fields\": [
+                  {\"title\": \"App\", \"value\": \"${{ inputs.app_name || 'all' }}\", \"short\": true},
+                  {\"title\": \"Service\", \"value\": \"${{ inputs.service }}\", \"short\": true},
+                  {\"title\": \"Reason\", \"value\": \"${{ inputs.reason }}\", \"short\": false}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true

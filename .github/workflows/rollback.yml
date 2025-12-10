@@ -101,6 +101,46 @@ jobs:
           echo "current_rev=$CURRENT" >> $GITHUB_OUTPUT
           echo "Current revision: $CURRENT"
 
+      - name: Pre-rollback database backup
+        run: |
+          APP="${{ steps.app.outputs.app_name }}"
+          echo "Creating pre-rollback backup..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          # PostgreSQL backup
+          DB_NAME="postgres-$APP"
+          if ssh dokku postgres:exists "$DB_NAME" 2>/dev/null; then
+            BACKUP_DIR="/var/backups/dokku/postgres/$APP"
+            BACKUP_FILE="$BACKUP_DIR/pre-rollback_${TIMESTAMP}.gz"
+
+            echo "Backing up PostgreSQL: $DB_NAME"
+            ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+            if ssh dokku postgres:export "$DB_NAME" 2>/dev/null | gzip | \
+              ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+              echo "  ✅ Saved: $BACKUP_FILE"
+            else
+              echo "  ⚠️ Backup failed (continuing with rollback)"
+            fi
+          fi
+
+          # MySQL backup
+          DB_NAME="mysql-$APP"
+          if ssh dokku mysql:exists "$DB_NAME" 2>/dev/null; then
+            BACKUP_DIR="/var/backups/dokku/mysql/$APP"
+            BACKUP_FILE="$BACKUP_DIR/pre-rollback_${TIMESTAMP}.gz"
+
+            echo "Backing up MySQL: $DB_NAME"
+            ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+            if ssh dokku mysql:export "$DB_NAME" 2>/dev/null | gzip | \
+              ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+              echo "  ✅ Saved: $BACKUP_FILE"
+            else
+              echo "  ⚠️ Backup failed (continuing with rollback)"
+            fi
+          fi
+
+          echo "Pre-rollback backup complete"
+
       - name: Perform rollback
         id: rollback
         run: |

@@ -360,9 +360,78 @@ cmd_db() {
             ;;
         backup)
             local BACKUP_FILE="${APP}-$(date +%Y%m%d_%H%M%S).dump"
-            log_info "Backing up to $BACKUP_FILE..."
+            log_info "Backing up $SERVICE database: $DB_NAME"
+            log_info "Saving to: $BACKUP_FILE"
             dokku_ssh "$SERVICE:export" "$DB_NAME" > "$BACKUP_FILE"
-            log_success "Backup saved: $BACKUP_FILE"
+            log_success "Backup saved: $BACKUP_FILE ($(ls -lh "$BACKUP_FILE" | awk '{print $5}'))"
+            ;;
+        backup-server)
+            # Backup directly to server storage
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            BACKUP_DIR="/var/backups/dokku/$SERVICE/$APP"
+            BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+            log_info "Backing up $SERVICE database: $DB_NAME"
+            log_info "Saving to server: $BACKUP_FILE"
+
+            # Create directory and backup
+            ssh -i "$SSH_KEY" "dokku@$DOKKU_HOST" "mkdir -p $BACKUP_DIR"
+            dokku_ssh "$SERVICE:export" "$DB_NAME" 2>/dev/null | gzip | \
+              ssh -i "$SSH_KEY" "dokku@$DOKKU_HOST" "cat > $BACKUP_FILE"
+
+            if [ $? -eq 0 ]; then
+                SIZE=$(ssh -i "$SSH_KEY" "dokku@$DOKKU_HOST" "ls -lh $BACKUP_FILE | awk '{print \$5}'" 2>/dev/null)
+                log_success "Backup saved: $BACKUP_FILE ($SIZE)"
+            else
+                log_error "Backup failed"
+            fi
+            ;;
+        restore)
+            local BACKUP_PATH="$SERVICE"  # Third arg is actually the file path
+            if [ -z "$BACKUP_PATH" ] || [ "$BACKUP_PATH" == "postgres" ] || [ "$BACKUP_PATH" == "mysql" ]; then
+                log_error "Usage: dokku-cli db restore <app> <backup-file>"
+                exit 1
+            fi
+
+            if [ ! -f "$BACKUP_PATH" ]; then
+                log_error "Backup file not found: $BACKUP_PATH"
+                exit 1
+            fi
+
+            SERVICE="${4:-postgres}"
+            DB_NAME="$SERVICE-$APP"
+
+            log_warning "This will replace all data in $DB_NAME with the backup!"
+            read -p "Are you sure? (yes/no): " CONFIRM
+            if [ "$CONFIRM" != "yes" ]; then
+                log_info "Restore cancelled"
+                exit 0
+            fi
+
+            log_info "Restoring $DB_NAME from $BACKUP_PATH..."
+            if [[ "$BACKUP_PATH" == *.gz ]]; then
+                gunzip -c "$BACKUP_PATH" | dokku_ssh "$SERVICE:import" "$DB_NAME"
+            else
+                dokku_ssh "$SERVICE:import" "$DB_NAME" < "$BACKUP_PATH"
+            fi
+            log_success "Restore complete"
+            ;;
+        list-backups)
+            log_header "Backups for $APP"
+            echo ""
+            echo "Local backups:"
+            ls -lh ${APP}-*.dump 2>/dev/null || echo "  No local backups found"
+            echo ""
+            echo "Server backups (/var/backups/dokku/):"
+            ssh -i "$SSH_KEY" "dokku@$DOKKU_HOST" "
+              for service in postgres mysql redis mongo; do
+                DIR=\"/var/backups/dokku/\$service/$APP\"
+                if [ -d \"\$DIR\" ]; then
+                  echo \"  \$service:\"
+                  ls -lh \"\$DIR\"/*.gz 2>/dev/null | awk '{print \"    \" \$9 \" (\" \$5 \")\"}' || echo \"    No backups\"
+                fi
+              done
+            " 2>/dev/null || echo "  Unable to list server backups"
             ;;
         info|*)
             log_header "Database: $DB_NAME"
@@ -530,10 +599,13 @@ SSL & DOMAINS
   domains remove [app] <d>   Remove a domain
 
 DATABASE
-  db [app] info [service]    Show database info
-  db [app] create [service]  Create and link database
-  db [app] connect [service] Connect to database shell
-  db [app] backup [service]  Export database backup
+  db [app] info [service]         Show database info
+  db [app] create [service]       Create and link database
+  db [app] connect [service]      Connect to database shell
+  db [app] backup [service]       Export database to local file
+  db [app] backup-server [svc]    Backup to server storage
+  db [app] restore <file> [svc]   Restore from backup file
+  db [app] list-backups           List available backups
 
 RUN COMMANDS
   run [app] <command>        Run one-off command

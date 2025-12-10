@@ -126,6 +126,48 @@ jobs:
             echo "✓ Repository not found - safe to proceed with cleanup."
           fi
 
+      - name: Pre-destroy database backup
+        if: inputs.dry_run != true
+        env:
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+        run: |
+          echo "Creating pre-destroy backups..."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          # PostgreSQL backup
+          DB_NAME="postgres-$APP_NAME"
+          if ssh dokku postgres:exists "$DB_NAME" 2>/dev/null; then
+            BACKUP_DIR="/var/backups/dokku/postgres/$APP_NAME"
+            BACKUP_FILE="$BACKUP_DIR/pre-destroy_${TIMESTAMP}.gz"
+
+            echo "Backing up PostgreSQL: $DB_NAME"
+            ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+            if ssh dokku postgres:export "$DB_NAME" 2>/dev/null | gzip | \
+              ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+              echo "  ✅ Saved: $BACKUP_FILE"
+            else
+              echo "  ⚠️ Backup failed (continuing with destroy)"
+            fi
+          fi
+
+          # MySQL backup
+          DB_NAME="mysql-$APP_NAME"
+          if ssh dokku mysql:exists "$DB_NAME" 2>/dev/null; then
+            BACKUP_DIR="/var/backups/dokku/mysql/$APP_NAME"
+            BACKUP_FILE="$BACKUP_DIR/pre-destroy_${TIMESTAMP}.gz"
+
+            echo "Backing up MySQL: $DB_NAME"
+            ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+            if ssh dokku mysql:export "$DB_NAME" 2>/dev/null | gzip | \
+              ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+              echo "  ✅ Saved: $BACKUP_FILE"
+            else
+              echo "  ⚠️ Backup failed (continuing with destroy)"
+            fi
+          fi
+
+          echo "Pre-destroy backup complete"
+
       - name: Cleanup app and services
         id: cleanup
         env:

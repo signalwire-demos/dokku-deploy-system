@@ -42,6 +42,36 @@ scale:
 #   - api.example.com
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Release Tasks
+# ─────────────────────────────────────────────────────────────────────────────
+# Commands to run after deploy, before health check
+# Useful for database migrations, cache clearing, etc.
+# If a task fails, the deployment is marked as failed.
+#
+# release:
+#   tasks:
+#     - name: "Database migrations"
+#       command: "python manage.py migrate --no-input"
+#       timeout: 120  # seconds (default: 120)
+#     - name: "Clear cache"
+#       command: "python manage.py clear_cache"
+#       timeout: 30
+#     - name: "Collect static files"
+#       command: "python manage.py collectstatic --no-input"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Database Backups
+# ─────────────────────────────────────────────────────────────────────────────
+# Configure automatic backups for linked databases
+#
+# backup:
+#   enabled: true
+#   retention_days: 14
+#   services:
+#     - postgres
+#     - mysql
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Environment-Specific Overrides
 # ─────────────────────────────────────────────────────────────────────────────
 environments:

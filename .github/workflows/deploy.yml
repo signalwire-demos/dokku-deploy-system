@@ -433,6 +433,69 @@ jobs:
           GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
             git push dokku HEAD:refs/heads/main --force
 
+      - name: Run release tasks
+        run: |
+          if [ ! -f ".dokku/config.yml" ]; then
+            echo "No config.yml found, skipping release tasks"
+            exit 0
+          fi
+
+          # Install yq if not already available
+          which yq || sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+          # Get environment-specific tasks or fall back to global tasks
+          ENV="${{ env.ENVIRONMENT }}"
+          TASK_COUNT=$(yq e ".environments.${ENV}.release.tasks // .release.tasks // [] | length" .dokku/config.yml 2>/dev/null || echo "0")
+
+          if [ "$TASK_COUNT" == "0" ] || [ -z "$TASK_COUNT" ]; then
+            echo "No release tasks defined, skipping"
+            exit 0
+          fi
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Running $TASK_COUNT release task(s)..."
+          echo "═══════════════════════════════════════════════════════"
+
+          FAILED=0
+          for i in $(seq 0 $((TASK_COUNT - 1))); do
+            # Get task details (environment-specific or global)
+            TASK_NAME=$(yq e ".environments.${ENV}.release.tasks[$i].name // .release.tasks[$i].name" .dokku/config.yml 2>/dev/null)
+            TASK_CMD=$(yq e ".environments.${ENV}.release.tasks[$i].command // .release.tasks[$i].command" .dokku/config.yml 2>/dev/null)
+            TASK_TIMEOUT=$(yq e ".environments.${ENV}.release.tasks[$i].timeout // .release.tasks[$i].timeout // 120" .dokku/config.yml 2>/dev/null)
+
+            if [ -z "$TASK_CMD" ] || [ "$TASK_CMD" == "null" ]; then
+              continue
+            fi
+
+            echo ""
+            echo "─────────────────────────────────────────────────────"
+            echo "  Task $((i + 1))/$TASK_COUNT: $TASK_NAME"
+            echo "  Command: $TASK_CMD"
+            echo "  Timeout: ${TASK_TIMEOUT}s"
+            echo "─────────────────────────────────────────────────────"
+
+            if timeout "$TASK_TIMEOUT" ssh dokku run ${{ env.APP_NAME }} $TASK_CMD; then
+              echo "✅ SUCCESS: $TASK_NAME"
+            else
+              echo "❌ FAILED: $TASK_NAME"
+              FAILED=1
+              break
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "::error::Release task failed: $TASK_NAME"
+            exit 1
+          fi
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  All release tasks completed successfully!"
+          echo "═══════════════════════════════════════════════════════"
+
       - name: Verify deployment
         run: |
           echo "Verifying deployment via HTTP..."

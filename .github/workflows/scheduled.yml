@@ -6,6 +6,7 @@
 #   - Cleanup orphaned apps (apps whose repos no longer exist, closed PR previews)
 #   - Renew SSL certificates
 #   - Health checks for all apps
+#   - Backup databases (daily at 2 AM UTC)
 #
 # Required Secrets:
 #   - DOKKU_HOST: Dokku server hostname
@@ -21,8 +22,10 @@ name: Scheduled Maintenance
 
 on:
   schedule:
-    # Run daily at 6 AM UTC
+    # Run daily at 6 AM UTC (cleanup, certs, health)
     - cron: '0 6 * * *'
+    # Run daily at 2 AM UTC (backups)
+    - cron: '0 2 * * *'
 
   workflow_dispatch:
     inputs:
@@ -36,6 +39,7 @@ on:
           - cleanup-orphans
           - renew-certs
           - health-check
+          - backup-databases
       dry_run:
         description: 'Dry run (cleanup only - show what would be deleted)'
         required: false
@@ -449,13 +453,143 @@ jobs:
             "$SLACK_WEBHOOK_URL" || true
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # Backup Databases
+  # ═══════════════════════════════════════════════════════════════════════════
+  backup-databases:
+    name: Backup Databases
+    runs-on: ubuntu-latest
+    # Run at 2 AM UTC (second cron) or when explicitly requested
+    if: (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *') || github.event.inputs.task == 'all' || github.event.inputs.task == 'backup-databases'
+    outputs:
+      backup_count: ${{ steps.backup.outputs.backup_count }}
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Backup all databases
+        id: backup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_COUNT=0
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Scheduled Database Backup"
+          echo "  Time: $TIMESTAMP"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          # Get list of all apps
+          APPS=$(ssh dokku apps:list | tail -n +2)
+
+          for APP in $APPS; do
+            # Skip preview apps (they use shared databases)
+            if [[ "$APP" == *"-pr-"* ]]; then
+              continue
+            fi
+
+            # PostgreSQL
+            DB_NAME="postgres-$APP"
+            if ssh dokku postgres:exists "$DB_NAME" 2>/dev/null; then
+              BACKUP_DIR="/var/backups/dokku/postgres/$APP"
+              BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+              echo "Backing up PostgreSQL: $DB_NAME"
+              ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+              if ssh dokku postgres:export "$DB_NAME" 2>/dev/null | gzip | \
+                ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+                SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'" 2>/dev/null || echo "?")
+                echo "  ✅ $BACKUP_FILE ($SIZE)"
+                BACKUP_COUNT=$((BACKUP_COUNT + 1))
+              else
+                echo "  ❌ Failed"
+              fi
+            fi
+
+            # MySQL
+            DB_NAME="mysql-$APP"
+            if ssh dokku mysql:exists "$DB_NAME" 2>/dev/null; then
+              BACKUP_DIR="/var/backups/dokku/mysql/$APP"
+              BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.gz"
+
+              echo "Backing up MySQL: $DB_NAME"
+              ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
+              if ssh dokku mysql:export "$DB_NAME" 2>/dev/null | gzip | \
+                ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
+                SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'" 2>/dev/null || echo "?")
+                echo "  ✅ $BACKUP_FILE ($SIZE)"
+                BACKUP_COUNT=$((BACKUP_COUNT + 1))
+              else
+                echo "  ❌ Failed"
+              fi
+            fi
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Backups completed: $BACKUP_COUNT"
+          echo "═══════════════════════════════════════════════════════"
+
+          echo "backup_count=$BACKUP_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Cleanup old backups
+        run: |
+          echo "Cleaning up backups older than 14 days..."
+          ssh dokku@${{ secrets.DOKKU_HOST }} "find /var/backups/dokku -type f -mtime +14 -delete 2>/dev/null || true"
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          BACKUP_COUNT="${{ steps.backup.outputs.backup_count }}"
+
+          if [ "$BACKUP_COUNT" -gt 0 ]; then
+            COLOR="good"
+            TITLE="Database Backup: $BACKUP_COUNT backup(s) created"
+          else
+            COLOR="warning"
+            TITLE="Database Backup: No databases to backup"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Summary Notification
   # ═══════════════════════════════════════════════════════════════════════════
   summary:
     name: Summary
     runs-on: ubuntu-latest
     needs: [cleanup-orphans, renew-certs, health-check]
-    if: always() && github.event_name == 'schedule'
+    # Only run for the 6 AM schedule (not the 2 AM backup schedule)
+    if: always() && github.event_name == 'schedule' && github.event.schedule == '0 6 * * *'
 
     steps:
       - name: Notify Slack - Daily Summary

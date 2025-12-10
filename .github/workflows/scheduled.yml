@@ -372,6 +372,10 @@ jobs:
           UNHEALTHY=0
           UNHEALTHY_APPS=""
 
+          # Create health results JSON for dashboard
+          echo '{"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","results":[' > /tmp/health_results.json
+          FIRST_RESULT=true
+
           for APP in $APPS; do
             # Get app domain
             DOMAIN=$(ssh dokku domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
@@ -381,23 +385,44 @@ jobs:
               continue
             fi
 
-            # Check health endpoint
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" --max-time 10 2>/dev/null || echo "000")
+            # Check health endpoint with response time
+            RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" "https://$DOMAIN/health" --max-time 10 2>/dev/null || echo -e "\n000\n0")
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -2 | head -1)
+            RESPONSE_TIME=$(echo "$RESPONSE" | tail -1)
 
             if [ "$HTTP_STATUS" == "000" ]; then
               # Try root endpoint
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo "000")
+              RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo -e "\n000\n0")
+              HTTP_STATUS=$(echo "$RESPONSE" | tail -2 | head -1)
+              RESPONSE_TIME=$(echo "$RESPONSE" | tail -1)
             fi
 
+            # Convert response time to milliseconds
+            RESPONSE_TIME_MS=$(echo "$RESPONSE_TIME * 1000" | bc 2>/dev/null | cut -d. -f1 || echo "0")
+            [ -z "$RESPONSE_TIME_MS" ] && RESPONSE_TIME_MS=0
+
+            # Determine status
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
-              echo "✅ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              echo "✅ $APP: HTTP $HTTP_STATUS (${RESPONSE_TIME_MS}ms) - https://$DOMAIN"
               HEALTHY=$((HEALTHY + 1))
+              STATUS="healthy"
             else
-              echo "❌ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              echo "❌ $APP: HTTP $HTTP_STATUS (${RESPONSE_TIME_MS}ms) - https://$DOMAIN"
               UNHEALTHY=$((UNHEALTHY + 1))
               UNHEALTHY_APPS="$UNHEALTHY_APPS $APP"
+              STATUS="unhealthy"
             fi
+
+            # Add to JSON results
+            if [ "$FIRST_RESULT" = true ]; then
+              FIRST_RESULT=false
+            else
+              echo "," >> /tmp/health_results.json
+            fi
+            echo "{\"app\":\"$APP\",\"status\":\"$STATUS\",\"http_code\":$HTTP_STATUS,\"response_ms\":$RESPONSE_TIME_MS,\"url\":\"https://$DOMAIN\"}" >> /tmp/health_results.json
           done
+
+          echo ']}' >> /tmp/health_results.json
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
@@ -407,6 +432,9 @@ jobs:
           echo "healthy=$HEALTHY" >> $GITHUB_OUTPUT
           echo "unhealthy=$UNHEALTHY" >> $GITHUB_OUTPUT
           echo "unhealthy_apps=${UNHEALTHY_APPS}" >> $GITHUB_OUTPUT
+
+          # Store results for potential dashboard update
+          cat /tmp/health_results.json
 
           # Exit with error if any apps are unhealthy
           if [ "$UNHEALTHY" -gt 0 ]; then

@@ -701,3 +701,21 @@ jobs:
               }]
             }" \
             "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Update Dashboard - Update the deployment dashboard
+  # ═══════════════════════════════════════════════════════════════════════════
+  update-dashboard:
+    name: Update Dashboard
+    needs: [setup, deploy]
+    if: always()
+    uses: ./.github/workflows/update-dashboard.yml
+    with:
+      app_name: ${{ needs.setup.outputs.app_name }}
+      action: deploy
+      status: ${{ needs.deploy.result }}
+      environment: ${{ needs.setup.outputs.environment }}
+      url: https://${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
+      commit_sha: ${{ github.sha }}
+      actor: ${{ github.actor }}
+    secrets: inherit

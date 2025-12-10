@@ -544,14 +544,16 @@ jobs:
           done
 
       - name: Enable SSL
+        timeout-minutes: 2
         run: |
-          echo "Enabling Let's Encrypt SSL..."
-          # letsencrypt:enable covers all domains on the app
+          # Skip if SSL already active
           if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
-            echo "SSL already active, updating certificates..."
-            ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || true
+            echo "SSL already active, skipping"
           else
-            ssh dokku letsencrypt:enable ${{ env.APP_NAME }}
+            echo "Enabling Let's Encrypt SSL..."
+            timeout 60 ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || {
+              echo "::warning::SSL setup timed out or failed - app is running on HTTP"
+            }
           fi
 
           echo ""

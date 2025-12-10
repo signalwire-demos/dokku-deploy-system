@@ -125,9 +125,11 @@ jobs:
             URL="https://${APP}.${BASE_DOMAIN}"
 
             # Check if app is running
-            STATUS="unknown"
-            if ssh dokku ps:report "$APP" --ps-running 2>/dev/null | grep -q "true"; then
+            RUNNING=$(ssh dokku ps:report "$APP" --ps-running 2>/dev/null || echo "false")
+            if [ "$RUNNING" = "true" ]; then
               STATUS="running"
+            else
+              STATUS="stopped"
             fi
 
             # Add comma separator

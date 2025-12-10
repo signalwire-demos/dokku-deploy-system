@@ -124,8 +124,9 @@ jobs:
             # Get app URL
             URL="https://${APP}.${BASE_DOMAIN}"
 
-            # Check if app is running
-            RUNNING=$(ssh dokku ps:report "$APP" --ps-running 2>/dev/null || echo "false")
+            # Check if app is running (trim whitespace)
+            RUNNING=$(ssh dokku ps:report "$APP" --ps-running 2>/dev/null | tr -d '[:space:]' || echo "false")
+            echo "  RUNNING='$RUNNING'"
             if [ "$RUNNING" = "true" ]; then
               STATUS="running"
             else
@@ -133,22 +134,27 @@ jobs:
             fi
 
             # Get git revision (version)
-            COMMIT_SHA=$(ssh dokku git:report "$APP" --git-rev 2>/dev/null || echo "")
+            COMMIT_SHA=$(ssh dokku git:report "$APP" --git-rev 2>/dev/null | tr -d '[:space:]' || echo "")
+            echo "  COMMIT_SHA='$COMMIT_SHA'"
 
-            # Check response time if running
+            # Check response time
             RESPONSE_MS=0
             UPTIME_STATUS="$STATUS"
-            if [ "$STATUS" = "running" ]; then
-              RESPONSE=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" --max-time 10 "$URL" 2>/dev/null || echo "000 0")
-              HTTP_CODE=$(echo "$RESPONSE" | cut -d' ' -f1)
-              TIME_TOTAL=$(echo "$RESPONSE" | cut -d' ' -f2)
-              RESPONSE_MS=$(echo "$TIME_TOTAL * 1000" | bc 2>/dev/null | cut -d. -f1 || echo "0")
-              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-                UPTIME_STATUS="healthy"
-              else
-                UPTIME_STATUS="unhealthy"
-              fi
+            echo "  Checking URL: $URL"
+            RESPONSE=$(curl -sk -o /dev/null -w "%{http_code} %{time_total}" --max-time 10 "$URL" 2>/dev/null || echo "000 0")
+            echo "  RESPONSE='$RESPONSE'"
+            HTTP_CODE=$(echo "$RESPONSE" | cut -d' ' -f1)
+            TIME_TOTAL=$(echo "$RESPONSE" | cut -d' ' -f2)
+            RESPONSE_MS=$(echo "$TIME_TOTAL * 1000" | bc 2>/dev/null | cut -d. -f1 || echo "0")
+            [ -z "$RESPONSE_MS" ] && RESPONSE_MS=0
+            echo "  HTTP_CODE=$HTTP_CODE RESPONSE_MS=$RESPONSE_MS"
+            if [ "$HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
+              UPTIME_STATUS="healthy"
+              STATUS="running"
+            elif [ "$HTTP_CODE" != "000" ] 2>/dev/null; then
+              UPTIME_STATUS="unhealthy"
             fi
+            echo "  STATUS=$STATUS UPTIME_STATUS=$UPTIME_STATUS"
 
             # Add comma separator
             if [ "$FIRST" = true ]; then

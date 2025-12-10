@@ -5,6 +5,13 @@
 # Manually trigger a rollback to a previous release.
 # Useful when a deployment causes issues and you need to quickly revert.
 #
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Rollback
@@ -71,50 +78,61 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
       - name: List available releases
         run: |
           echo "Available releases for ${{ steps.app.outputs.app_name }}:"
           echo ""
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            releases:list ${{ steps.app.outputs.app_name }} || \
+          ssh dokku releases:list ${{ steps.app.outputs.app_name }} || \
             echo "No releases found (or releases plugin not available)"
 
       - name: Get current release
         id: current
         run: |
-          CURRENT=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            config:get ${{ steps.app.outputs.app_name }} GIT_REV 2>/dev/null || echo "unknown")
+          CURRENT=$(ssh dokku config:get ${{ steps.app.outputs.app_name }} GIT_REV 2>/dev/null || echo "unknown")
           echo "current_rev=$CURRENT" >> $GITHUB_OUTPUT
           echo "Current revision: $CURRENT"
 
       - name: Perform rollback
+        id: rollback
         run: |
           APP="${{ steps.app.outputs.app_name }}"
           RELEASE="${{ github.event.inputs.release }}"
 
           if [ -n "$RELEASE" ]; then
             echo "Rolling back $APP to release $RELEASE..."
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              releases:rollback "$APP" "$RELEASE"
+            ssh dokku releases:rollback "$APP" "$RELEASE"
+            echo "target_release=$RELEASE" >> $GITHUB_OUTPUT
           else
             echo "Rolling back $APP to previous release..."
-            ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-              releases:rollback "$APP"
+            ssh dokku releases:rollback "$APP"
+            echo "target_release=previous" >> $GITHUB_OUTPUT
           fi
 
       - name: Verify rollback
+        id: verify
         run: |
           APP="${{ steps.app.outputs.app_name }}"
 
           # Get app domain
-          DOMAIN=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
-            domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
+          DOMAIN=$(ssh dokku domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
 
           if [ -z "$DOMAIN" ]; then
             echo "⚠️ No domain found for $APP"
+            echo "status=warning" >> $GITHUB_OUTPUT
+            echo "domain=none" >> $GITHUB_OUTPUT
             exit 0
           fi
 
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
           echo "Waiting for app to restart..."
           sleep 15
 
@@ -123,28 +141,51 @@ jobs:
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
             echo "✅ Rollback successful! App is responding with HTTP $HTTP_STATUS"
             echo "🌐 https://$DOMAIN"
+            echo "status=success" >> $GITHUB_OUTPUT
           else
             echo "⚠️ App returned HTTP $HTTP_STATUS after rollback"
             echo "Check logs: ssh dokku@server logs $APP"
+            echo "status=warning" >> $GITHUB_OUTPUT
           fi
 
-      - name: Notify
-        if: secrets.SLACK_WEBHOOK_URL != ''
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          APP="${{ steps.app.outputs.app_name }}"
+          PREV_REV="${{ steps.current.outputs.current_rev }}"
+          TARGET="${{ steps.rollback.outputs.target_release }}"
+          STATUS="${{ steps.verify.outputs.status }}"
+          DOMAIN="${{ steps.verify.outputs.domain }}"
+
+          if [ "${{ job.status }}" == "success" ] && [ "$STATUS" == "success" ]; then
+            COLOR="warning"
+            TITLE="Rollback Successful"
+          else
+            COLOR="danger"
+            TITLE="Rollback Completed (verify manually)"
+          fi
+
           curl -X POST -H 'Content-type: application/json' \
-            --data '{
-              "text": "🔄 Rollback performed",
-              "attachments": [{
-                "color": "warning",
-                "fields": [
-                  {"title": "App", "value": "${{ steps.app.outputs.app_name }}", "short": true},
-                  {"title": "Environment", "value": "${{ github.event.inputs.environment }}", "short": true},
-                  {"title": "Previous Rev", "value": "${{ steps.current.outputs.current_rev }}", "short": false},
-                  {"title": "Triggered by", "value": "${{ github.actor }}", "short": true}
-                ]
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"App\", \"value\": \"$APP\", \"short\": true},
+                  {\"title\": \"Environment\", \"value\": \"${{ github.event.inputs.environment }}\", \"short\": true},
+                  {\"title\": \"Rolled back to\", \"value\": \"$TARGET\", \"short\": true},
+                  {\"title\": \"Previous Rev\", \"value\": \"$PREV_REV\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"URL\", \"value\": \"https://$DOMAIN\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
               }]
-            }' \
-            ${{ secrets.SLACK_WEBHOOK_URL }} || true
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
 
   cancelled:
     name: Rollback Cancelled

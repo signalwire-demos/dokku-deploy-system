@@ -18,10 +18,11 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 
 ```
 dokku-deploy-system/
-├── .github/workflows/      # Reusable workflows (called by other repos)
-│   ├── deploy.yml          # Reusable deploy workflow
-│   ├── preview.yml         # Reusable preview workflow
-│   └── cleanup.yml         # Automatic orphan cleanup (daily)
+├── .github/workflows/      # Workflows
+│   ├── deploy.yml          # Reusable deploy workflow (called by other repos)
+│   ├── preview.yml         # Reusable preview workflow (called by other repos)
+│   ├── scheduled.yml       # Daily maintenance (cleanup, certs, health checks)
+│   └── rollback.yml        # Manual rollback workflow
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
 │   ├── 02-dokku-install.sh
@@ -30,10 +31,6 @@ dokku-deploy-system/
 │   ├── 05-global-config.sh
 │   ├── 06-server-hardening.sh
 │   └── setup-all.sh
-├── github-workflows/       # Legacy workflows (deprecated)
-│   ├── scheduled.yml       # Maintenance tasks
-│   ├── rollback.yml        # Manual rollback
-│   └── custom-domain.yml   # Add custom domains
 ├── template-repo/          # Template for new projects
 │   ├── .github/workflows/  # Minimal callers to reusable workflows
 │   ├── .dokku/
@@ -105,27 +102,25 @@ That's it! The reusable workflows handle:
 - Health checks and Slack notifications
 - Preview environment creation/cleanup
 
-## Automatic Cleanup
+## Scheduled Maintenance
 
-The system includes automatic cleanup of orphaned apps:
+The system runs daily maintenance tasks at **6 AM UTC** via `scheduled.yml`:
 
-- **Daily at 6 AM UTC**: Scans all Dokku apps and removes:
-  - Apps whose GitHub repos no longer exist
-  - PR preview apps for closed/merged pull requests
-  - All associated services (PostgreSQL, Redis, etc.)
+- **Orphan Cleanup**: Removes apps whose GitHub repos no longer exist or PR previews for closed PRs
+- **SSL Renewal**: Auto-renews Let's Encrypt certificates
+- **Health Checks**: Verifies all apps are responding
 
-- **Manual cleanup**: Run from the Actions tab in `dokku-deploy-system`:
-  ```
-  Actions → Cleanup App → Run workflow
-  ```
-  Options:
-  - `app_name`: Specific app to destroy
-  - `dry_run`: Preview what would be deleted
-  - `include_services`: Also destroy linked services
-  - `force`: Override safety check (required if repo still exists)
+All task results are posted to Slack (if configured).
 
-  **Safety check**: Manual cleanup verifies the repo doesn't exist before deleting.
-  If the repo still exists, cleanup is aborted unless `force=true`.
+### Manual Trigger
+
+Run maintenance tasks manually from the Actions tab:
+```
+Actions → Scheduled Maintenance → Run workflow
+```
+Options:
+- `task`: Choose `all`, `cleanup-orphans`, `renew-certs`, or `health-check`
+- `dry_run`: Preview what would be deleted (cleanup only)
 
 ### Required Secret for Cleanup
 
@@ -139,6 +134,19 @@ gh secret set GH_ORG_TOKEN \
 ```
 
 This token allows the cleanup workflow to check if repos/PRs still exist.
+
+## Rollback
+
+To rollback an app to a previous release:
+
+```
+Actions → Rollback → Run workflow
+```
+Options:
+- `app_name`: App to rollback (defaults to repo name)
+- `environment`: production, staging, or development
+- `release`: Specific release version (leave empty for previous)
+- `confirm`: Type "ROLLBACK" to confirm
 
 ## Quick Start
 

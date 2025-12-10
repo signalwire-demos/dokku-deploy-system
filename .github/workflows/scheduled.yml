@@ -1,0 +1,495 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# scheduled.yml - Scheduled Maintenance Tasks
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Runs scheduled maintenance tasks:
+#   - Cleanup orphaned apps (apps whose repos no longer exist, closed PR previews)
+#   - Renew SSL certificates
+#   - Health checks for all apps
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key
+#   - GH_ORG_TOKEN: GitHub token with repo read access (for orphan detection)
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Scheduled Maintenance
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - cleanup-orphans
+          - renew-certs
+          - health-check
+      dry_run:
+        description: 'Dry run (cleanup only - show what would be deleted)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  GH_ORG: signalwire-demos
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Cleanup Orphaned Apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  cleanup-orphans:
+    name: Cleanup Orphaned Apps
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'cleanup-orphans'
+    outputs:
+      orphans_found: ${{ steps.cleanup.outputs.orphans_found }}
+      orphans_list: ${{ steps.cleanup.outputs.orphans_list }}
+      apps_destroyed: ${{ steps.cleanup.outputs.apps_destroyed }}
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+          ssh dokku version
+
+      - name: Cleanup orphaned apps
+        id: cleanup
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Scanning for orphaned apps..."
+          echo "═══════════════════════════════════════════════════════"
+
+          # Get list of all Dokku apps
+          DOKKU_APPS=$(ssh dokku apps:list | tail -n +2)
+
+          if [ -z "$DOKKU_APPS" ]; then
+            echo "No apps found on Dokku server"
+            echo "orphans_found=0" >> $GITHUB_OUTPUT
+            echo "apps_destroyed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          ORPHANS=""
+          ORPHAN_COUNT=0
+
+          for APP in $DOKKU_APPS; do
+            # Check if this is a PR preview app
+            if [[ "$APP" =~ ^(.+)-pr-([0-9]+)$ ]]; then
+              BASE_APP="${BASH_REMATCH[1]}"
+              PR_NUMBER="${BASH_REMATCH[2]}"
+
+              # Check if repo exists
+              if ! gh repo view "${{ env.GH_ORG }}/${BASE_APP}" --json name >/dev/null 2>&1; then
+                echo "Orphaned PR preview: $APP (repo ${{ env.GH_ORG }}/${BASE_APP} not found)"
+                ORPHANS="$ORPHANS $APP"
+                ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+              else
+                # Repo exists, check if PR is still open
+                PR_STATE=$(gh pr view "$PR_NUMBER" --repo "${{ env.GH_ORG }}/${BASE_APP}" --json state -q '.state' 2>/dev/null || echo "NOT_FOUND")
+                if [ "$PR_STATE" != "OPEN" ]; then
+                  echo "Orphaned PR preview: $APP (PR #$PR_NUMBER is $PR_STATE)"
+                  ORPHANS="$ORPHANS $APP"
+                  ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+                else
+                  echo "App OK: $APP (PR #$PR_NUMBER is open)"
+                fi
+              fi
+            else
+              # Regular app - extract base name (remove -staging, -dev suffixes)
+              BASE_APP=$(echo "$APP" | sed 's/-staging$//' | sed 's/-dev$//')
+
+              # Check if repo exists in the org
+              if ! gh repo view "${{ env.GH_ORG }}/${BASE_APP}" --json name >/dev/null 2>&1; then
+                echo "Orphaned app found: $APP (repo ${{ env.GH_ORG }}/${BASE_APP} not found)"
+                ORPHANS="$ORPHANS $APP"
+                ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+              else
+                echo "App OK: $APP (repo exists)"
+              fi
+            fi
+          done
+
+          echo "orphans_found=$ORPHAN_COUNT" >> $GITHUB_OUTPUT
+          echo "orphans_list=${ORPHANS}" >> $GITHUB_OUTPUT
+
+          if [ -z "$ORPHANS" ]; then
+            echo ""
+            echo "No orphaned apps found!"
+            echo "apps_destroyed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Found $ORPHAN_COUNT orphaned app(s)"
+          echo "═══════════════════════════════════════════════════════"
+
+          if [ "$DRY_RUN" == "true" ]; then
+            echo ""
+            echo "[DRY RUN] Would destroy the following apps:"
+            for APP in $ORPHANS; do
+              echo "  - $APP"
+            done
+            echo "apps_destroyed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          DESTROYED=0
+          for APP in $ORPHANS; do
+            echo ""
+            echo "Cleaning up orphan: $APP"
+            echo "─────────────────────────────────────────────────────"
+
+            # Cleanup services
+            SERVICES="postgres redis mongo mysql rabbitmq elasticsearch"
+            for SERVICE in $SERVICES; do
+              SERVICE_NAME="${SERVICE}-${APP}"
+              if ssh dokku ${SERVICE}:exists "$SERVICE_NAME" 2>/dev/null; then
+                echo "  Destroying service: $SERVICE_NAME"
+                ssh dokku ${SERVICE}:unlink "$SERVICE_NAME" "$APP" 2>/dev/null || true
+                ssh dokku ${SERVICE}:destroy "$SERVICE_NAME" --force 2>/dev/null || true
+              fi
+            done
+
+            # Destroy the app
+            echo "  Destroying app: $APP"
+            ssh dokku apps:destroy "$APP" --force
+            DESTROYED=$((DESTROYED + 1))
+          done
+
+          echo "apps_destroyed=$DESTROYED" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Orphan cleanup complete! Destroyed $DESTROYED app(s)"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Notify Slack - Cleanup Results
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          ORPHANS="${{ steps.cleanup.outputs.orphans_found }}"
+          DESTROYED="${{ steps.cleanup.outputs.apps_destroyed }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            if [ "$ORPHANS" == "0" ] || [ -z "$ORPHANS" ]; then
+              COLOR="good"
+              TITLE="Cleanup: No orphaned apps found"
+            elif [ "$DRY_RUN" == "true" ]; then
+              COLOR="warning"
+              TITLE="Cleanup (Dry Run): Found $ORPHANS orphaned app(s)"
+            else
+              COLOR="good"
+              TITLE="Cleanup: Destroyed $DESTROYED orphaned app(s)"
+            fi
+          else
+            COLOR="danger"
+            TITLE="Cleanup: Failed"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Task\", \"value\": \"Orphan Cleanup\", \"short\": true},
+                  {\"title\": \"Trigger\", \"value\": \"${{ github.event_name }}\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Renew SSL Certificates
+  # ═══════════════════════════════════════════════════════════════════════════
+  renew-certs:
+    name: Renew SSL Certificates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'renew-certs'
+    outputs:
+      certs_renewed: ${{ steps.renew.outputs.certs_renewed }}
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Renew all certificates
+        id: renew
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Renewing SSL certificates..."
+          echo "═══════════════════════════════════════════════════════"
+
+          OUTPUT=$(ssh dokku letsencrypt:auto-renew 2>&1) || true
+          echo "$OUTPUT"
+
+          # Count renewed certs (look for "Renewing" in output)
+          RENEWED=$(echo "$OUTPUT" | grep -c "Renewing" || echo "0")
+          echo "certs_renewed=$RENEWED" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "Certificate status:"
+          ssh dokku letsencrypt:list || true
+
+      - name: Notify Slack - Cert Renewal Results
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          RENEWED="${{ steps.renew.outputs.certs_renewed }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR="good"
+            if [ "$RENEWED" == "0" ] || [ -z "$RENEWED" ]; then
+              TITLE="SSL Renewal: All certificates up to date"
+            else
+              TITLE="SSL Renewal: Renewed $RENEWED certificate(s)"
+            fi
+          else
+            COLOR="danger"
+            TITLE="SSL Renewal: Failed"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Task\", \"value\": \"Certificate Renewal\", \"short\": true},
+                  {\"title\": \"Trigger\", \"value\": \"${{ github.event_name }}\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Health Check All Apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  health-check:
+    name: Health Check All Apps
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'health-check'
+    outputs:
+      healthy_count: ${{ steps.check.outputs.healthy }}
+      unhealthy_count: ${{ steps.check.outputs.unhealthy }}
+      unhealthy_apps: ${{ steps.check.outputs.unhealthy_apps }}
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Check all apps
+        id: check
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Running health checks..."
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          # Get all apps
+          APPS=$(ssh dokku apps:list 2>/dev/null | tail -n +2)
+
+          if [ -z "$APPS" ]; then
+            echo "No apps found"
+            echo "healthy=0" >> $GITHUB_OUTPUT
+            echo "unhealthy=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          HEALTHY=0
+          UNHEALTHY=0
+          UNHEALTHY_APPS=""
+
+          for APP in $APPS; do
+            # Get app domain
+            DOMAIN=$(ssh dokku domains:report "$APP" --domains-app-vhosts 2>/dev/null | head -1)
+
+            if [ -z "$DOMAIN" ]; then
+              echo "⚠️  $APP: No domain configured"
+              continue
+            fi
+
+            # Check health endpoint
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/health" --max-time 10 2>/dev/null || echo "000")
+
+            if [ "$HTTP_STATUS" == "000" ]; then
+              # Try root endpoint
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo "000")
+            fi
+
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "✅ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              HEALTHY=$((HEALTHY + 1))
+            else
+              echo "❌ $APP: HTTP $HTTP_STATUS (https://$DOMAIN)"
+              UNHEALTHY=$((UNHEALTHY + 1))
+              UNHEALTHY_APPS="$UNHEALTHY_APPS $APP"
+            fi
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Summary: $HEALTHY healthy, $UNHEALTHY unhealthy"
+          echo "═══════════════════════════════════════════════════════"
+
+          echo "healthy=$HEALTHY" >> $GITHUB_OUTPUT
+          echo "unhealthy=$UNHEALTHY" >> $GITHUB_OUTPUT
+          echo "unhealthy_apps=${UNHEALTHY_APPS}" >> $GITHUB_OUTPUT
+
+          # Exit with error if any apps are unhealthy
+          if [ "$UNHEALTHY" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Notify Slack - Health Check Results
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          HEALTHY="${{ steps.check.outputs.healthy }}"
+          UNHEALTHY="${{ steps.check.outputs.unhealthy }}"
+          UNHEALTHY_APPS="${{ steps.check.outputs.unhealthy_apps }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR="good"
+            TITLE="Health Check: All $HEALTHY app(s) healthy"
+          else
+            COLOR="danger"
+            TITLE="Health Check: $UNHEALTHY app(s) unhealthy"
+          fi
+
+          # Build fields JSON
+          FIELDS="[{\"title\": \"Healthy\", \"value\": \"$HEALTHY\", \"short\": true}, {\"title\": \"Unhealthy\", \"value\": \"$UNHEALTHY\", \"short\": true}"
+
+          if [ -n "$UNHEALTHY_APPS" ]; then
+            FIELDS="$FIELDS, {\"title\": \"Unhealthy Apps\", \"value\": \"$UNHEALTHY_APPS\", \"short\": false}"
+          fi
+
+          FIELDS="$FIELDS]"
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": $FIELDS,
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Summary Notification
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [cleanup-orphans, renew-certs, health-check]
+    if: always() && github.event_name == 'schedule'
+
+    steps:
+      - name: Notify Slack - Daily Summary
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          # Determine overall status
+          CLEANUP_STATUS="${{ needs.cleanup-orphans.result }}"
+          CERTS_STATUS="${{ needs.renew-certs.result }}"
+          HEALTH_STATUS="${{ needs.health-check.result }}"
+
+          if [ "$CLEANUP_STATUS" == "success" ] && [ "$CERTS_STATUS" == "success" ] && [ "$HEALTH_STATUS" == "success" ]; then
+            COLOR="good"
+            TITLE="Daily Maintenance: All tasks completed successfully"
+          elif [ "$HEALTH_STATUS" != "success" ]; then
+            COLOR="danger"
+            TITLE="Daily Maintenance: Health check issues detected"
+          else
+            COLOR="warning"
+            TITLE="Daily Maintenance: Some tasks had issues"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Cleanup\", \"value\": \"$CLEANUP_STATUS\", \"short\": true},
+                  {\"title\": \"SSL Renewal\", \"value\": \"$CERTS_STATUS\", \"short\": true},
+                  {\"title\": \"Health Check\", \"value\": \"$HEALTH_STATUS\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true

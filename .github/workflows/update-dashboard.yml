@@ -98,14 +98,13 @@ jobs:
         env:
           BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
         run: |
-          mkdir -p dashboard
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           echo "Fetching apps from Dokku..."
           APPS=$(ssh dokku apps:list | tail -n +2)
 
-          # Start building JSON
-          echo '{"last_updated":"'"$TIMESTAMP"'","apps":[' > dashboard/apps.json
+          # Start building JSON (write to root level)
+          echo '{"last_updated":"'"$TIMESTAMP"'","apps":[' > apps.json
 
           FIRST=true
           for APP in $APPS; do
@@ -135,11 +134,11 @@ jobs:
             if [ "$FIRST" = true ]; then
               FIRST=false
             else
-              echo "," >> dashboard/apps.json
+              echo "," >> apps.json
             fi
 
             # Add app entry
-            cat >> dashboard/apps.json << APPJSON
+            cat >> apps.json << APPJSON
           {
             "name": "$APP",
             "status": "$STATUS",
@@ -157,19 +156,18 @@ jobs:
           APPJSON
           done
 
-          echo ']}' >> dashboard/apps.json
+          echo ']}' >> apps.json
 
           echo ""
           echo "Dashboard synced with $(echo "$APPS" | wc -w | tr -d ' ') apps"
-          cat dashboard/apps.json
+          cat apps.json
 
       - name: Update apps.json
         if: inputs.action != 'sync-from-dokku'
         run: |
           # Initialize apps.json if it doesn't exist
-          if [ ! -f dashboard/apps.json ]; then
-            mkdir -p dashboard
-            echo '{"last_updated":"","apps":[]}' > dashboard/apps.json
+          if [ ! -f apps.json ]; then
+            echo '{"last_updated":"","apps":[]}' > apps.json
           fi
 
           APP_NAME="${{ inputs.app_name }}"
@@ -184,7 +182,7 @@ jobs:
           # Update or add app entry
           if [ "$ACTION" == "deploy" ]; then
             # Check if app exists in JSON
-            APP_EXISTS=$(jq --arg name "$APP_NAME" '.apps | map(select(.name == $name)) | length' dashboard/apps.json)
+            APP_EXISTS=$(jq --arg name "$APP_NAME" '.apps | map(select(.name == $name)) | length' apps.json)
 
             if [ "$APP_EXISTS" -gt 0 ]; then
               # Update existing app
@@ -202,7 +200,7 @@ jobs:
                    last_deploy: $ts,
                    last_deploy_by: $actor,
                    commit_sha: $sha
-                 } | .last_updated = $ts' dashboard/apps.json > tmp.json && mv tmp.json dashboard/apps.json
+                 } | .last_updated = $ts' apps.json > tmp.json && mv tmp.json apps.json
             else
               # Add new app
               jq --arg name "$APP_NAME" \
@@ -225,14 +223,14 @@ jobs:
                      response_time_ms: 0,
                      last_check: $ts
                    }
-                 }] | .last_updated = $ts' dashboard/apps.json > tmp.json && mv tmp.json dashboard/apps.json
+                 }] | .last_updated = $ts' apps.json > tmp.json && mv tmp.json apps.json
             fi
 
           elif [ "$ACTION" == "cleanup" ]; then
             # Remove app from dashboard
             jq --arg name "$APP_NAME" --arg ts "$TIMESTAMP" \
                '.apps = [.apps[] | select(.name != $name)] | .last_updated = $ts' \
-               dashboard/apps.json > tmp.json && mv tmp.json dashboard/apps.json
+               apps.json > tmp.json && mv tmp.json apps.json
 
           elif [ "$ACTION" == "health-check" ]; then
             # Update uptime info
@@ -242,18 +240,18 @@ jobs:
                '(.apps[] | select(.name == $name)).uptime |= . + {
                  status: $status,
                  last_check: $ts
-               } | .last_updated = $ts' dashboard/apps.json > tmp.json && mv tmp.json dashboard/apps.json
+               } | .last_updated = $ts' apps.json > tmp.json && mv tmp.json apps.json
           fi
 
           echo "Updated dashboard for $APP_NAME ($ACTION: $STATUS)"
-          cat dashboard/apps.json
+          cat apps.json
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add dashboard/
+          git add apps.json
 
           if git diff --staged --quiet; then
             echo "No changes to commit"

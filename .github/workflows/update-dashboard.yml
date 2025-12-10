@@ -132,6 +132,24 @@ jobs:
               STATUS="stopped"
             fi
 
+            # Get git revision (version)
+            COMMIT_SHA=$(ssh dokku git:report "$APP" --git-rev 2>/dev/null || echo "")
+
+            # Check response time if running
+            RESPONSE_MS=0
+            UPTIME_STATUS="$STATUS"
+            if [ "$STATUS" = "running" ]; then
+              RESPONSE=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" --max-time 10 "$URL" 2>/dev/null || echo "000 0")
+              HTTP_CODE=$(echo "$RESPONSE" | cut -d' ' -f1)
+              TIME_TOTAL=$(echo "$RESPONSE" | cut -d' ' -f2)
+              RESPONSE_MS=$(echo "$TIME_TOTAL * 1000" | bc 2>/dev/null | cut -d. -f1 || echo "0")
+              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+                UPTIME_STATUS="healthy"
+              else
+                UPTIME_STATUS="unhealthy"
+              fi
+            fi
+
             # Add comma separator
             if [ "$FIRST" = true ]; then
               FIRST=false
@@ -148,10 +166,10 @@ jobs:
             "url": "$URL",
             "last_deploy": "$TIMESTAMP",
             "last_deploy_by": "sync",
-            "commit_sha": "",
+            "commit_sha": "$COMMIT_SHA",
             "uptime": {
-              "status": "$STATUS",
-              "response_time_ms": 0,
+              "status": "$UPTIME_STATUS",
+              "response_time_ms": $RESPONSE_MS,
               "last_check": "$TIMESTAMP"
             }
           }

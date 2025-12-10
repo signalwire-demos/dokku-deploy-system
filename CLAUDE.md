@@ -12,6 +12,7 @@ This is a GitHub + Dokku auto-deployment system providing reusable workflows for
 - **deploy.yml**: Reusable deployment workflow called by other repos via `uses: signalwire-demos/dokku-deploy-system/.github/workflows/deploy.yml@main`. Handles app creation, service provisioning, environment variables, and SSL.
 - **preview.yml**: Reusable PR preview environment workflow. Creates temporary apps for each PR, auto-destroys on close.
 - **scheduled.yml**: Daily maintenance (6 AM UTC) - orphan cleanup, SSL renewal, health checks. All results posted to Slack.
+- **cleanup.yml**: Manual app destruction with safety checks. Verifies repo doesn't exist before deleting (unless `force=true`). Also destroys app variants (-staging, -dev, -pr-*) and linked services.
 - **rollback.yml**: Manual rollback to previous releases. Requires typing "ROLLBACK" to confirm.
 
 ### Branch-to-Environment Mapping

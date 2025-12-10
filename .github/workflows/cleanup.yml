@@ -1,0 +1,278 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# cleanup.yml - Manual App Cleanup Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Manually destroy a specific Dokku app and its associated services.
+# Includes safety check to prevent accidental deletion of apps with existing repos.
+#
+# Triggers:
+#   1. repository_dispatch: Immediate cleanup when a repo is deleted (via webhook)
+#   2. workflow_dispatch: Manual cleanup for a specific app
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key
+#   - GH_ORG_TOKEN: GitHub token with repo read access (for safety check)
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Cleanup App
+
+on:
+  # Triggered by org webhook relay when a repo is deleted
+  repository_dispatch:
+    types: [repo-deleted]
+
+  # Manual trigger for specific app cleanup
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name to destroy (e.g., myapp, myapp-staging, myapp-dev)'
+        required: true
+        type: string
+      include_services:
+        description: 'Also destroy linked services'
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Dry run (show what would be deleted without deleting)'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Force delete even if repo still exists (dangerous!)'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  GH_ORG: signalwire-demos
+
+jobs:
+  cleanup:
+    name: Cleanup App
+    runs-on: ubuntu-latest
+    outputs:
+      apps_destroyed: ${{ steps.cleanup.outputs.apps_destroyed }}
+      services_destroyed: ${{ steps.cleanup.outputs.services_destroyed }}
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+          ssh dokku version
+
+      - name: Determine app to cleanup
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            # From webhook - repo was deleted
+            APP_NAME="${{ github.event.client_payload.repo_name }}"
+            echo "Triggered by repo deletion webhook"
+            echo "skip_safety_check=true" >> $GITHUB_OUTPUT
+          else
+            # Manual trigger
+            APP_NAME="${{ inputs.app_name }}"
+            echo "Triggered manually"
+            echo "skip_safety_check=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "Target app: $APP_NAME"
+
+      - name: Safety check - verify repo doesn't exist
+        if: steps.target.outputs.skip_safety_check != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          echo "Checking if repo ${{ env.GH_ORG }}/${APP_NAME} still exists..."
+
+          if gh repo view "${{ env.GH_ORG }}/${APP_NAME}" --json name >/dev/null 2>&1; then
+            echo ""
+            echo "⚠️  WARNING: Repository ${{ env.GH_ORG }}/${APP_NAME} still exists!"
+            echo ""
+
+            if [ "$FORCE" == "true" ]; then
+              echo "Force flag is set - proceeding with cleanup anyway."
+            else
+              echo "Aborting cleanup to prevent accidental deletion."
+              echo ""
+              echo "If you really want to delete this app, re-run with force=true"
+              exit 1
+            fi
+          else
+            echo "✓ Repository not found - safe to proceed with cleanup."
+          fi
+
+      - name: Cleanup app and services
+        id: cleanup
+        env:
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          INCLUDE_SERVICES: ${{ inputs.include_services || 'true' }}
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Cleaning up: $APP_NAME"
+          echo "  Dry run: $DRY_RUN"
+          echo "  Include services: $INCLUDE_SERVICES"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Check if app exists
+          if ! ssh dokku apps:exists "$APP_NAME" 2>/dev/null; then
+            echo "App $APP_NAME does not exist, checking for variants..."
+          fi
+
+          # Build list of apps to cleanup (main app + variants)
+          APPS_TO_CLEANUP=""
+
+          # Check main app
+          if ssh dokku apps:exists "$APP_NAME" 2>/dev/null; then
+            APPS_TO_CLEANUP="$APP_NAME"
+          fi
+
+          # Check for -staging and -dev variants
+          for suffix in "-staging" "-dev"; do
+            VARIANT="${APP_NAME}${suffix}"
+            if ssh dokku apps:exists "$VARIANT" 2>/dev/null; then
+              APPS_TO_CLEANUP="$APPS_TO_CLEANUP $VARIANT"
+            fi
+          done
+
+          # Check for PR preview apps (-pr-*)
+          ALL_APPS=$(ssh dokku apps:list | tail -n +2)
+          for EXISTING_APP in $ALL_APPS; do
+            if [[ "$EXISTING_APP" =~ ^${APP_NAME}-pr-[0-9]+$ ]]; then
+              echo "Found PR preview app: $EXISTING_APP"
+              APPS_TO_CLEANUP="$APPS_TO_CLEANUP $EXISTING_APP"
+            fi
+          done
+
+          if [ -z "$APPS_TO_CLEANUP" ]; then
+            echo "No apps found matching: $APP_NAME"
+            echo "apps_destroyed=0" >> $GITHUB_OUTPUT
+            echo "services_destroyed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo ""
+          echo "Apps to cleanup: $APPS_TO_CLEANUP"
+
+          APPS_DESTROYED=0
+          SERVICES_DESTROYED=0
+
+          for APP in $APPS_TO_CLEANUP; do
+            echo ""
+            echo "Processing: $APP"
+            echo "─────────────────────────────────────────────────────"
+
+            if [ "$INCLUDE_SERVICES" == "true" ]; then
+              # List of service types to check
+              SERVICES="postgres redis mongo mysql rabbitmq elasticsearch"
+
+              for SERVICE in $SERVICES; do
+                SERVICE_NAME="${SERVICE}-${APP}"
+
+                # Check if service exists
+                if ssh dokku ${SERVICE}:exists "$SERVICE_NAME" 2>/dev/null; then
+                  echo "Found service: $SERVICE_NAME"
+
+                  if [ "$DRY_RUN" == "true" ]; then
+                    echo "  [DRY RUN] Would unlink and destroy $SERVICE_NAME"
+                  else
+                    echo "  Unlinking $SERVICE_NAME from $APP..."
+                    ssh dokku ${SERVICE}:unlink "$SERVICE_NAME" "$APP" 2>/dev/null || true
+
+                    echo "  Destroying $SERVICE_NAME..."
+                    ssh dokku ${SERVICE}:destroy "$SERVICE_NAME" --force 2>/dev/null || true
+                    SERVICES_DESTROYED=$((SERVICES_DESTROYED + 1))
+                  fi
+                fi
+              done
+            fi
+
+            # Destroy the app
+            if [ "$DRY_RUN" == "true" ]; then
+              echo "[DRY RUN] Would destroy app: $APP"
+            else
+              echo "Destroying app: $APP..."
+              ssh dokku apps:destroy "$APP" --force
+              APPS_DESTROYED=$((APPS_DESTROYED + 1))
+            fi
+          done
+
+          echo "apps_destroyed=$APPS_DESTROYED" >> $GITHUB_OUTPUT
+          echo "services_destroyed=$SERVICES_DESTROYED" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          if [ "$DRY_RUN" == "true" ]; then
+            echo "  Dry run complete!"
+          else
+            echo "  Cleanup complete!"
+            echo "  Apps destroyed: $APPS_DESTROYED"
+            echo "  Services destroyed: $SERVICES_DESTROYED"
+          fi
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          APPS_DESTROYED="${{ steps.cleanup.outputs.apps_destroyed }}"
+          SERVICES_DESTROYED="${{ steps.cleanup.outputs.services_destroyed }}"
+          DRY_RUN="${{ inputs.dry_run || 'false' }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            if [ "$DRY_RUN" == "true" ]; then
+              COLOR="warning"
+              TITLE="Cleanup (Dry Run): $APP_NAME"
+            else
+              COLOR="good"
+              TITLE="Cleanup Complete: $APP_NAME"
+            fi
+          else
+            COLOR="danger"
+            TITLE="Cleanup Failed: $APP_NAME"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Apps Destroyed\", \"value\": \"$APPS_DESTROYED\", \"short\": true},
+                  {\"title\": \"Services Destroyed\", \"value\": \"$SERVICES_DESTROYED\", \"short\": true},
+                  {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Trigger\", \"value\": \"${{ github.event_name }}\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true

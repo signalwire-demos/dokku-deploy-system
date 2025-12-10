@@ -22,6 +22,7 @@ dokku-deploy-system/
 │   ├── deploy.yml          # Reusable deploy workflow (called by other repos)
 │   ├── preview.yml         # Reusable preview workflow (called by other repos)
 │   ├── scheduled.yml       # Daily maintenance (cleanup, certs, health checks)
+│   ├── cleanup.yml         # Manual app cleanup with safety checks
 │   └── rollback.yml        # Manual rollback workflow
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
@@ -134,6 +135,22 @@ gh secret set GH_ORG_TOKEN \
 ```
 
 This token allows the cleanup workflow to check if repos/PRs still exist.
+
+## Manual App Cleanup
+
+To manually destroy a specific app and its services:
+
+```
+Actions → Cleanup App → Run workflow
+```
+Options:
+- `app_name`: App to destroy (also destroys -staging, -dev, and -pr-* variants)
+- `include_services`: Also destroy linked services (default: true)
+- `dry_run`: Preview what would be deleted without deleting
+- `force`: Force delete even if GitHub repo still exists (dangerous!)
+
+**Safety check**: The workflow verifies the GitHub repo doesn't exist before deleting.
+If the repo still exists, cleanup is aborted unless `force=true`.
 
 ## Rollback
 

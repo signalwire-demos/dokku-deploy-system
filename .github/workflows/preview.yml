@@ -94,6 +94,32 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
+      - name: Check deploy lock on base app
+        run: |
+          # Check if base app (production) is locked - if so, block preview deploys too
+          BASE_APP="${{ env.BASE_APP_NAME }}"
+          if ssh dokku apps:exists "$BASE_APP" 2>/dev/null; then
+            LOCKED=$(ssh dokku config:get "$BASE_APP" DEPLOY_LOCKED 2>/dev/null || echo "false")
+            if [ "$LOCKED" == "true" ]; then
+              REASON=$(ssh dokku config:get "$BASE_APP" DEPLOY_LOCK_REASON 2>/dev/null || echo "No reason provided")
+              LOCKED_BY=$(ssh dokku config:get "$BASE_APP" DEPLOY_LOCK_BY 2>/dev/null || echo "Unknown")
+              echo ""
+              echo "::error::Preview deployment blocked - Base app is locked!"
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  DEPLOY LOCK ACTIVE on $BASE_APP"
+              echo "═══════════════════════════════════════════════════════"
+              echo "  Reason: $REASON"
+              echo "  Locked by: $LOCKED_BY"
+              echo ""
+              echo "  Preview deploys are blocked when the base app is locked."
+              echo "  To unlock, run the Deploy Lock workflow on the base app."
+              echo "═══════════════════════════════════════════════════════"
+              exit 1
+            fi
+          fi
+          echo "Deploy lock check passed"
+
       - name: Create preview app
         run: |
           echo "Creating preview app: ${{ env.APP_NAME }}"

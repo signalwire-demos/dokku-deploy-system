@@ -1,0 +1,201 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# lock.yml - Deploy Lock Management
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Lock or unlock app deployments. Locked apps will reject all deploy attempts
+# until unlocked. Useful during incidents, maintenance, or hotfix deployments.
+#
+# Lock state is stored as Dokku config vars:
+#   - DEPLOY_LOCKED: true/false
+#   - DEPLOY_LOCK_REASON: Human-readable reason
+#   - DEPLOY_LOCK_BY: Who locked it
+#   - DEPLOY_LOCK_AT: When it was locked
+#
+# Required Secrets:
+#   - DOKKU_HOST: Dokku server hostname
+#   - DOKKU_SSH_PRIVATE_KEY: SSH private key
+#
+# Optional Secrets:
+#   - SLACK_WEBHOOK_URL: Slack notifications
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Deploy Lock
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name to lock/unlock'
+        required: true
+        type: string
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - lock
+          - unlock
+          - status
+      reason:
+        description: 'Lock reason (required for lock action)'
+        required: false
+        type: string
+        default: 'Manual lock'
+
+jobs:
+  manage-lock:
+    name: ${{ inputs.action }} - ${{ inputs.app_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Verify app exists
+        run: |
+          if ! ssh dokku apps:exists ${{ inputs.app_name }} 2>/dev/null; then
+            echo "::error::App '${{ inputs.app_name }}' does not exist"
+            exit 1
+          fi
+          echo "App exists: ${{ inputs.app_name }}"
+
+      - name: Check current lock status
+        id: current
+        run: |
+          LOCKED=$(ssh dokku config:get ${{ inputs.app_name }} DEPLOY_LOCKED 2>/dev/null || echo "false")
+          REASON=$(ssh dokku config:get ${{ inputs.app_name }} DEPLOY_LOCK_REASON 2>/dev/null || echo "")
+          LOCKED_BY=$(ssh dokku config:get ${{ inputs.app_name }} DEPLOY_LOCK_BY 2>/dev/null || echo "")
+          LOCKED_AT=$(ssh dokku config:get ${{ inputs.app_name }} DEPLOY_LOCK_AT 2>/dev/null || echo "")
+
+          echo "locked=$LOCKED" >> $GITHUB_OUTPUT
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          echo "locked_by=$LOCKED_BY" >> $GITHUB_OUTPUT
+          echo "locked_at=$LOCKED_AT" >> $GITHUB_OUTPUT
+
+          echo "Current status:"
+          echo "  Locked: $LOCKED"
+          if [ "$LOCKED" == "true" ]; then
+            echo "  Reason: $REASON"
+            echo "  Locked by: $LOCKED_BY"
+            echo "  Locked at: $LOCKED_AT"
+          fi
+
+      - name: Lock app
+        if: inputs.action == 'lock'
+        run: |
+          if [ "${{ steps.current.outputs.locked }}" == "true" ]; then
+            echo "::warning::App is already locked"
+            echo "Reason: ${{ steps.current.outputs.reason }}"
+            echo "Locked by: ${{ steps.current.outputs.locked_by }}"
+            exit 0
+          fi
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "Locking ${{ inputs.app_name }}..."
+          ssh dokku config:set --no-restart ${{ inputs.app_name }} \
+            DEPLOY_LOCKED=true \
+            DEPLOY_LOCK_REASON="${{ inputs.reason }}" \
+            DEPLOY_LOCK_BY="${{ github.actor }}" \
+            DEPLOY_LOCK_AT="$TIMESTAMP"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  App LOCKED: ${{ inputs.app_name }}"
+          echo "  Reason: ${{ inputs.reason }}"
+          echo "  Locked by: ${{ github.actor }}"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Unlock app
+        if: inputs.action == 'unlock'
+        run: |
+          if [ "${{ steps.current.outputs.locked }}" != "true" ]; then
+            echo "::warning::App is not locked"
+            exit 0
+          fi
+
+          echo "Unlocking ${{ inputs.app_name }}..."
+          ssh dokku config:unset --no-restart ${{ inputs.app_name }} \
+            DEPLOY_LOCKED \
+            DEPLOY_LOCK_REASON \
+            DEPLOY_LOCK_BY \
+            DEPLOY_LOCK_AT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  App UNLOCKED: ${{ inputs.app_name }}"
+          echo "  Previously locked by: ${{ steps.current.outputs.locked_by }}"
+          echo "  Reason was: ${{ steps.current.outputs.reason }}"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Show status
+        if: inputs.action == 'status'
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Lock Status: ${{ inputs.app_name }}"
+          echo "═══════════════════════════════════════════════════════"
+
+          if [ "${{ steps.current.outputs.locked }}" == "true" ]; then
+            echo "  Status: LOCKED"
+            echo "  Reason: ${{ steps.current.outputs.reason }}"
+            echo "  Locked by: ${{ steps.current.outputs.locked_by }}"
+            echo "  Locked at: ${{ steps.current.outputs.locked_at }}"
+          else
+            echo "  Status: UNLOCKED"
+            echo "  Deployments are allowed"
+          fi
+
+      - name: Notify Slack
+        if: inputs.action != 'status'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ inputs.action }}" == "lock" ]; then
+            COLOR="warning"
+            TITLE="App Locked: ${{ inputs.app_name }}"
+            TEXT="Deployments are now blocked"
+            FIELDS="[
+              {\"title\": \"Reason\", \"value\": \"${{ inputs.reason }}\", \"short\": false},
+              {\"title\": \"Locked by\", \"value\": \"${{ github.actor }}\", \"short\": true}
+            ]"
+          else
+            COLOR="good"
+            TITLE="App Unlocked: ${{ inputs.app_name }}"
+            TEXT="Deployments are now allowed"
+            FIELDS="[
+              {\"title\": \"Previously locked by\", \"value\": \"${{ steps.current.outputs.locked_by }}\", \"short\": true},
+              {\"title\": \"Unlocked by\", \"value\": \"${{ github.actor }}\", \"short\": true}
+            ]"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"text\": \"$TEXT\",
+                \"fields\": $FIELDS,
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true

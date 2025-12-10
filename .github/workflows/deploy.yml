@@ -204,6 +204,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup, test]
     environment: ${{ needs.setup.outputs.environment }}
+    outputs:
+      duration: ${{ steps.deploy_info.outputs.duration }}
+      commit_message: ${{ steps.deploy_info.outputs.commit_message }}
+      files_changed: ${{ steps.deploy_info.outputs.files_changed }}
+      previous_version: ${{ steps.deploy_info.outputs.previous_version }}
+      current_version: ${{ steps.deploy_info.outputs.current_version }}
 
     env:
       APP_NAME: ${{ needs.setup.outputs.app_name }}
@@ -240,6 +246,37 @@ jobs:
 
           # Test connection
           ssh dokku version
+
+      - name: Record deploy start time
+        id: timing
+        run: echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Check deploy lock
+        run: |
+          # Check if app exists first (can't check lock on non-existent app)
+          if ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null; then
+            LOCKED=$(ssh dokku config:get ${{ env.APP_NAME }} DEPLOY_LOCKED 2>/dev/null || echo "false")
+            if [ "$LOCKED" == "true" ]; then
+              REASON=$(ssh dokku config:get ${{ env.APP_NAME }} DEPLOY_LOCK_REASON 2>/dev/null || echo "No reason provided")
+              LOCKED_BY=$(ssh dokku config:get ${{ env.APP_NAME }} DEPLOY_LOCK_BY 2>/dev/null || echo "Unknown")
+              LOCKED_AT=$(ssh dokku config:get ${{ env.APP_NAME }} DEPLOY_LOCK_AT 2>/dev/null || echo "Unknown")
+              echo ""
+              echo "::error::Deployment blocked - App is locked!"
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  DEPLOY LOCK ACTIVE"
+              echo "═══════════════════════════════════════════════════════"
+              echo "  App: ${{ env.APP_NAME }}"
+              echo "  Reason: $REASON"
+              echo "  Locked by: $LOCKED_BY"
+              echo "  Locked at: $LOCKED_AT"
+              echo ""
+              echo "  To unlock, run the Deploy Lock workflow with action=unlock"
+              echo "═══════════════════════════════════════════════════════"
+              exit 1
+            fi
+          fi
+          echo "Deploy lock check passed"
 
       - name: Create app if not exists
         id: create_app
@@ -456,6 +493,38 @@ jobs:
           done || true
           echo "═══════════════════════════════════════════════════════"
 
+      - name: Capture deploy info
+        id: deploy_info
+        run: |
+          # Calculate duration
+          END_TIME=$(date +%s)
+          START_TIME="${{ steps.timing.outputs.start_time }}"
+          DURATION=$((END_TIME - START_TIME))
+          MINUTES=$((DURATION / 60))
+          SECONDS=$((DURATION % 60))
+          echo "duration=${MINUTES}m ${SECONDS}s" >> $GITHUB_OUTPUT
+
+          # Commit message (first line, truncated to 100 chars)
+          COMMIT_MSG=$(git log -1 --pretty=%s | head -c 100)
+          echo "commit_message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+          # Files changed count (compared to parent commit)
+          FILES_CHANGED=$(git diff --name-only HEAD~1 2>/dev/null | wc -l | tr -d ' ') || FILES_CHANGED="N/A"
+          echo "files_changed=$FILES_CHANGED" >> $GITHUB_OUTPUT
+
+          # Previous version (from Dokku config)
+          PREV_VERSION=$(ssh dokku config:get ${{ env.APP_NAME }} GIT_REV 2>/dev/null || echo "none")
+          echo "previous_version=${PREV_VERSION:0:7}" >> $GITHUB_OUTPUT
+
+          # Current version
+          echo "current_version=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+
+          echo "Deploy info captured:"
+          echo "  Duration: ${MINUTES}m ${SECONDS}s"
+          echo "  Commit: $COMMIT_MSG"
+          echo "  Files changed: $FILES_CHANGED"
+          echo "  Version: ${PREV_VERSION:0:7} -> ${GITHUB_SHA:0:7}"
+
       - name: Create GitHub deployment
         uses: actions/github-script@v7
         with:
@@ -506,6 +575,20 @@ jobs:
             STATUS="❌ Deployment failed"
           fi
 
+          # Get deploy info from outputs
+          DURATION="${{ needs.deploy.outputs.duration }}"
+          FILES_CHANGED="${{ needs.deploy.outputs.files_changed }}"
+          PREV_VERSION="${{ needs.deploy.outputs.previous_version }}"
+          CURR_VERSION="${{ needs.deploy.outputs.current_version }}"
+          COMMIT_MSG="${{ needs.deploy.outputs.commit_message }}"
+
+          # Build version string
+          if [ "$PREV_VERSION" != "none" ] && [ -n "$PREV_VERSION" ]; then
+            VERSION_STR="${PREV_VERSION} → ${CURR_VERSION}"
+          else
+            VERSION_STR="${CURR_VERSION} (first deploy)"
+          fi
+
           curl -X POST -H 'Content-type: application/json' \
             --data "{
               \"attachments\": [{
@@ -514,11 +597,14 @@ jobs:
                 \"fields\": [
                   {\"title\": \"App\", \"value\": \"${{ env.APP_NAME }}\", \"short\": true},
                   {\"title\": \"Environment\", \"value\": \"${{ env.ENVIRONMENT }}\", \"short\": true},
-                  {\"title\": \"Branch\", \"value\": \"${{ github.ref_name }}\", \"short\": true},
+                  {\"title\": \"Duration\", \"value\": \"$DURATION\", \"short\": true},
+                  {\"title\": \"Files Changed\", \"value\": \"$FILES_CHANGED\", \"short\": true},
+                  {\"title\": \"Version\", \"value\": \"$VERSION_STR\", \"short\": true},
                   {\"title\": \"Actor\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"Commit\", \"value\": \"$COMMIT_MSG\", \"short\": false},
                   {\"title\": \"URL\", \"value\": \"https://${{ env.DOMAIN }}\", \"short\": false}
                 ],
-                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow> | <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|View Commit>\"
               }]
             }" \
             "$SLACK_WEBHOOK_URL" || true

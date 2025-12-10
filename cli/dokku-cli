@@ -371,6 +371,80 @@ cmd_db() {
     esac
 }
 
+cmd_lock() {
+    local APP=$(get_app_name "$1")
+    local REASON="${2:-Manual lock via CLI}"
+
+    # Check if already locked
+    LOCKED=$(dokku_ssh config:get "$APP" DEPLOY_LOCKED 2>/dev/null || echo "false")
+    if [ "$LOCKED" == "true" ]; then
+        EXISTING_REASON=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_REASON 2>/dev/null)
+        log_warning "$APP is already locked"
+        echo "  Reason: $EXISTING_REASON"
+        return 0
+    fi
+
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    LOCKED_BY="${USER:-$(whoami)}"
+
+    log_warning "Locking $APP..."
+    dokku_ssh config:set --no-restart "$APP" \
+        DEPLOY_LOCKED=true \
+        "DEPLOY_LOCK_REASON=$REASON" \
+        "DEPLOY_LOCK_BY=$LOCKED_BY" \
+        "DEPLOY_LOCK_AT=$TIMESTAMP"
+
+    log_success "Locked! Deployments are now blocked."
+    echo "  Reason: $REASON"
+}
+
+cmd_unlock() {
+    local APP=$(get_app_name "$1")
+
+    # Check if locked
+    LOCKED=$(dokku_ssh config:get "$APP" DEPLOY_LOCKED 2>/dev/null || echo "false")
+    if [ "$LOCKED" != "true" ]; then
+        log_info "$APP is not locked"
+        return 0
+    fi
+
+    PREV_REASON=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_REASON 2>/dev/null)
+    PREV_BY=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_BY 2>/dev/null)
+
+    log_info "Unlocking $APP..."
+    dokku_ssh config:unset --no-restart "$APP" \
+        DEPLOY_LOCKED \
+        DEPLOY_LOCK_REASON \
+        DEPLOY_LOCK_BY \
+        DEPLOY_LOCK_AT
+
+    log_success "Unlocked! Deployments are now allowed."
+    echo "  Previously locked by: $PREV_BY"
+    echo "  Reason was: $PREV_REASON"
+}
+
+cmd_lock_status() {
+    local APP=$(get_app_name "$1")
+
+    LOCKED=$(dokku_ssh config:get "$APP" DEPLOY_LOCKED 2>/dev/null || echo "false")
+
+    log_header "Lock Status: $APP"
+
+    if [ "$LOCKED" == "true" ]; then
+        REASON=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_REASON 2>/dev/null)
+        LOCKED_BY=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_BY 2>/dev/null)
+        LOCKED_AT=$(dokku_ssh config:get "$APP" DEPLOY_LOCK_AT 2>/dev/null)
+
+        echo -e "${RED}LOCKED${NC} - Deployments are blocked"
+        echo ""
+        echo "  Reason:    $REASON"
+        echo "  Locked by: $LOCKED_BY"
+        echo "  Locked at: $LOCKED_AT"
+    else
+        echo -e "${GREEN}UNLOCKED${NC} - Deployments are allowed"
+    fi
+}
+
 cmd_setup() {
     log_header "Dokku CLI Setup"
 
@@ -444,6 +518,11 @@ DEPLOYMENT
   rollback [app] [version]   Rollback to previous release
   releases [app]             List releases
 
+DEPLOY LOCKS
+  lock [app] [reason]        Lock app (block deployments)
+  unlock [app]               Unlock app (allow deployments)
+  lock:status [app]          Check lock status
+
 SSL & DOMAINS
   ssl [app] [enable|disable] Manage SSL certificates
   domains [app]              List domains
@@ -505,6 +584,11 @@ case "${1:-help}" in
     deploy|push)    cmd_deploy "$2" "$3" ;;
     rollback|rb)    cmd_rollback "$2" "$3" ;;
     releases)       cmd_releases "$2" ;;
+
+    # Deploy Locks
+    lock)           cmd_lock "$2" "$3" ;;
+    unlock)         cmd_unlock "$2" ;;
+    lock:status)    cmd_lock_status "$2" ;;
 
     # SSL & Domains
     ssl)            cmd_ssl "$2" "$3" ;;

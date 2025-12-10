@@ -133,8 +133,8 @@ jobs:
               STATUS="stopped"
             fi
 
-            # Get git revision (version)
-            COMMIT_SHA=$(ssh dokku git:report "$APP" --git-rev 2>/dev/null | tr -d '[:space:]' || echo "")
+            # Get git revision from GIT_REV env var
+            COMMIT_SHA=$(ssh dokku config:get "$APP" GIT_REV 2>/dev/null | tr -d '[:space:]' || echo "")
             echo "  COMMIT_SHA='$COMMIT_SHA'"
 
             # Check response time

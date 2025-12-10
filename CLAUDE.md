@@ -8,15 +8,28 @@ This is a GitHub + Dokku auto-deployment system providing reusable workflows for
 
 ## Architecture
 
-### Workflows (`.github/workflows/`)
-- **deploy.yml**: Reusable deployment workflow. Handles app creation, service provisioning, environment variables, release tasks, SSL, and dashboard updates.
-- **preview.yml**: Reusable PR preview environment workflow. Creates temporary apps for each PR, auto-destroys on close.
-- **scheduled.yml**: Daily maintenance (6 AM UTC) - orphan cleanup, SSL renewal, health checks with response times, database backups (2 AM UTC).
-- **cleanup.yml**: Manual app destruction with safety checks and pre-destroy backups.
-- **rollback.yml**: Manual rollback with pre-rollback backups. Requires typing "ROLLBACK" to confirm.
-- **lock.yml**: Deploy lock management - lock/unlock apps to block deployments during incidents.
-- **backup.yml**: Manual database backup workflow for postgres, mysql, redis, mongo.
-- **update-dashboard.yml**: Updates the GitHub Pages deployment dashboard.
+### Workflow Interconnections
+```
+deploy.yml ──────┬──→ update-dashboard.yml
+preview.yml ─────┤
+cleanup.yml ─────┤
+scheduled.yml ───┘
+     │
+     └──→ health checks, backups, SSL renewal
+```
+
+**Reusable workflows** (called by other repos via `uses:`):
+- **deploy.yml**: Main deployment - app creation, service provisioning, env vars, release tasks, SSL, dashboard update
+- **preview.yml**: PR preview environments - creates temp apps, auto-destroys on PR close
+  - **Security**: Only auto-deploys for org members. External PRs require manual trigger.
+- **update-dashboard.yml**: Updates `gh-pages` branch with app status (called by deploy/preview/cleanup/scheduled)
+
+**Standalone workflows** (run in this repo only):
+- **scheduled.yml**: Daily maintenance (6 AM UTC) - orphan cleanup, SSL renewal, health checks; backups (2 AM UTC)
+- **cleanup.yml**: Manual app destruction with safety checks
+- **rollback.yml**: Manual rollback (requires typing "ROLLBACK" to confirm)
+- **lock.yml**: Deploy lock management
+- **backup.yml**: Manual database backup
 
 ### Branch-to-Environment Mapping
 - `main` → `{app}` (production) → `{app}.domain.com`
@@ -24,26 +37,55 @@ This is a GitHub + Dokku auto-deployment system providing reusable workflows for
 - `develop` → `{app}-dev` → `{app}-dev.domain.com`
 - PR #N → `{app}-pr-N` → `{app}-pr-N.domain.com`
 
-### Project Configuration Files (in consuming repos)
-- `.dokku/services.yml`: Define backing services (postgres, redis, mongo, mysql, rabbitmq, elasticsearch). Services auto-provision on deploy.
-- `.dokku/config.yml`: Resource limits, health check settings, scaling config, custom domains, **release tasks**, **backup config**.
+### Configuration Files (in consuming repos)
+- `.dokku/services.yml`: Define backing services (postgres, redis, mongo, mysql, rabbitmq, elasticsearch)
+- `.dokku/config.yml`: Resource limits, health checks, scaling, custom domains, release tasks, backup config
 - `Procfile`: Process definitions (e.g., `web: uvicorn app:app --port $PORT`)
 - `CHECKS`: Health check endpoint (e.g., `/health`)
 
-### Advanced Features
-- **Deploy Locks**: Lock apps to block deployments during incidents (`lock.yml`, CLI: `dokku-cli lock/unlock`)
-- **Release Tasks**: Run post-deploy commands (migrations, cache clear) defined in `config.yml`
-- **Database Backups**: Scheduled (2 AM UTC) + manual, stored at `/var/backups/dokku/`
-- **Deploy Dashboard**: GitHub Pages dashboard at `https://signalwire-demos.github.io/dokku-deploy-system/`
-- **Uptime Monitoring**: Health checks capture response times, shown on dashboard
+### Dashboard Data Structure (`dashboard/apps.json`)
+```json
+{
+  "last_updated": "ISO8601",
+  "apps": [{
+    "name": "app-name",
+    "status": "running|stopped|success|failure",
+    "environment": "production|staging|development|preview",
+    "url": "https://app.domain.com",
+    "last_deploy": "ISO8601",
+    "last_deploy_by": "github-user",
+    "commit_sha": "abc1234",
+    "uptime": {
+      "status": "healthy|unhealthy|unknown",
+      "uptime_seconds": 12345,
+      "response_time_ms": 150,
+      "last_check": "ISO8601"
+    }
+  }]
+}
+```
 
-### Server Setup Scripts (`server-setup/`)
-Run sequentially on fresh Ubuntu 22.04: `01-server-init.sh` → `02-dokku-install.sh` → `03-dokku-plugins.sh` → `04-letsencrypt-setup.sh` → `05-global-config.sh` → `06-server-hardening.sh`
-
-Or run all at once: `sudo ./setup-all.sh`
+### Server Setup (`server-setup/`)
+Run on fresh Ubuntu 22.04: `sudo ./setup-all.sh` or individually: `01-server-init.sh` → `02-dokku-install.sh` → `03-dokku-plugins.sh` → `04-letsencrypt-setup.sh` → `05-global-config.sh` → `06-server-hardening.sh`
 
 ### CLI Tool (`cli/dokku-cli`)
-Bash wrapper for common Dokku operations. Config stored in `~/.dokku-cli`.
+Bash wrapper for Dokku operations. Config stored in `~/.dokku-cli`.
+
+## Development
+
+This repo contains no buildable code - it's shell scripts and YAML workflows. To validate changes:
+
+```bash
+# Validate YAML syntax
+yamllint .github/workflows/*.yml
+
+# Check shell scripts
+shellcheck cli/dokku-cli scripts/*.sh server-setup/*.sh
+
+# Test workflow changes by pushing to a branch and triggering manually via Actions tab
+```
+
+Changes to reusable workflows (`deploy.yml`, `preview.yml`) affect all consuming repos immediately when merged to `main`.
 
 ## Common Commands
 
@@ -93,3 +135,19 @@ Created automatically by workflows: `production`, `staging`, `development`, `pre
 - Preview apps can use shared services (`shared: true` in services.yml) to save resources
 - SSL enabled via Let's Encrypt after health check passes (HTTP first, then HTTPS)
 - Scheduled maintenance has safety check: won't delete apps if corresponding GitHub repo still exists
+
+## Preview Security
+
+Preview deployments are restricted to org members to prevent malicious code from being auto-deployed via fork PRs.
+
+**For org members**: PRs auto-deploy previews as usual.
+
+**For external contributors**: The workflow posts a comment explaining that a maintainer must manually trigger the preview.
+
+**Manual trigger for external PRs** (org members only):
+1. Go to [Actions → Preview Environment](../../actions/workflows/preview.yml)
+2. Click "Run workflow"
+3. Enter the repo (e.g., `signalwire-demos/my-app`) and PR number
+4. Select action: `deploy` or `destroy`
+
+Requires `GH_ORG_TOKEN` secret with `read:org` scope for org membership checks.

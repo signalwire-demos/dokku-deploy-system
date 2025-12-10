@@ -142,10 +142,12 @@ app.get('/health', (req, res) => {
 ## Working with Preview Environments
 
 1. Create a branch and open a PR
-2. GitHub Actions automatically deploys a preview
+2. GitHub Actions automatically deploys a preview (org members only)
 3. Preview URL is posted as a comment on the PR
 4. Preview is destroyed when PR is closed/merged
 5. Daily cleanup catches any missed previews (6 AM UTC)
+
+**Note for external contributors**: Preview auto-deploy is restricted to org members for security. If you're not an org member, a maintainer can manually trigger the preview from the Actions tab. See [Preview Security](FEATURES.md#preview-security) for details.
 
 ## Common Tasks
 

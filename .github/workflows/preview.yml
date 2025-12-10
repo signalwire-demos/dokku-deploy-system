@@ -8,10 +8,16 @@
 # Creates temporary preview environments for pull requests.
 # Automatically deploys when a PR is opened/updated and destroys when closed.
 #
+# SECURITY:
+#   - Auto-deploy: Only for org members (prevents malicious fork PRs)
+#   - External PRs: Org members can manually trigger via workflow_dispatch
+#   - Cleanup: Always runs on PR close (regardless of author)
+#
 # Required Secrets (set at org level):
 #   - DOKKU_HOST: Dokku server hostname
 #   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
 #   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
+#   - GH_ORG_TOKEN: PAT with read:org scope (for membership check)
 #
 # Optional Secrets:
 #   - PREVIEW_AUTH_USER: HTTP auth username for previews
@@ -19,11 +25,35 @@
 #
 # Preview URL format: {app-name}-pr-{pr-number}.{base-domain}
 #
+# Manual trigger for external PRs (run from this repo's Actions tab):
+#   Select "Preview Environment" → Run workflow → Enter repo and PR number
+#
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Preview Environment
 
 on:
+  # Manual trigger for external contributor PRs (org members only)
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repository (e.g., signalwire-demos/my-app)'
+        required: true
+        type: string
+      pr_number:
+        description: 'Pull request number'
+        required: true
+        type: string
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - destroy
+        default: deploy
+
+  # Called by other repos via workflow_call
   workflow_call:
     inputs:
       memory_limit:
@@ -43,36 +73,175 @@ on:
         required: true
       BASE_DOMAIN:
         required: true
+      GH_ORG_TOKEN:
+        required: false
       PREVIEW_AUTH_USER:
         required: false
       PREVIEW_AUTH_PASSWORD:
         required: false
 
-env:
-  BASE_APP_NAME: ${{ github.event.repository.name }}
-  PR_NUMBER: ${{ github.event.pull_request.number }}
-  APP_NAME: ${{ github.event.repository.name }}-pr-${{ github.event.pull_request.number }}
-
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Setup - Determine PR info and check permissions
+  # ═══════════════════════════════════════════════════════════════════════════
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      should_cleanup: ${{ steps.check.outputs.should_cleanup }}
+      app_name: ${{ steps.info.outputs.app_name }}
+      base_app_name: ${{ steps.info.outputs.base_app_name }}
+      pr_number: ${{ steps.info.outputs.pr_number }}
+      repo: ${{ steps.info.outputs.repo }}
+      pr_author: ${{ steps.info.outputs.pr_author }}
+      head_sha: ${{ steps.info.outputs.head_sha }}
+      head_ref: ${{ steps.info.outputs.head_ref }}
+      is_manual: ${{ steps.info.outputs.is_manual }}
+
+    steps:
+      - name: Determine PR info
+        id: info
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+        run: |
+          # Check if this is a manual trigger (workflow_dispatch)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "is_manual=true" >> $GITHUB_OUTPUT
+            REPO="${{ github.event.inputs.repo }}"
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+
+            # Fetch PR info from the specified repo
+            PR_INFO=$(gh api repos/${REPO}/pulls/${PR_NUMBER})
+            PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.user.login')
+            HEAD_SHA=$(echo "$PR_INFO" | jq -r '.head.sha')
+            HEAD_REF=$(echo "$PR_INFO" | jq -r '.head.ref')
+            BASE_APP_NAME=$(echo "$REPO" | cut -d'/' -f2)
+          else
+            echo "is_manual=false" >> $GITHUB_OUTPUT
+            REPO="${{ github.repository }}"
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            HEAD_REF="${{ github.event.pull_request.head.ref }}"
+            BASE_APP_NAME="${{ github.event.repository.name }}"
+          fi
+
+          APP_NAME="${BASE_APP_NAME}-pr-${PR_NUMBER}"
+
+          echo "repo=${REPO}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "pr_author=${PR_AUTHOR}" >> $GITHUB_OUTPUT
+          echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
+          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "base_app_name=${BASE_APP_NAME}" >> $GITHUB_OUTPUT
+          echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
+
+          echo "PR Info:"
+          echo "  Repo: ${REPO}"
+          echo "  PR #: ${PR_NUMBER}"
+          echo "  Author: ${PR_AUTHOR}"
+          echo "  App: ${APP_NAME}"
+
+      - name: Check org membership and permissions
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+        run: |
+          PR_AUTHOR="${{ steps.info.outputs.pr_author }}"
+          ORG="${{ github.repository_owner }}"
+          IS_MANUAL="${{ steps.info.outputs.is_manual }}"
+          EVENT_ACTION="${{ github.event.action }}"
+          DISPATCH_ACTION="${{ github.event.inputs.action }}"
+
+          # Determine if this is a cleanup operation
+          if [ "$EVENT_ACTION" == "closed" ] || [ "$DISPATCH_ACTION" == "destroy" ]; then
+            echo "should_cleanup=true" >> $GITHUB_OUTPUT
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "Action: Cleanup"
+            exit 0
+          fi
+
+          echo "should_cleanup=false" >> $GITHUB_OUTPUT
+
+          # Manual triggers are always allowed (only org members can trigger)
+          if [ "$IS_MANUAL" == "true" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger by org member - deploying"
+            exit 0
+          fi
+
+          # Check if PR author is an org member
+          echo "Checking if ${PR_AUTHOR} is a member of ${ORG}..."
+
+          if gh api orgs/${ORG}/members/${PR_AUTHOR} --silent 2>/dev/null; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "✅ ${PR_AUTHOR} is an org member - auto-deploying"
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "⚠️ ${PR_AUTHOR} is not an org member - skipping auto-deploy"
+            echo "   An org member can manually trigger the preview from:"
+            echo "   https://github.com/${{ github.repository }}/actions/workflows/preview.yml"
+          fi
+
+      - name: Comment on PR (external contributor)
+        if: steps.check.outputs.should_deploy == 'false' && steps.check.outputs.should_cleanup == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REPO="${{ steps.info.outputs.repo }}"
+          PR_NUMBER="${{ steps.info.outputs.pr_number }}"
+          PR_AUTHOR="${{ steps.info.outputs.pr_author }}"
+
+          # Check if we already commented
+          EXISTING=$(gh api repos/${REPO}/issues/${PR_NUMBER}/comments \
+            --jq '.[] | select(.body | contains("Preview deployment requires approval"))' 2>/dev/null || echo "")
+
+          if [ -z "$EXISTING" ]; then
+            gh api repos/${REPO}/issues/${PR_NUMBER}/comments \
+              -f body="## 🔒 Preview Deployment Requires Approval
+
+          Hi @${PR_AUTHOR}! Since you're not a member of this organization, preview deployments require manual approval from a maintainer.
+
+          **Maintainers:** To deploy a preview for this PR, go to:
+          [Actions → Preview Environment → Run workflow](https://github.com/${{ github.repository }}/actions/workflows/preview.yml)
+
+          Enter:
+          - Repository: \`${REPO}\`
+          - PR number: \`${PR_NUMBER}\`
+          - Action: \`deploy\`"
+          fi
+
   # ═══════════════════════════════════════════════════════════════════════════
   # Deploy Preview
   # ═══════════════════════════════════════════════════════════════════════════
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    if: github.event.action != 'closed'
+    needs: setup
+    if: needs.setup.outputs.should_deploy == 'true'
     environment: preview
+
+    env:
+      APP_NAME: ${{ needs.setup.outputs.app_name }}
+      BASE_APP_NAME: ${{ needs.setup.outputs.base_app_name }}
+      PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
+      TARGET_REPO: ${{ needs.setup.outputs.repo }}
+      HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
+      HEAD_REF: ${{ needs.setup.outputs.head_ref }}
 
     steps:
       - name: Create preview environment if needed
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/${{ github.repository }}/environments/preview -X PUT 2>/dev/null || true
+          gh api repos/${{ env.TARGET_REPO }}/environments/preview -X PUT 2>/dev/null || true
 
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          repository: ${{ env.TARGET_REPO }}
+          ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
 
       - name: Setup SSH connection
@@ -233,7 +402,7 @@ jobs:
           echo "Configuring preview environment..."
 
           # Start with required vars
-          CONFIG_VARS="APP_ENV=preview APP_NAME=${{ env.APP_NAME }} APP_URL=https://$DOMAIN AGENT_NAME=${{ env.APP_NAME }} PR_NUMBER=${{ env.PR_NUMBER }} GIT_REV=${{ github.sha }}"
+          CONFIG_VARS="APP_ENV=preview APP_NAME=${{ env.APP_NAME }} APP_URL=https://$DOMAIN AGENT_NAME=${{ env.APP_NAME }} PR_NUMBER=${{ env.PR_NUMBER }} GIT_REV=${{ env.HEAD_SHA }}"
 
           # Loop through all environment variables from GitHub environment
           for key in $(echo "$ALL_VARS" | jq -r 'keys[]'); do
@@ -370,17 +539,24 @@ jobs:
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
+        env:
+          TARGET_REPO: ${{ env.TARGET_REPO }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
+          HEAD_SHA: ${{ env.HEAD_SHA }}
+          HEAD_REF: ${{ env.HEAD_REF }}
         with:
           script: |
+            const [owner, repo] = process.env.TARGET_REPO.split('/');
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const domain = `${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}`;
             const url = `https://${domain}`;
             const status = '${{ steps.verify.outputs.status }}' === 'success' ? '✅ Deployed' : '⚠️ Deployed (check logs)';
 
             // Find existing bot comment
             const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner,
+              repo,
+              issue_number: prNumber,
             });
 
             const botComment = comments.data.find(comment =>
@@ -394,24 +570,24 @@ jobs:
             |--------|-----|
             | ${status} | [${url}](${url}) |
 
-            **Commit:** \`${{ github.sha }}\`
-            **Branch:** \`${{ github.head_ref }}\`
+            **Commit:** \`${process.env.HEAD_SHA}\`
+            **Branch:** \`${process.env.HEAD_REF}\`
 
             ---
             <sub>This preview will be automatically destroyed when the PR is closed or merged.</sub>`;
 
             if (botComment) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 comment_id: botComment.id,
                 body: body
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
+                owner,
+                repo,
+                issue_number: prNumber,
                 body: body
               });
             }
@@ -422,11 +598,19 @@ jobs:
   cleanup-preview:
     name: Cleanup Preview
     runs-on: ubuntu-latest
-    if: github.event.action == 'closed'
+    needs: setup
+    if: needs.setup.outputs.should_cleanup == 'true'
+
+    env:
+      APP_NAME: ${{ needs.setup.outputs.app_name }}
+      TARGET_REPO: ${{ needs.setup.outputs.repo }}
+      PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_REPO }}
 
       - name: Setup SSH connection
         run: |
@@ -509,12 +693,17 @@ jobs:
 
       - name: Update PR comment
         uses: actions/github-script@v7
+        env:
+          TARGET_REPO: ${{ env.TARGET_REPO }}
+          PR_NUMBER: ${{ env.PR_NUMBER }}
         with:
           script: |
+            const [owner, repo] = process.env.TARGET_REPO.split('/');
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
             const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner,
+              repo,
+              issue_number: prNumber,
             });
 
             const botComment = comments.data.find(comment =>
@@ -523,10 +712,10 @@ jobs:
             );
 
             if (botComment) {
-              const mergedOrClosed = context.payload.pull_request.merged ? 'merged' : 'closed';
+              const mergedOrClosed = context.payload.pull_request?.merged ? 'merged' : 'closed';
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 comment_id: botComment.id,
                 body: `## 🚀 Preview Environment
 

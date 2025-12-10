@@ -4,11 +4,70 @@ This document describes the advanced features available in the Dokku Deploy Syst
 
 ## Table of Contents
 
+- [Preview Security](#preview-security)
 - [Deploy Locks](#deploy-locks)
 - [Release Tasks](#release-tasks)
 - [Database Backups](#database-backups)
 - [Deploy Dashboard](#deploy-dashboard)
 - [Enhanced Notifications](#enhanced-notifications)
+
+---
+
+## Preview Security
+
+Prevent malicious code from being auto-deployed via fork PRs by restricting auto-deploys to org members only.
+
+### How It Works
+
+When a pull request is opened:
+
+1. **Setup job** checks if the PR author is an org member
+2. **Org members**: Preview deploys automatically (existing behavior)
+3. **External contributors**:
+   - Auto-deploy is skipped
+   - A comment is posted explaining how to manually trigger the preview
+   - Org members can manually deploy from the Actions tab
+
+### Required Secret
+
+Add `GH_ORG_TOKEN` to your org secrets:
+- Type: Fine-grained Personal Access Token
+- Scope: `read:org` (to check org membership)
+
+```bash
+gh secret set GH_ORG_TOKEN \
+  --org signalwire-demos \
+  --visibility all \
+  --body "github_pat_xxx"
+```
+
+### Manual Trigger for External PRs
+
+Org members can manually deploy previews for external contributors:
+
+1. Go to [Actions → Preview Environment](https://github.com/signalwire-demos/dokku-deploy-system/actions/workflows/preview.yml)
+2. Click "Run workflow"
+3. Enter:
+   - **Repository**: e.g., `signalwire-demos/my-app`
+   - **PR number**: e.g., `42`
+   - **Action**: `deploy` or `destroy`
+
+### PR Comment
+
+When an external contributor's PR is blocked from auto-deploying, they see a comment like:
+
+> **🔒 Preview Deployment Requires Approval**
+>
+> Since you're not a member of this organization, preview deployments require manual approval from a maintainer.
+>
+> **Maintainers:** To deploy a preview for this PR, go to:
+> Actions → Preview Environment → Run workflow
+
+### Security Considerations
+
+- Cleanup still runs automatically on PR close (regardless of author)
+- The check runs before any code from the PR is executed
+- Manual triggers can only be initiated by users with workflow dispatch permissions (org members)
 
 ---
 

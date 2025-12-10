@@ -115,6 +115,19 @@ That's it! The reusable workflows handle:
 - Health checks and Slack notifications
 - Preview environment creation/cleanup
 
+### Preview Security
+
+To prevent malicious code from being auto-deployed via fork PRs:
+- **Org members**: PRs auto-deploy previews as usual
+- **External contributors**: Require manual trigger by org member
+
+When an external contributor opens a PR, the workflow posts a comment explaining how a maintainer can manually deploy the preview.
+
+**Manual trigger for external PRs** (from this repo's Actions tab):
+1. Go to Actions → "Preview Environment" → Run workflow
+2. Enter the repo (e.g., `signalwire-demos/my-app`) and PR number
+3. Select action: `deploy` or `destroy`
+
 ## Scheduled Maintenance
 
 The system runs daily maintenance tasks at **6 AM UTC** via `scheduled.yml`:
@@ -344,8 +357,11 @@ Add to your GitHub organization (Settings → Secrets → Actions):
 | `DOKKU_HOST` | `dokku.yourdomain.com` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | (generated private key) | SSH authentication |
 | `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
+| `GH_ORG_TOKEN` | (fine-grained PAT) | Org membership check for preview security |
 
 **Note**: Org-level secrets are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
+
+**GH_ORG_TOKEN**: Required for preview security. Create a fine-grained PAT with `read:org` scope to check if PR authors are org members.
 
 ### 5. Configure Environment Variables (App Config)
 

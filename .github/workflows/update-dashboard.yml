@@ -7,6 +7,10 @@
 #
 # Dashboard location: https://signalwire-demos.github.io/dokku-deploy-system/
 #
+# Required Secrets:
+#   - DASHBOARD_TOKEN: Fine-grained PAT with Contents (read/write) permission
+#                      for pushing to gh-pages branch
+#
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Update Dashboard
@@ -67,6 +71,7 @@ jobs:
         with:
           ref: gh-pages
           fetch-depth: 0
+          token: ${{ secrets.DASHBOARD_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -95,7 +95,11 @@
         function renderDashboard(data) {
             // Update stats
             const apps = data.apps || [];
-            const healthy = apps.filter(a => a.status === 'success' || a.uptime?.status === 'healthy').length;
+            const healthy = apps.filter(a =>
+                a.uptime?.status === 'healthy' ||
+                a.status === 'success' ||
+                a.status === 'running'
+            ).length;
             const unhealthy = apps.length - healthy;
 
             document.getElementById('total-apps').textContent = apps.length;
@@ -141,16 +145,19 @@
         }
 
         function getStatusClass(app) {
-            if (app.status === 'success' || app.uptime?.status === 'healthy') return 'healthy';
-            if (app.status === 'failure' || app.uptime?.status === 'unhealthy') return 'unhealthy';
+            if (app.uptime?.status === 'healthy') return 'healthy';
+            if (app.uptime?.status === 'unhealthy') return 'unhealthy';
+            if (app.status === 'success' || app.status === 'running') return 'healthy';
+            if (app.status === 'failure' || app.status === 'stopped') return 'unhealthy';
             return 'unknown';
         }
 
         function getStatusText(app) {
             if (app.uptime?.status === 'healthy') return 'Healthy';
             if (app.uptime?.status === 'unhealthy') return 'Down';
-            if (app.status === 'success') return 'Deployed';
+            if (app.status === 'success' || app.status === 'running') return 'Running';
             if (app.status === 'failure') return 'Failed';
+            if (app.status === 'stopped') return 'Stopped';
             return 'Unknown';
         }
 

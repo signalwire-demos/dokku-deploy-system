@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="300">
+    <title>Dokku Deploy Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Dokku Deploy Dashboard</h1>
+        <p class="subtitle">Deployment status for all applications</p>
+    </header>
+
+    <main>
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <span class="stat-value" id="total-apps">-</span>
+                <span class="stat-label">Total Apps</span>
+            </div>
+            <div class="stat-card healthy">
+                <span class="stat-value" id="healthy-apps">-</span>
+                <span class="stat-label">Healthy</span>
+            </div>
+            <div class="stat-card unhealthy">
+                <span class="stat-value" id="unhealthy-apps">-</span>
+                <span class="stat-label">Issues</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value" id="last-updated">-</span>
+                <span class="stat-label">Last Updated</span>
+            </div>
+        </div>
+
+        <div class="filters">
+            <input type="text" id="search" placeholder="Search apps..." />
+            <select id="env-filter">
+                <option value="">All Environments</option>
+                <option value="production">Production</option>
+                <option value="staging">Staging</option>
+                <option value="development">Development</option>
+                <option value="preview">Preview</option>
+            </select>
+            <select id="status-filter">
+                <option value="">All Status</option>
+                <option value="healthy">Healthy</option>
+                <option value="unhealthy">Unhealthy</option>
+            </select>
+        </div>
+
+        <table id="apps-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>App Name</th>
+                    <th>Environment</th>
+                    <th>Last Deploy</th>
+                    <th>Deployed By</th>
+                    <th>Version</th>
+                    <th>Uptime</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="apps-body">
+                <tr>
+                    <td colspan="8" class="loading">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </main>
+
+    <footer>
+        <p>
+            <a href="https://github.com/signalwire-demos/dokku-deploy-system">Dokku Deploy System</a>
+            &bull; Auto-refreshes every 5 minutes
+        </p>
+    </footer>
+
+    <script>
+        const DATA_URL = 'apps.json';
+
+        async function loadDashboard() {
+            try {
+                const response = await fetch(DATA_URL + '?t=' + Date.now());
+                const data = await response.json();
+                renderDashboard(data);
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+                document.getElementById('apps-body').innerHTML =
+                    '<tr><td colspan="8" class="error">Failed to load data. Please try again.</td></tr>';
+            }
+        }
+
+        function renderDashboard(data) {
+            // Update stats
+            const apps = data.apps || [];
+            const healthy = apps.filter(a => a.status === 'success' || a.uptime?.status === 'healthy').length;
+            const unhealthy = apps.length - healthy;
+
+            document.getElementById('total-apps').textContent = apps.length;
+            document.getElementById('healthy-apps').textContent = healthy;
+            document.getElementById('unhealthy-apps').textContent = unhealthy;
+            document.getElementById('last-updated').textContent = formatTime(data.last_updated);
+
+            // Store apps for filtering
+            window.allApps = apps;
+            renderApps(apps);
+        }
+
+        function renderApps(apps) {
+            const tbody = document.getElementById('apps-body');
+
+            if (apps.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">No apps found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = apps.map(app => `
+                <tr class="${getStatusClass(app)}">
+                    <td>
+                        <span class="status-badge ${getStatusClass(app)}">${getStatusText(app)}</span>
+                    </td>
+                    <td class="app-name">${app.name}</td>
+                    <td><span class="env-badge ${app.environment}">${app.environment || '-'}</span></td>
+                    <td>${formatTime(app.last_deploy)}</td>
+                    <td>${app.last_deploy_by || '-'}</td>
+                    <td><code>${app.commit_sha ? app.commit_sha.substring(0, 7) : '-'}</code></td>
+                    <td>
+                        ${app.uptime ? `
+                            <span class="uptime ${app.uptime.status}">
+                                ${app.uptime.response_time_ms ? app.uptime.response_time_ms + 'ms' : '-'}
+                            </span>
+                        ` : '-'}
+                    </td>
+                    <td>
+                        ${app.url ? `<a href="${app.url}" target="_blank" class="btn">Open</a>` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function getStatusClass(app) {
+            if (app.status === 'success' || app.uptime?.status === 'healthy') return 'healthy';
+            if (app.status === 'failure' || app.uptime?.status === 'unhealthy') return 'unhealthy';
+            return 'unknown';
+        }
+
+        function getStatusText(app) {
+            if (app.uptime?.status === 'healthy') return 'Healthy';
+            if (app.uptime?.status === 'unhealthy') return 'Down';
+            if (app.status === 'success') return 'Deployed';
+            if (app.status === 'failure') return 'Failed';
+            return 'Unknown';
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = (now - date) / 1000;
+
+            if (diff < 60) return 'Just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        }
+
+        function filterApps() {
+            const search = document.getElementById('search').value.toLowerCase();
+            const envFilter = document.getElementById('env-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+
+            const filtered = (window.allApps || []).filter(app => {
+                if (search && !app.name.toLowerCase().includes(search)) return false;
+                if (envFilter && app.environment !== envFilter) return false;
+                if (statusFilter === 'healthy' && getStatusClass(app) !== 'healthy') return false;
+                if (statusFilter === 'unhealthy' && getStatusClass(app) !== 'unhealthy') return false;
+                return true;
+            });
+
+            renderApps(filtered);
+        }
+
+        // Event listeners
+        document.getElementById('search').addEventListener('input', filterApps);
+        document.getElementById('env-filter').addEventListener('change', filterApps);
+        document.getElementById('status-filter').addEventListener('change', filterApps);
+
+        // Initial load
+        loadDashboard();
+    </script>
+</body>
+</html>

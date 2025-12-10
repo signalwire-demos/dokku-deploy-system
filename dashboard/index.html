@@ -131,9 +131,11 @@
                     <td>${app.last_deploy_by || '-'}</td>
                     <td><code>${app.commit_sha ? app.commit_sha.substring(0, 7) : '-'}</code></td>
                     <td>
-                        ${app.uptime ? `
-                            <span class="uptime ${app.uptime.status}">
-                                ${formatUptime(app.uptime.uptime_seconds)}
+                        ${app.uptime && app.uptime.uptime_seconds > 0 ? `
+                            <span class="uptime ${app.uptime.status}"
+                                  data-uptime-base="${app.uptime.uptime_seconds}"
+                                  data-last-check="${app.uptime.last_check}">
+                                ${formatUptime(calculateCurrentUptime(app.uptime))}
                             </span>
                             <br><small>${app.uptime.response_time_ms ? app.uptime.response_time_ms + 'ms' : ''}</small>
                         ` : '-'}
@@ -144,6 +146,37 @@
                 </tr>
             `).join('');
         }
+
+        // Calculate current uptime based on base uptime + time elapsed since last check
+        function calculateCurrentUptime(uptime) {
+            if (!uptime || !uptime.uptime_seconds || uptime.uptime_seconds <= 0) return 0;
+            if (!uptime.last_check) return uptime.uptime_seconds;
+
+            const lastCheck = new Date(uptime.last_check).getTime();
+            const now = Date.now();
+            const elapsedSeconds = Math.floor((now - lastCheck) / 1000);
+
+            return uptime.uptime_seconds + elapsedSeconds;
+        }
+
+        // Update all uptime displays every second
+        function updateUptimeDisplays() {
+            const uptimeElements = document.querySelectorAll('[data-uptime-base]');
+            uptimeElements.forEach(el => {
+                const baseUptime = parseInt(el.dataset.uptimeBase, 10);
+                const lastCheck = el.dataset.lastCheck;
+
+                if (baseUptime > 0 && lastCheck) {
+                    const lastCheckTime = new Date(lastCheck).getTime();
+                    const elapsed = Math.floor((Date.now() - lastCheckTime) / 1000);
+                    const currentUptime = baseUptime + elapsed;
+                    el.textContent = formatUptime(currentUptime);
+                }
+            });
+        }
+
+        // Start the uptime ticker
+        setInterval(updateUptimeDisplays, 1000);
 
         function getStatusClass(app) {
             if (app.uptime?.status === 'healthy') return 'healthy';
@@ -179,10 +212,12 @@
             const days = Math.floor(seconds / 86400);
             const hours = Math.floor((seconds % 86400) / 3600);
             const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
 
             if (days > 0) return days + 'd ' + hours + 'h';
             if (hours > 0) return hours + 'h ' + mins + 'm';
-            return mins + 'm';
+            if (mins > 0) return mins + 'm ' + secs + 's';
+            return secs + 's';
         }
 
         function filterApps() {

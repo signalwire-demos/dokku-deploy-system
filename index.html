@@ -133,8 +133,9 @@
                     <td>
                         ${app.uptime ? `
                             <span class="uptime ${app.uptime.status}">
-                                ${app.uptime.response_time_ms ? app.uptime.response_time_ms + 'ms' : '-'}
+                                ${formatUptime(app.uptime.uptime_seconds)}
                             </span>
+                            <br><small>${app.uptime.response_time_ms ? app.uptime.response_time_ms + 'ms' : ''}</small>
                         ` : '-'}
                     </td>
                     <td>
@@ -171,6 +172,17 @@
             if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
             if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
             return Math.floor(diff / 86400) + 'd ago';
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds || seconds <= 0) return '-';
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+
+            if (days > 0) return days + 'd ' + hours + 'h';
+            if (hours > 0) return hours + 'h ' + mins + 'm';
+            return mins + 'm';
         }
 
         function filterApps() {

@@ -274,7 +274,8 @@ jobs:
           echo "$OUTPUT"
 
           # Count renewed certs (look for "Renewing" in output)
-          RENEWED=$(echo "$OUTPUT" | grep -c "Renewing" || echo "0")
+          # Use grep -c but capture result properly (grep exits 1 when no match)
+          RENEWED=$(echo "$OUTPUT" | grep -c "Renewing") || RENEWED=0
           echo "certs_renewed=$RENEWED" >> $GITHUB_OUTPUT
 
           echo ""

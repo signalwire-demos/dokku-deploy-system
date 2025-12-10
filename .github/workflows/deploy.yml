@@ -67,6 +67,7 @@ jobs:
     outputs:
       app_name: ${{ steps.env.outputs.app_name }}
       environment: ${{ steps.env.outputs.environment }}
+      app_url: ${{ steps.env.outputs.app_url }}
     steps:
       - name: Create environments if needed
         env:
@@ -78,21 +79,26 @@ jobs:
 
       - name: Determine deployment environment
         id: env
+        env:
+          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           BASE_APP="${{ env.BASE_APP_NAME }}"
 
           case "$BRANCH" in
             main)
-              echo "app_name=${BASE_APP}" >> $GITHUB_OUTPUT
+              APP_NAME="${BASE_APP}"
+              echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
               echo "environment=production" >> $GITHUB_OUTPUT
               ;;
             staging)
-              echo "app_name=${BASE_APP}-staging" >> $GITHUB_OUTPUT
+              APP_NAME="${BASE_APP}-staging"
+              echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
               echo "environment=staging" >> $GITHUB_OUTPUT
               ;;
             develop)
-              echo "app_name=${BASE_APP}-dev" >> $GITHUB_OUTPUT
+              APP_NAME="${BASE_APP}-dev"
+              echo "app_name=${APP_NAME}" >> $GITHUB_OUTPUT
               echo "environment=development" >> $GITHUB_OUTPUT
               ;;
             *)
@@ -101,9 +107,11 @@ jobs:
               ;;
           esac
 
+          echo "app_url=https://${APP_NAME}.${BASE_DOMAIN}" >> $GITHUB_OUTPUT
+
           echo "Branch: $BRANCH"
-          echo "App Name: $(cat $GITHUB_OUTPUT | grep app_name | cut -d= -f2)"
-          echo "Environment: $(cat $GITHUB_OUTPUT | grep environment | cut -d= -f2)"
+          echo "App Name: ${APP_NAME}"
+          echo "App URL: https://${APP_NAME}.${BASE_DOMAIN}"
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Test - Run tests before deployment
@@ -715,7 +723,7 @@ jobs:
       action: deploy
       status: ${{ needs.deploy.result }}
       environment: ${{ needs.setup.outputs.environment }}
-      url: https://${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
+      url: ${{ needs.setup.outputs.app_url }}
       commit_sha: ${{ github.sha }}
       actor: ${{ github.actor }}
     secrets: inherit

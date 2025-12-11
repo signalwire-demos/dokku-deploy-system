@@ -88,19 +88,50 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
-      - name: List available releases
+      - name: Get release history
+        id: releases
         run: |
-          echo "Available releases for ${{ steps.app.outputs.app_name }}:"
+          APP="${{ steps.app.outputs.app_name }}"
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "  Release History for $APP"
+          echo "═══════════════════════════════════════════════════════════════"
           echo ""
-          ssh dokku releases:list ${{ steps.app.outputs.app_name }} || \
-            echo "No releases found (or releases plugin not available)"
 
-      - name: Get current release
-        id: current
-        run: |
-          CURRENT=$(ssh dokku config:get ${{ steps.app.outputs.app_name }} GIT_REV 2>/dev/null || echo "unknown")
-          echo "current_rev=$CURRENT" >> $GITHUB_OUTPUT
-          echo "Current revision: $CURRENT"
+          # Get current release info
+          CURRENT_VERSION=$(ssh dokku config:get "$APP" RELEASE_VERSION 2>/dev/null || echo "")
+          CURRENT_SHA=$(ssh dokku config:get "$APP" RELEASE_SHA 2>/dev/null || echo "")
+          HISTORY_B64=$(ssh dokku config:get "$APP" RELEASE_HISTORY_B64 2>/dev/null || echo "")
+
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "current_sha=$CURRENT_SHA" >> $GITHUB_OUTPUT
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "⚠️ No release tracking found for this app"
+            echo "   Release tracking is enabled automatically when deploying via GitHub workflow"
+            echo ""
+            # Fall back to GIT_REV
+            GIT_REV=$(ssh dokku config:get "$APP" GIT_REV 2>/dev/null || echo "unknown")
+            echo "Current deployment: $GIT_REV"
+            echo "current_sha=$GIT_REV" >> $GITHUB_OUTPUT
+            echo "has_releases=false" >> $GITHUB_OUTPUT
+          else
+            echo "Current Release: v$CURRENT_VERSION (${CURRENT_SHA:0:7})"
+            echo ""
+
+            if [ -n "$HISTORY_B64" ]; then
+              HISTORY=$(echo "$HISTORY_B64" | base64 -d 2>/dev/null)
+              if echo "$HISTORY" | jq . >/dev/null 2>&1; then
+                echo "VERSION   COMMIT    DATE         DEPLOYED BY     MESSAGE"
+                echo "───────────────────────────────────────────────────────────────"
+                echo "$HISTORY" | jq -r '.[] | "v\(.version|tostring|.[0:7])      \(.short)    \(.timestamp | split("T")[0])   \(.actor[0:14])   \(.message[0:30])"'
+                echo ""
+                echo "has_releases=true" >> $GITHUB_OUTPUT
+                echo "release_history<<EOF" >> $GITHUB_OUTPUT
+                echo "$HISTORY" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
 
       - name: Pre-rollback database backup
         run: |
@@ -146,16 +177,77 @@ jobs:
         id: rollback
         run: |
           APP="${{ steps.app.outputs.app_name }}"
-          RELEASE="${{ github.event.inputs.release }}"
+          TARGET="${{ github.event.inputs.release }}"
+          HAS_RELEASES="${{ steps.releases.outputs.has_releases }}"
 
-          if [ -n "$RELEASE" ]; then
-            echo "Rolling back $APP to release $RELEASE..."
-            ssh dokku releases:rollback "$APP" "$RELEASE"
-            echo "target_release=$RELEASE" >> $GITHUB_OUTPUT
+          # Find target SHA
+          TARGET_SHA=""
+          TARGET_VERSION=""
+
+          if [ "$HAS_RELEASES" == "true" ]; then
+            HISTORY='${{ steps.releases.outputs.release_history }}'
+
+            if [ -z "$TARGET" ]; then
+              # Default to previous release (index 1 in array)
+              TARGET_SHA=$(echo "$HISTORY" | jq -r '.[1].sha // empty')
+              TARGET_VERSION=$(echo "$HISTORY" | jq -r '.[1].version // empty')
+              echo "Rolling back to previous release: v$TARGET_VERSION"
+            else
+              # Remove 'v' prefix if present
+              TARGET="${TARGET#v}"
+
+              # Check if target is version number or SHA
+              if [[ "$TARGET" =~ ^[0-9]+$ ]]; then
+                TARGET_SHA=$(echo "$HISTORY" | jq -r ".[] | select(.version == $TARGET) | .sha")
+                TARGET_VERSION="$TARGET"
+              else
+                TARGET_SHA=$(echo "$HISTORY" | jq -r ".[] | select(.sha | startswith(\"$TARGET\") or .short == \"$TARGET\") | .sha" | head -1)
+                TARGET_VERSION=$(echo "$HISTORY" | jq -r ".[] | select(.sha | startswith(\"$TARGET\") or .short == \"$TARGET\") | .version" | head -1)
+              fi
+              echo "Rolling back to release v$TARGET_VERSION"
+            fi
           else
-            echo "Rolling back $APP to previous release..."
-            ssh dokku releases:rollback "$APP"
-            echo "target_release=previous" >> $GITHUB_OUTPUT
+            # No release history - use provided SHA directly
+            if [ -n "$TARGET" ]; then
+              TARGET_SHA="$TARGET"
+              TARGET_VERSION="unknown"
+              echo "Rolling back to commit: $TARGET"
+            else
+              echo "::error::No release history and no target specified"
+              exit 1
+            fi
+          fi
+
+          if [ -z "$TARGET_SHA" ]; then
+            echo "::error::Could not find target release: $TARGET"
+            exit 1
+          fi
+
+          echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "target_version=$TARGET_VERSION" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════════════"
+          echo "  Rolling back $APP"
+          echo "  Target: v$TARGET_VERSION (${TARGET_SHA:0:7})"
+          echo "═══════════════════════════════════════════════════════════════"
+          echo ""
+
+          # Try docker image rollback first (fastest if image exists)
+          if ssh dokku git:from-image "$APP" "dokku/$APP:$TARGET_SHA" 2>/dev/null; then
+            echo "✅ Rollback via cached image successful"
+          else
+            # Try rebuilding from git
+            echo "Cached image not available, trying git rebuild..."
+            if ssh dokku ps:rebuild "$APP" 2>/dev/null; then
+              echo "✅ Rebuild successful"
+            else
+              echo "::error::Automatic rollback failed"
+              echo ""
+              echo "To rollback manually, run from the repo:"
+              echo "  git push dokku $TARGET_SHA:main --force"
+              exit 1
+            fi
           fi
 
       - name: Verify rollback
@@ -197,17 +289,19 @@ jobs:
           [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
 
           APP="${{ steps.app.outputs.app_name }}"
-          PREV_REV="${{ steps.current.outputs.current_rev }}"
-          TARGET="${{ steps.rollback.outputs.target_release }}"
+          PREV_VERSION="${{ steps.releases.outputs.current_version }}"
+          PREV_SHA="${{ steps.releases.outputs.current_sha }}"
+          TARGET_VERSION="${{ steps.rollback.outputs.target_version }}"
+          TARGET_SHA="${{ steps.rollback.outputs.target_sha }}"
           STATUS="${{ steps.verify.outputs.status }}"
           DOMAIN="${{ steps.verify.outputs.domain }}"
 
           if [ "${{ job.status }}" == "success" ] && [ "$STATUS" == "success" ]; then
             COLOR="warning"
-            TITLE="Rollback Successful"
+            TITLE="⏪ Rollback Successful"
           else
             COLOR="danger"
-            TITLE="Rollback Completed (verify manually)"
+            TITLE="⚠️ Rollback Completed (verify manually)"
           fi
 
           curl -X POST -H 'Content-type: application/json' \
@@ -218,8 +312,8 @@ jobs:
                 \"fields\": [
                   {\"title\": \"App\", \"value\": \"$APP\", \"short\": true},
                   {\"title\": \"Environment\", \"value\": \"${{ github.event.inputs.environment }}\", \"short\": true},
-                  {\"title\": \"Rolled back to\", \"value\": \"$TARGET\", \"short\": true},
-                  {\"title\": \"Previous Rev\", \"value\": \"$PREV_REV\", \"short\": true},
+                  {\"title\": \"Rolled back to\", \"value\": \"v$TARGET_VERSION (${TARGET_SHA:0:7})\", \"short\": true},
+                  {\"title\": \"From version\", \"value\": \"v$PREV_VERSION (${PREV_SHA:0:7})\", \"short\": true},
                   {\"title\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"short\": true},
                   {\"title\": \"URL\", \"value\": \"https://$DOMAIN\", \"short\": true}
                 ],
@@ -236,8 +330,10 @@ jobs:
           [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
 
           APP="${{ steps.app.outputs.app_name }}"
-          PREV_REV="${{ steps.current.outputs.current_rev }}"
-          TARGET="${{ steps.rollback.outputs.target_release }}"
+          PREV_VERSION="${{ steps.releases.outputs.current_version }}"
+          PREV_SHA="${{ steps.releases.outputs.current_sha }}"
+          TARGET_VERSION="${{ steps.rollback.outputs.target_version }}"
+          TARGET_SHA="${{ steps.rollback.outputs.target_sha }}"
           STATUS="${{ steps.verify.outputs.status }}"
           DOMAIN="${{ steps.verify.outputs.domain }}"
 
@@ -257,8 +353,8 @@ jobs:
                 \"fields\": [
                   {\"name\": \"App\", \"value\": \"$APP\", \"inline\": true},
                   {\"name\": \"Environment\", \"value\": \"${{ github.event.inputs.environment }}\", \"inline\": true},
-                  {\"name\": \"Rolled back to\", \"value\": \"$TARGET\", \"inline\": true},
-                  {\"name\": \"Previous Rev\", \"value\": \"$PREV_REV\", \"inline\": true},
+                  {\"name\": \"Rolled back to\", \"value\": \"v$TARGET_VERSION (${TARGET_SHA:0:7})\", \"inline\": true},
+                  {\"name\": \"From version\", \"value\": \"v$PREV_VERSION (${PREV_SHA:0:7})\", \"inline\": true},
                   {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"inline\": true},
                   {\"name\": \"URL\", \"value\": \"https://$DOMAIN\", \"inline\": false}
                 ],

@@ -342,48 +342,166 @@ cmd_deploy() {
 
 cmd_rollback() {
     local APP=$(get_app_name "$1")
-    local VERSION="$2"
+    local TARGET="$2"
 
-    log_warning "Rolling back $APP..."
+    # Get release history
+    local HISTORY_B64=$(dokku_ssh config:get "$APP" RELEASE_HISTORY_B64 2>/dev/null)
 
-    if [ -n "$VERSION" ]; then
-        # Rollback to specific git SHA
-        log_info "Deploying commit: $VERSION"
-        dokku_ssh git:from-image "$APP" "$VERSION" 2>/dev/null || \
-        dokku_ssh ps:rebuild "$APP" 2>/dev/null || \
-        log_error "Rollback failed - try manual: git push dokku $VERSION:main --force"
-    else
-        # Show recent deployments and ask user to pick
-        log_info "Recent deployments:"
-        dokku_ssh git:report "$APP" 2>/dev/null | grep -E "rev|sha|deploy" || \
-            echo "  No deployment history available"
+    if [ -z "$HISTORY_B64" ]; then
+        log_error "No release history found for $APP"
+        log_info "Deploy the app using the GitHub workflow to enable release tracking"
+        return 1
+    fi
+
+    # Decode history
+    local HISTORY=$(echo "$HISTORY_B64" | base64 -d 2>/dev/null)
+    if [ -z "$HISTORY" ] || ! echo "$HISTORY" | jq . >/dev/null 2>&1; then
+        log_error "Release history is corrupted"
+        return 1
+    fi
+
+    local RELEASE_COUNT=$(echo "$HISTORY" | jq 'length')
+
+    if [ "$RELEASE_COUNT" -lt 2 ]; then
+        log_error "Not enough releases to rollback (need at least 2)"
+        return 1
+    fi
+
+    # If no target specified, show releases and prompt
+    if [ -z "$TARGET" ]; then
+        log_header "Available Releases for $APP"
         echo ""
-        log_info "To rollback, redeploy a previous commit:"
-        echo "  git push dokku <commit-sha>:main --force"
+        echo "$HISTORY" | jq -r '.[] | "  v\(.version)\t\(.short)\t\(.timestamp | split("T")[0])\t\(.actor)\t\(.message[0:50])"' | \
+            column -t -s $'\t'
+        echo ""
+
+        # Default to previous release (index 1)
+        local PREV_VERSION=$(echo "$HISTORY" | jq -r '.[1].version')
+        local PREV_SHA=$(echo "$HISTORY" | jq -r '.[1].short')
+
+        read -p "Rollback to version [v$PREV_VERSION]: " TARGET
+        [ -z "$TARGET" ] && TARGET="$PREV_VERSION"
+    fi
+
+    # Remove 'v' prefix if present
+    TARGET="${TARGET#v}"
+
+    # Find the target release
+    local TARGET_SHA=""
+    local TARGET_MSG=""
+
+    # Check if target is a version number or SHA
+    if [[ "$TARGET" =~ ^[0-9]+$ ]]; then
+        # Version number
+        TARGET_SHA=$(echo "$HISTORY" | jq -r ".[] | select(.version == $TARGET) | .sha")
+        TARGET_MSG=$(echo "$HISTORY" | jq -r ".[] | select(.version == $TARGET) | .message")
+    else
+        # Assume it's a SHA (partial or full)
+        TARGET_SHA=$(echo "$HISTORY" | jq -r ".[] | select(.sha | startswith(\"$TARGET\") or .short == \"$TARGET\") | .sha" | head -1)
+        TARGET_MSG=$(echo "$HISTORY" | jq -r ".[] | select(.sha | startswith(\"$TARGET\") or .short == \"$TARGET\") | .message" | head -1)
+    fi
+
+    if [ -z "$TARGET_SHA" ] || [ "$TARGET_SHA" == "null" ]; then
+        log_error "Release not found: $TARGET"
+        log_info "Use 'dokku-cli releases $APP' to see available releases"
+        return 1
+    fi
+
+    echo ""
+    log_warning "Rolling back $APP to: ${TARGET_SHA:0:7}"
+    [ -n "$TARGET_MSG" ] && echo "  Commit: $TARGET_MSG"
+    echo ""
+    read -p "Continue? [y/N]: " CONFIRM
+
+    if [[ "$CONFIRM" =~ ^[Yy] ]]; then
+        log_info "Triggering rollback deployment..."
+
+        # Use git:from-archive or ps:rebuild with the target SHA
+        # The best way is to re-deploy via git
+        if dokku_ssh git:from-image "$APP" "dokku/$APP:$TARGET_SHA" 2>/dev/null; then
+            log_success "Rollback complete!"
+        else
+            # Fallback: instruct user to use git push
+            log_warning "Automatic rollback not available"
+            echo ""
+            echo "To rollback manually, run from your local repo:"
+            echo ""
+            echo "  git push dokku $TARGET_SHA:main --force"
+            echo ""
+            echo "Or trigger a new deployment from GitHub with that commit."
+        fi
+    else
+        log_info "Rollback cancelled"
     fi
 }
 
 cmd_releases() {
     local APP=$(get_app_name "$1")
-    log_header "Deployment Info: $APP"
+    local FORMAT="${2:-table}"  # table or json
 
-    # Show git deployment info
-    echo -e "${BOLD}Git Info:${NC}"
-    dokku_ssh git:report "$APP" 2>/dev/null || echo "  No git info available"
+    log_header "Releases: $APP"
 
-    echo ""
-    echo -e "${BOLD}Current Deploy:${NC}"
-    local git_rev=$(dokku_ssh config:get "$APP" GIT_REV 2>/dev/null)
-    if [ -n "$git_rev" ]; then
-        echo "  Commit: $git_rev"
-    else
-        echo "  No GIT_REV set"
+    # Get current release info
+    local CURRENT_VERSION=$(dokku_ssh config:get "$APP" RELEASE_VERSION 2>/dev/null)
+    local CURRENT_SHA=$(dokku_ssh config:get "$APP" RELEASE_SHA 2>/dev/null)
+    local CURRENT_TS=$(dokku_ssh config:get "$APP" RELEASE_TIMESTAMP 2>/dev/null)
+    local CURRENT_ACTOR=$(dokku_ssh config:get "$APP" RELEASE_ACTOR 2>/dev/null)
+
+    if [ -z "$CURRENT_VERSION" ]; then
+        echo ""
+        echo -e "${YELLOW}No release tracking enabled for this app.${NC}"
+        echo ""
+        echo "Release tracking is automatic when deploying via GitHub workflow."
+        echo "To enable, push to main/staging/develop branch."
+        echo ""
+
+        # Fall back to basic git info
+        echo -e "${BOLD}Current Deployment:${NC}"
+        local git_rev=$(dokku_ssh config:get "$APP" GIT_REV 2>/dev/null)
+        if [ -n "$git_rev" ]; then
+            echo "  Commit: ${git_rev:0:7}"
+        else
+            echo "  No deployment info available"
+        fi
+        return 0
     fi
 
     echo ""
-    echo -e "${BOLD}Note:${NC} Dokku doesn't track releases by default."
-    echo "  To rollback, redeploy a previous git commit:"
-    echo "  git push dokku <commit-sha>:main --force"
+    echo -e "${BOLD}Current Release:${NC} v$CURRENT_VERSION"
+    echo "  Commit:    ${CURRENT_SHA:0:7}"
+    echo "  Deployed:  $CURRENT_TS"
+    echo "  By:        $CURRENT_ACTOR"
+    echo ""
+
+    # Get release history
+    local HISTORY_B64=$(dokku_ssh config:get "$APP" RELEASE_HISTORY_B64 2>/dev/null)
+
+    if [ -n "$HISTORY_B64" ]; then
+        local HISTORY=$(echo "$HISTORY_B64" | base64 -d 2>/dev/null)
+
+        if [ -n "$HISTORY" ] && echo "$HISTORY" | jq . >/dev/null 2>&1; then
+            if [ "$FORMAT" == "json" ]; then
+                echo "$HISTORY" | jq .
+            else
+                echo -e "${BOLD}Release History:${NC}"
+                echo ""
+                printf "  %-8s %-9s %-12s %-15s %s\n" "VERSION" "COMMIT" "DATE" "DEPLOYED BY" "MESSAGE"
+                echo "  ─────────────────────────────────────────────────────────────────────────────"
+
+                echo "$HISTORY" | jq -r '.[] | "\(.version)\t\(.short)\t\(.timestamp | split("T")[0])\t\(.actor)\t\(.message[0:40])"' | \
+                while IFS=$'\t' read -r ver sha date actor msg; do
+                    if [ "$ver" == "$CURRENT_VERSION" ]; then
+                        printf "  ${GREEN}v%-7s %-9s %-12s %-15s %s${NC}\n" "$ver" "$sha" "$date" "$actor" "$msg"
+                    else
+                        printf "  v%-7s %-9s %-12s %-15s %s\n" "$ver" "$sha" "$date" "$actor" "$msg"
+                    fi
+                done
+
+                echo ""
+                echo "To rollback: dokku-cli rollback $APP [version]"
+            fi
+        fi
+    fi
 }
 
 cmd_create() {
@@ -1189,14 +1307,10 @@ cmd_interactive() {
                 fi
                 ;;
             "Rollback")
-                cmd_releases "$app"
+                # cmd_rollback handles prompting if no version specified
+                cmd_rollback "$app"
                 echo ""
-                echo "Enter commit SHA to rollback to (or press Enter to cancel):"
-                read -p "> " version
-                if [ -n "$version" ]; then
-                    cmd_rollback "$app" "$version"
-                fi
-                sleep 2
+                read -p "Press Enter to continue..."
                 ;;
             "View Releases")
                 cmd_releases "$app"

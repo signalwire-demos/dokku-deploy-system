@@ -836,6 +836,56 @@ jobs:
           echo "  Files changed: $FILES_CHANGED"
           echo "  Version: ${PREV_VERSION:0:7} -> ${GITHUB_SHA:0:7}"
 
+      - name: Track release
+        run: |
+          echo "Recording release..."
+
+          # Get current release number and increment
+          CURRENT_RELEASE=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_VERSION 2>/dev/null || echo "0")
+          NEW_RELEASE=$((CURRENT_RELEASE + 1))
+
+          # Get commit message (escape quotes for JSON)
+          COMMIT_MSG=$(git log -1 --pretty=%s | head -c 80 | sed 's/"/\\"/g')
+
+          # Create release record
+          RELEASE_RECORD=$(jq -n \
+            --arg v "$NEW_RELEASE" \
+            --arg sha "${{ github.sha }}" \
+            --arg short "${GITHUB_SHA:0:7}" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg actor "${{ github.actor }}" \
+            --arg msg "$COMMIT_MSG" \
+            --arg env "${{ env.ENVIRONMENT }}" \
+            '{version: ($v|tonumber), sha: $sha, short: $short, timestamp: $ts, actor: $actor, message: $msg, environment: $env}')
+
+          # Get existing release history (or empty array)
+          RELEASE_HISTORY=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_HISTORY 2>/dev/null || echo "[]")
+
+          # Validate JSON, reset if corrupted
+          if ! echo "$RELEASE_HISTORY" | jq . >/dev/null 2>&1; then
+            RELEASE_HISTORY="[]"
+          fi
+
+          # Prepend new release, keep only last 10
+          NEW_HISTORY=$(echo "$RELEASE_HISTORY" | jq --argjson new "$RELEASE_RECORD" '[$new] + . | .[0:10]')
+
+          # Store release info (use base64 to handle special chars in JSON)
+          HISTORY_B64=$(echo "$NEW_HISTORY" | base64 -w0)
+
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} \
+            RELEASE_VERSION="$NEW_RELEASE" \
+            RELEASE_SHA="${{ github.sha }}" \
+            RELEASE_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            RELEASE_ACTOR="${{ github.actor }}" \
+            RELEASE_HISTORY_B64="$HISTORY_B64"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  📦 Release v$NEW_RELEASE created"
+          echo "  Commit: ${GITHUB_SHA:0:7}"
+          echo "  Actor: ${{ github.actor }}"
+          echo "═══════════════════════════════════════════════════════"
+
       - name: Create GitHub deployment and set success status
         uses: actions/github-script@v7
         with:

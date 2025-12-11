@@ -32,6 +32,10 @@ DOKKU_HOST="${DOKKU_HOST:-dokku.yourdomain.com}"
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/dokku_deploy}"
 BASE_DOMAIN="${BASE_DOMAIN:-yourdomain.com}"
 
+# Output format (set via --json or --quiet flags)
+OUTPUT_FORMAT="${OUTPUT_FORMAT:-text}"
+QUIET_MODE="${QUIET_MODE:-false}"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Colors and formatting
 # ─────────────────────────────────────────────────────────────────────────────
@@ -63,18 +67,41 @@ dokku_ssh() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Resolve app alias
+# ─────────────────────────────────────────────────────────────────────────────
+
+resolve_alias() {
+    local name="$1"
+    local alias_var="ALIAS_$(echo "$name" | tr '[:lower:]' '[:upper:]')"
+
+    # Check if alias exists in config
+    if [ -f "$CONFIG_FILE" ]; then
+        local resolved=$(grep "^$alias_var=" "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"')
+        if [ -n "$resolved" ]; then
+            echo "$resolved"
+            return
+        fi
+    fi
+    echo "$name"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Get app name (from argument or current git repo)
 # ─────────────────────────────────────────────────────────────────────────────
 
 get_app_name() {
+    local name=""
     if [ -n "$1" ]; then
-        echo "$1"
+        name="$1"
     elif git rev-parse --is-inside-work-tree &>/dev/null; then
-        basename "$(git rev-parse --show-toplevel)"
+        name=$(basename "$(git rev-parse --show-toplevel)")
     else
         log_error "No app name provided and not in a git repository"
         exit 1
     fi
+
+    # Resolve alias
+    resolve_alias "$name"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -82,8 +109,23 @@ get_app_name() {
 # ─────────────────────────────────────────────────────────────────────────────
 
 cmd_list() {
-    log_header "All Apps"
-    dokku_ssh apps:list
+    if [ "$OUTPUT_FORMAT" == "json" ]; then
+        # JSON output
+        local apps=$(dokku_ssh apps:list 2>/dev/null | tail -n +2)
+        echo '{"apps":['
+        local first=true
+        for app in $apps; do
+            [ "$first" = true ] && first=false || echo ","
+            echo -n "\"$app\""
+        done
+        echo ']}'
+    elif [ "$QUIET_MODE" == "true" ]; then
+        # Quiet mode - just app names
+        dokku_ssh apps:list 2>/dev/null | tail -n +2
+    else
+        log_header "All Apps"
+        dokku_ssh apps:list
+    fi
 }
 
 cmd_info() {
@@ -534,6 +576,11 @@ cmd_setup() {
 DOKKU_HOST="$DOKKU_HOST"
 SSH_KEY="$SSH_KEY"
 BASE_DOMAIN="$BASE_DOMAIN"
+
+# App Aliases (format: ALIAS_NAME="actual-app-name")
+# Example:
+# ALIAS_PROD="myapp"
+# ALIAS_STG="myapp-staging"
 EOF
 
     log_success "Configuration saved to $CONFIG_FILE"
@@ -548,6 +595,74 @@ EOF
     fi
 }
 
+cmd_alias() {
+    local ACTION="${1:-list}"
+    local ALIAS_NAME="$2"
+    local APP_NAME="$3"
+
+    case "$ACTION" in
+        list)
+            log_header "App Aliases"
+            if [ -f "$CONFIG_FILE" ]; then
+                local aliases=$(grep "^ALIAS_" "$CONFIG_FILE" 2>/dev/null)
+                if [ -n "$aliases" ]; then
+                    echo "$aliases" | while read line; do
+                        local name=$(echo "$line" | cut -d'=' -f1 | sed 's/ALIAS_//' | tr '[:upper:]' '[:lower:]')
+                        local app=$(echo "$line" | cut -d'=' -f2 | tr -d '"')
+                        echo "  $name -> $app"
+                    done
+                else
+                    echo "  No aliases configured"
+                    echo ""
+                    echo "  Add with: dokku-cli alias add <name> <app>"
+                fi
+            else
+                log_error "Config file not found. Run 'dokku-cli setup' first."
+            fi
+            ;;
+        add|set)
+            if [ -z "$ALIAS_NAME" ] || [ -z "$APP_NAME" ]; then
+                log_error "Usage: dokku-cli alias add <name> <app>"
+                exit 1
+            fi
+            local alias_var="ALIAS_$(echo "$ALIAS_NAME" | tr '[:lower:]' '[:upper:]')"
+
+            # Remove existing alias if present
+            if [ -f "$CONFIG_FILE" ]; then
+                sed -i.bak "/^$alias_var=/d" "$CONFIG_FILE"
+                rm -f "${CONFIG_FILE}.bak"
+            fi
+
+            # Add new alias
+            echo "$alias_var=\"$APP_NAME\"" >> "$CONFIG_FILE"
+            log_success "Alias '$ALIAS_NAME' -> '$APP_NAME' added"
+            log_info "Now you can use: dokku-cli logs $ALIAS_NAME"
+            ;;
+        remove|rm|delete)
+            if [ -z "$ALIAS_NAME" ]; then
+                log_error "Usage: dokku-cli alias remove <name>"
+                exit 1
+            fi
+            local alias_var="ALIAS_$(echo "$ALIAS_NAME" | tr '[:lower:]' '[:upper:]')"
+
+            if [ -f "$CONFIG_FILE" ]; then
+                if grep -q "^$alias_var=" "$CONFIG_FILE"; then
+                    sed -i.bak "/^$alias_var=/d" "$CONFIG_FILE"
+                    rm -f "${CONFIG_FILE}.bak"
+                    log_success "Alias '$ALIAS_NAME' removed"
+                else
+                    log_error "Alias '$ALIAS_NAME' not found"
+                fi
+            fi
+            ;;
+        *)
+            log_error "Unknown alias action: $ACTION"
+            echo "Usage: dokku-cli alias [list|add|remove] [name] [app]"
+            exit 1
+            ;;
+    esac
+}
+
 cmd_help() {
     cat << 'EOF'
 ╔═══════════════════════════════════════════════════════════════════════════════╗
@@ -555,9 +670,14 @@ cmd_help() {
 ║                   Developer tools for Dokku deployments                        ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
 
-Usage: dokku-cli <command> [app] [options]
+Usage: dokku-cli [--json|--quiet] <command> [app] [options]
 
 If [app] is not provided, it will be inferred from the current git repository.
+You can also use aliases instead of app names (see ALIASES section).
+
+GLOBAL OPTIONS
+  --json                     Output in JSON format (where supported)
+  --quiet, -q                Minimal output (just data, no headers)
 
 GENERAL
   setup                      Configure CLI settings
@@ -610,16 +730,29 @@ DATABASE
 RUN COMMANDS
   run [app] <command>        Run one-off command
 
+ALIASES
+  alias                      List all aliases
+  alias add <name> <app>     Create alias (e.g., prod -> myapp)
+  alias remove <name>        Remove alias
+
 EXAMPLES
   dokku-cli logs myapp --num 50
   dokku-cli config:set myapp DEBUG=true SECRET_KEY=abc123
   dokku-cli run myapp python manage.py migrate
   dokku-cli deploy myapp main
   dokku-cli db myapp create postgres
+  dokku-cli --json list
+  dokku-cli alias add prod myapp
+  dokku-cli logs prod          # Uses alias
 
 CONFIGURATION
   Settings are stored in ~/.dokku-cli
   Run 'dokku-cli setup' to configure.
+
+SHELL COMPLETIONS
+  Bash: source /path/to/completions/dokku-cli.bash
+  Zsh:  Add completions dir to fpath, then compinit
+  Fish: cp dokku-cli.fish ~/.config/fish/completions/
 
 EOF
 }
@@ -627,6 +760,32 @@ EOF
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
+
+# Parse global options
+while [[ "$1" == -* ]]; do
+    case "$1" in
+        --json)
+            OUTPUT_FORMAT="json"
+            shift
+            ;;
+        --quiet|-q)
+            QUIET_MODE="true"
+            shift
+            ;;
+        --help|-h)
+            cmd_help
+            exit 0
+            ;;
+        --version|-v)
+            echo "dokku-cli v2.0.0"
+            exit 0
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
 
 case "${1:-help}" in
     # General
@@ -672,11 +831,11 @@ case "${1:-help}" in
     # Run
     run)            shift; cmd_run "$@" ;;
 
+    # Aliases
+    alias)          shift; cmd_alias "$@" ;;
+
     # Help
-    help|--help|-h) cmd_help ;;
-    version|--version|-v)
-        echo "dokku-cli v1.0.0"
-        ;;
+    help)           cmd_help ;;
 
     *)
         log_error "Unknown command: $1"

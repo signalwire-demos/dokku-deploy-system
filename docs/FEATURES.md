@@ -25,6 +25,7 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Log Aggregation](#log-aggregation)
 - [Performance Monitoring](#performance-monitoring)
 - [Cost Tracking](#cost-tracking)
+- [CLI Tool](#cli-tool)
 
 ---
 
@@ -1642,3 +1643,176 @@ Based on reports, consider:
 - Lowering memory limits if not fully utilized
 - Cleaning up unused preview environments
 - Using scheduled scaling for off-hours
+
+---
+
+## CLI Tool
+
+A developer-friendly command-line interface for common Dokku operations.
+
+### Installation
+
+```bash
+# Download
+curl -o dokku-cli https://raw.githubusercontent.com/signalwire-demos/dokku-deploy-system/main/cli/dokku-cli
+chmod +x dokku-cli
+sudo mv dokku-cli /usr/local/bin/
+
+# Configure
+dokku-cli setup
+```
+
+### Shell Completions
+
+**Bash:**
+```bash
+# Linux
+sudo cp completions/dokku-cli.bash /etc/bash_completion.d/dokku-cli
+
+# macOS (Homebrew)
+cp completions/dokku-cli.bash $(brew --prefix)/etc/bash_completion.d/dokku-cli
+
+# Or add to ~/.bashrc
+source /path/to/dokku-cli.bash
+```
+
+**Zsh:**
+```bash
+# Add to ~/.zshrc (before compinit)
+fpath=(/path/to/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+**Fish:**
+```bash
+cp completions/dokku-cli.fish ~/.config/fish/completions/
+```
+
+### App Aliases
+
+Create shortcuts for frequently used apps:
+
+```bash
+# Add aliases
+dokku-cli alias add prod myapp
+dokku-cli alias add stg myapp-staging
+
+# Use aliases instead of full names
+dokku-cli logs prod
+dokku-cli restart stg
+dokku-cli config prod
+
+# List all aliases
+dokku-cli alias
+
+# Remove alias
+dokku-cli alias remove prod
+```
+
+Aliases are stored in `~/.dokku-cli`.
+
+### Output Formatting
+
+**JSON output** for scripting:
+```bash
+dokku-cli --json list
+# {"apps":["myapp","myapp-staging","other-app"]}
+
+# Use with jq
+dokku-cli --json list | jq '.apps[]'
+```
+
+**Quiet mode** for minimal output:
+```bash
+dokku-cli --quiet list
+# myapp
+# myapp-staging
+# other-app
+
+# Use in scripts
+for app in $(dokku-cli -q list); do
+  dokku-cli restart $app
+done
+```
+
+### Common Commands
+
+| Command | Description |
+|---------|-------------|
+| `dokku-cli list` | List all apps |
+| `dokku-cli info [app]` | Show app details |
+| `dokku-cli logs [app]` | View recent logs |
+| `dokku-cli logs:follow [app]` | Tail logs in real-time |
+| `dokku-cli config [app]` | Show environment variables |
+| `dokku-cli config:set [app] K=V` | Set environment variables |
+| `dokku-cli restart [app]` | Restart app |
+| `dokku-cli deploy [app] [branch]` | Deploy via git push |
+| `dokku-cli rollback [app]` | Rollback to previous release |
+| `dokku-cli shell [app]` | Open shell in container |
+| `dokku-cli run [app] <cmd>` | Run one-off command |
+| `dokku-cli db [app] backup` | Backup database |
+| `dokku-cli lock [app]` | Lock deployments |
+| `dokku-cli unlock [app]` | Unlock deployments |
+
+### Auto-Detection
+
+If you don't specify an app name, the CLI will use the current git repository name:
+
+```bash
+cd ~/projects/myapp
+dokku-cli logs          # Uses "myapp"
+dokku-cli restart       # Restarts "myapp"
+dokku-cli config:set DEBUG=true  # Sets on "myapp"
+```
+
+### Configuration File
+
+Settings are stored in `~/.dokku-cli`:
+
+```bash
+# Dokku CLI Configuration
+DOKKU_HOST="dokku.example.com"
+SSH_KEY="/home/user/.ssh/dokku_deploy"
+BASE_DOMAIN="example.com"
+
+# App Aliases
+ALIAS_PROD="myapp"
+ALIAS_STG="myapp-staging"
+ALIAS_DEV="myapp-dev"
+```
+
+### Deploy Locks via CLI
+
+```bash
+# Lock an app (block all deployments)
+dokku-cli lock myapp "Investigating production issue"
+
+# Check lock status
+dokku-cli lock:status myapp
+
+# Unlock when ready
+dokku-cli unlock myapp
+```
+
+### Database Operations
+
+```bash
+# Create and link database
+dokku-cli db myapp create postgres
+
+# Connect to database shell
+dokku-cli db myapp connect postgres
+
+# Backup to local file
+dokku-cli db myapp backup postgres
+# Output: myapp-20250115_120000.dump
+
+# Backup to server storage
+dokku-cli db myapp backup-server postgres
+
+# List available backups
+dokku-cli db myapp list-backups
+
+# Restore from backup
+dokku-cli db myapp restore backup.dump postgres
+```

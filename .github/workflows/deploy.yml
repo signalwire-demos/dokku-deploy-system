@@ -564,27 +564,80 @@ jobs:
             fi
           fi
 
-      - name: Configure resources
+      - name: Configure resources and scaling
         run: |
+          # Check if resource plugin is available
+          RESOURCE_PLUGIN_AVAILABLE=false
+          if ssh dokku resource:report 2>&1 | grep -q "resource"; then
+            RESOURCE_PLUGIN_AVAILABLE=true
+            echo "✅ Resource plugin available"
+          else
+            echo "⚠️ Resource plugin not installed - skipping resource limits"
+            echo "   Install with: sudo dokku plugin:install https://github.com/dokku/dokku-resource.git"
+          fi
+
           # Use inputs if provided, otherwise check config.yml
           MEMORY="${{ inputs.memory_limit }}"
           CPU="${{ inputs.cpu_limit }}"
+          WEB_SCALE=""
+          WORKER_SCALE=""
 
           if [ -f ".dokku/config.yml" ]; then
             # Install yq if not already installed
             which yq || sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
             sudo chmod +x /usr/local/bin/yq
 
-            [ -z "$MEMORY" ] && MEMORY=$(yq e '.resources.memory // "512m"' .dokku/config.yml)
-            [ -z "$CPU" ] && CPU=$(yq e '.resources.cpu // "1"' .dokku/config.yml)
+            ENV="${{ env.ENVIRONMENT }}"
+
+            # Get environment-specific settings first, fall back to defaults
+            [ -z "$MEMORY" ] && MEMORY=$(yq e ".environments.${ENV}.resources.memory // .resources.memory // \"512m\"" .dokku/config.yml)
+            [ -z "$CPU" ] && CPU=$(yq e ".environments.${ENV}.resources.cpu // .resources.cpu // \"1\"" .dokku/config.yml)
+
+            # Get scaling settings
+            WEB_SCALE=$(yq e ".environments.${ENV}.scale.web // .scale.web // \"\"" .dokku/config.yml)
+            WORKER_SCALE=$(yq e ".environments.${ENV}.scale.worker // .scale.worker // \"\"" .dokku/config.yml)
           fi
 
           # Set defaults if still empty
-          [ -z "$MEMORY" ] && MEMORY="512m"
-          [ -z "$CPU" ] && CPU="1"
+          [ -z "$MEMORY" ] || [ "$MEMORY" == "null" ] && MEMORY="512m"
+          [ -z "$CPU" ] || [ "$CPU" == "null" ] && CPU="1"
 
-          echo "Setting resources: memory=$MEMORY, cpu=$CPU"
-          ssh dokku resource:limit ${{ env.APP_NAME }} --memory $MEMORY --cpu $CPU || true
+          # Apply resource limits if plugin is available
+          if [ "$RESOURCE_PLUGIN_AVAILABLE" == "true" ]; then
+            echo "Setting resources: memory=$MEMORY, cpu=$CPU"
+            ssh dokku resource:limit --memory $MEMORY --cpu $CPU ${{ env.APP_NAME }} || {
+              echo "::warning::Failed to set resource limits"
+            }
+          else
+            # Set WEB_CONCURRENCY as fallback for memory-aware workers
+            echo "Setting WEB_CONCURRENCY based on memory limit..."
+            # Extract numeric value from memory (e.g., "512m" -> 512, "1g" -> 1024)
+            MEM_NUM=$(echo "$MEMORY" | sed 's/[^0-9]//g')
+            MEM_UNIT=$(echo "$MEMORY" | sed 's/[0-9]//g')
+            if [ "$MEM_UNIT" == "g" ]; then
+              MEM_MB=$((MEM_NUM * 1024))
+            else
+              MEM_MB=$MEM_NUM
+            fi
+            # ~128MB per worker is reasonable for most Python/Node apps
+            WEB_CONCURRENCY=$((MEM_MB / 128))
+            [ "$WEB_CONCURRENCY" -lt 1 ] && WEB_CONCURRENCY=1
+            [ "$WEB_CONCURRENCY" -gt 8 ] && WEB_CONCURRENCY=8
+            ssh dokku config:set --no-restart ${{ env.APP_NAME }} WEB_CONCURRENCY=$WEB_CONCURRENCY || true
+            echo "Set WEB_CONCURRENCY=$WEB_CONCURRENCY (based on ${MEMORY} memory)"
+          fi
+
+          # Apply process scaling
+          SCALE_ARGS=""
+          [ -n "$WEB_SCALE" ] && [ "$WEB_SCALE" != "null" ] && SCALE_ARGS="web=$WEB_SCALE"
+          [ -n "$WORKER_SCALE" ] && [ "$WORKER_SCALE" != "null" ] && SCALE_ARGS="$SCALE_ARGS worker=$WORKER_SCALE"
+
+          if [ -n "$SCALE_ARGS" ]; then
+            echo "Setting process scale: $SCALE_ARGS"
+            ssh dokku ps:scale ${{ env.APP_NAME }} $SCALE_ARGS || {
+              echo "::warning::Failed to set process scaling"
+            }
+          fi
 
       - name: Deploy via git push
         run: |

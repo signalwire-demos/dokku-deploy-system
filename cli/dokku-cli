@@ -837,6 +837,9 @@ cmd_doctor() {
     if ! echo "$plugins" | grep -q "postgres"; then
         missing_recommended=$((missing_recommended + 1))
     fi
+    if ! echo "$plugins" | grep -q "resource"; then
+        missing_recommended=$((missing_recommended + 1))
+    fi
 
     if [ $missing_recommended -eq 0 ]; then
         echo -e "${GREEN}✓${NC} All recommended plugins installed"
@@ -850,6 +853,9 @@ cmd_doctor() {
         fi
         if ! echo "$plugins" | grep -q "postgres"; then
             echo "  sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git"
+        fi
+        if ! echo "$plugins" | grep -q "resource"; then
+            echo "  sudo dokku plugin:install https://github.com/dokku/dokku-resource.git"
         fi
     fi
 
@@ -877,6 +883,12 @@ cmd_doctor() {
         echo -e "  db commands           ${GREEN}Available${NC}"
     else
         echo -e "  db commands           ${YELLOW}Unavailable${NC} (needs database plugin)"
+    fi
+
+    if echo "$plugins" | grep -q "resource"; then
+        echo -e "  resource limits       ${GREEN}Available${NC}"
+    else
+        echo -e "  resource limits       ${YELLOW}Unavailable${NC} (needs resource plugin)"
     fi
 
     if command -v fzf &>/dev/null; then

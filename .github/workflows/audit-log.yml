@@ -113,6 +113,7 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@v4
         with:
+          repository: signalwire-demos/dokku-deploy-system
           ref: gh-pages
           token: ${{ secrets.GH_ORG_TOKEN || github.token }}
 

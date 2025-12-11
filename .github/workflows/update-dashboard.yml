@@ -308,5 +308,22 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update dashboard: ${{ inputs.app_name || 'sync' }} ${{ inputs.action }}"
-            git push
+
+            # Retry push with pull/rebase to handle concurrent updates
+            MAX_RETRIES=3
+            RETRY=0
+            while [ $RETRY -lt $MAX_RETRIES ]; do
+              if git push; then
+                echo "Push successful"
+                break
+              else
+                RETRY=$((RETRY + 1))
+                if [ $RETRY -lt $MAX_RETRIES ]; then
+                  echo "Push failed, retrying ($RETRY/$MAX_RETRIES)..."
+                  git pull --rebase
+                else
+                  echo "::warning::Failed to push dashboard update after $MAX_RETRIES retries"
+                fi
+              fi
+            done
           fi

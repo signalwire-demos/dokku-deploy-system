@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1765492244-1b6bbd",
+      "timestamp": "2025-12-11T22:30:44Z",
+      "action": "deploy",
+      "app_name": "santa",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/santa",
+      "commit": {
+        "sha": "ddf5446",
+        "sha_full": "ddf54464a64a3914539b19231d4ac0c9f6e17dbc",
+        "message": "Remove unused python-multipart dependency"
+      },
+      "duration": "2m 9s",
+      "url": "https://santa.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20149453332",
+        "run_url": "https://github.com/signalwire-demos/santa/actions/runs/20149453332"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1765492064-a0d0a5",
       "timestamp": "2025-12-11T22:27:44Z",
       "action": "deploy",
@@ -48,8 +71,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 2,
-    "successful": 1,
+    "total_deploys": 3,
+    "successful": 2,
     "failed": 1
   }
 }

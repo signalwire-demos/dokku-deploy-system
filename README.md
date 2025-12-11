@@ -21,6 +21,9 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 - **Scheduled deployments** - Schedule deploys for specific times (off-hours, change windows)
 - **Audit log** - Comprehensive deployment history with searchable logs
 - **PR notifications** - Automatic comments on PRs when code is deployed
+- **Approval gates** - Require manual approval for production deployments
+- **Security scanning** - Trivy vulnerability scanning with configurable blocking
+- **Webhook integrations** - Custom webhooks, Datadog, PagerDuty support
 
 ## Directory Structure
 
@@ -284,6 +287,82 @@ Status contexts:
 - `deploy/staging` - Staging deployments
 - `deploy/development` - Development deployments
 - `preview/deploy` - Preview environment deployments
+
+## Approval Gates
+
+Require manual approval before deploying to production using GitHub's built-in environment protection.
+
+### Setup
+
+1. Go to your repo → **Settings** → **Environments** → **production**
+2. Click **Required reviewers** and add team members
+3. Optionally set a **Wait timer** (e.g., 5 minutes)
+4. Optionally restrict **Deployment branches** to `main` only
+
+When configured, production deployments will pause and wait for approval before proceeding.
+
+## Security Scanning
+
+Automatic vulnerability scanning with Trivy before every deployment.
+
+### How It Works
+
+1. **Trivy scans** all dependencies (npm, pip, go, etc.)
+2. **Results summarized** in workflow summary
+3. **Critical vulnerabilities block** deployment by default
+4. **Artifacts uploaded** for detailed review
+
+### Configuration
+
+To disable blocking (allow deployment despite vulnerabilities), add to `.dokku/config.yml`:
+
+```yaml
+security:
+  block_on_critical: false
+```
+
+To ignore specific vulnerabilities, create `.trivyignore`:
+
+```
+CVE-2023-12345
+CVE-2023-67890
+```
+
+## Webhook Integrations
+
+Send deployment notifications to external services.
+
+### Custom Webhooks
+
+Set `DEPLOY_WEBHOOK_URLS` (comma-separated) in GitHub secrets:
+
+```
+https://hooks.example.com/deploy,https://api.internal.com/events
+```
+
+Optionally set `DEPLOY_WEBHOOK_SECRET` for HMAC signature verification.
+
+**Payload format:**
+```json
+{
+  "event": "deployment",
+  "app": "myapp",
+  "environment": "production",
+  "status": "success",
+  "commit_sha": "abc1234...",
+  "deployed_by": "username",
+  "app_url": "https://myapp.domain.com",
+  "workflow_url": "https://github.com/.../runs/123",
+  "timestamp": "2025-12-11T15:00:00Z"
+}
+```
+
+### Pre-configured Integrations
+
+| Service | Secret | Description |
+|---------|--------|-------------|
+| Datadog | `DD_API_KEY` | Sends deployment events |
+| PagerDuty | `PAGERDUTY_ROUTING_KEY` | Alerts on failures |
 
 ## Database Backups
 

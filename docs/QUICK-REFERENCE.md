@@ -259,6 +259,10 @@ ssh dokku@server run myapp env
 | `GH_ORG_TOKEN` | Multi-purpose PAT (dashboard, environments, cleanup, preview security) |
 | `SLACK_WEBHOOK_URL` | Slack notifications (optional) |
 | `DISCORD_WEBHOOK_URL` | Discord notifications (optional) |
+| `DEPLOY_WEBHOOK_URLS` | Custom webhook URLs, comma-separated (optional) |
+| `DEPLOY_WEBHOOK_SECRET` | HMAC secret for webhook signatures (optional) |
+| `DD_API_KEY` | Datadog API key (optional) |
+| `PAGERDUTY_ROUTING_KEY` | PagerDuty routing key (optional) |
 
 ---
 

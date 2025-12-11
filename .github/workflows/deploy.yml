@@ -55,6 +55,14 @@ on:
         required: false
       DISCORD_WEBHOOK_URL:
         required: false
+      DEPLOY_WEBHOOK_URLS:
+        required: false
+      DEPLOY_WEBHOOK_SECRET:
+        required: false
+      DD_API_KEY:
+        required: false
+      PAGERDUTY_ROUTING_KEY:
+        required: false
 
 env:
   BASE_APP_NAME: ${{ github.event.repository.name }}
@@ -207,12 +215,107 @@ jobs:
         run: go test ./... || true
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # Security Scan - Scan dependencies for vulnerabilities
+  # ═══════════════════════════════════════════════════════════════════════════
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    outputs:
+      critical_count: ${{ steps.scan.outputs.critical }}
+      high_count: ${{ steps.scan.outputs.high }}
+      scan_passed: ${{ steps.check.outputs.passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'json'
+          output: 'trivy-results.json'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Parse scan results
+        id: scan
+        run: |
+          if [ -f trivy-results.json ]; then
+            CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-results.json 2>/dev/null || echo "0")
+            HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-results.json 2>/dev/null || echo "0")
+            MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length' trivy-results.json 2>/dev/null || echo "0")
+          else
+            CRITICAL=0
+            HIGH=0
+            MEDIUM=0
+          fi
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Security Scan Results"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Critical: $CRITICAL"
+          echo "  High:     $HIGH"
+          echo "  Medium:   $MEDIUM"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Generate scan summary
+        run: |
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | ${{ steps.scan.outputs.critical }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | ${{ steps.scan.outputs.high }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium | ${{ steps.scan.outputs.medium }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check vulnerability thresholds
+        id: check
+        run: |
+          CRITICAL="${{ steps.scan.outputs.critical }}"
+          HIGH="${{ steps.scan.outputs.high }}"
+
+          # Check for ignore file
+          IGNORE_CRITICAL=false
+          if [ -f ".dokku/security-ignore.yml" ] || [ -f ".trivyignore" ]; then
+            echo "Security ignore file found - some vulnerabilities may be whitelisted"
+          fi
+
+          # Block on critical vulnerabilities (configurable via .dokku/config.yml)
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::warning::$CRITICAL critical vulnerabilities found"
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo ""
+            echo "❌ Critical vulnerabilities detected!"
+            echo "   Review the scan results and either:"
+            echo "   1. Fix the vulnerabilities"
+            echo "   2. Add to .trivyignore if it's a false positive"
+            echo "   3. Set security.block_on_critical: false in .dokku/config.yml"
+            # Don't exit 1 - let the deploy job decide based on config
+          else
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ No critical vulnerabilities found"
+          fi
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: trivy-results.json
+          retention-days: 30
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Deploy - Deploy to Dokku
   # ═══════════════════════════════════════════════════════════════════════════
   deploy:
     name: Deploy to ${{ needs.setup.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: [setup, test]
+    needs: [setup, test, security-scan]
     environment: ${{ needs.setup.outputs.environment }}
     outputs:
       duration: ${{ steps.deploy_info.outputs.duration }}
@@ -246,6 +349,43 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history needed for git push
+
+      - name: Check security scan results
+        run: |
+          CRITICAL="${{ needs.security-scan.outputs.critical_count }}"
+          SCAN_PASSED="${{ needs.security-scan.outputs.scan_passed }}"
+
+          # Check if blocking is disabled in config
+          BLOCK_CRITICAL=true
+          if [ -f ".dokku/config.yml" ]; then
+            # Install yq for YAML parsing
+            which yq || {
+              sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+              sudo chmod +x /usr/local/bin/yq
+            }
+            BLOCK_CRITICAL=$(yq e '.security.block_on_critical // true' .dokku/config.yml 2>/dev/null || echo "true")
+          fi
+
+          if [ "$SCAN_PASSED" == "false" ] && [ "$BLOCK_CRITICAL" == "true" ]; then
+            echo ""
+            echo "::error::Deployment blocked: $CRITICAL critical vulnerabilities found"
+            echo ""
+            echo "═══════════════════════════════════════════════════════"
+            echo "  🚨 SECURITY BLOCK"
+            echo "═══════════════════════════════════════════════════════"
+            echo "  Critical vulnerabilities: $CRITICAL"
+            echo ""
+            echo "  To proceed, either:"
+            echo "  1. Fix the vulnerabilities"
+            echo "  2. Add exceptions to .trivyignore"
+            echo "  3. Set in .dokku/config.yml:"
+            echo "     security:"
+            echo "       block_on_critical: false"
+            echo "═══════════════════════════════════════════════════════"
+            exit 1
+          fi
+
+          echo "✅ Security check passed"
 
       - name: Setup SSH connection
         run: |
@@ -820,6 +960,121 @@ jobs:
               }]
             }" \
             "$DISCORD_WEBHOOK_URL" || true
+
+      - name: Send custom webhook notifications
+        if: always()
+        env:
+          WEBHOOK_URLS: ${{ secrets.DEPLOY_WEBHOOK_URLS }}
+          WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
+        run: |
+          [ -z "$WEBHOOK_URLS" ] && exit 0
+
+          # Build payload
+          PAYLOAD=$(jq -n \
+            --arg event "deployment" \
+            --arg app "${{ env.APP_NAME }}" \
+            --arg env "${{ env.ENVIRONMENT }}" \
+            --arg status "${{ needs.deploy.result }}" \
+            --arg sha "${{ github.sha }}" \
+            --arg sha_short "${GITHUB_SHA:0:7}" \
+            --arg actor "${{ github.actor }}" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg url "https://${{ env.DOMAIN }}" \
+            --arg workflow_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg repo "${{ github.repository }}" \
+            '{
+              event: $event,
+              app: $app,
+              environment: $env,
+              status: $status,
+              commit_sha: $sha,
+              commit_sha_short: $sha_short,
+              deployed_by: $actor,
+              branch: $branch,
+              app_url: $url,
+              workflow_url: $workflow_url,
+              repository: $repo,
+              timestamp: (now | todate)
+            }')
+
+          # Send to each webhook URL (comma-separated)
+          IFS=',' read -ra URLS <<< "$WEBHOOK_URLS"
+          for URL in "${URLS[@]}"; do
+            URL=$(echo "$URL" | xargs)  # Trim whitespace
+            [ -z "$URL" ] && continue
+
+            # Calculate HMAC signature if secret is set
+            if [ -n "$WEBHOOK_SECRET" ]; then
+              SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | awk '{print $2}')
+              SIGNATURE_HEADER="-H \"X-Deploy-Signature: sha256=$SIGNATURE\""
+            else
+              SIGNATURE_HEADER=""
+            fi
+
+            echo "Sending webhook to: ${URL:0:50}..."
+            curl -s -X POST "$URL" \
+              -H "Content-Type: application/json" \
+              -H "X-Deploy-Event: deployment" \
+              $SIGNATURE_HEADER \
+              -d "$PAYLOAD" || echo "Failed to send to $URL"
+          done
+
+      - name: Notify Datadog
+        if: always()
+        env:
+          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+        run: |
+          [ -z "$DD_API_KEY" ] && exit 0
+
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            ALERT_TYPE="info"
+            TITLE="✅ Deployed: ${{ env.APP_NAME }} to ${{ env.ENVIRONMENT }}"
+          else
+            ALERT_TYPE="error"
+            TITLE="❌ Deploy Failed: ${{ env.APP_NAME }} to ${{ env.ENVIRONMENT }}"
+          fi
+
+          curl -s -X POST "https://api.datadoghq.com/api/v1/events" \
+            -H "DD-API-KEY: $DD_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"title\": \"$TITLE\",
+              \"text\": \"Deployed ${GITHUB_SHA:0:7} by ${{ github.actor }}\nURL: https://${{ env.DOMAIN }}\",
+              \"tags\": [\"app:${{ env.APP_NAME }}\", \"env:${{ env.ENVIRONMENT }}\", \"deploy\", \"status:${{ needs.deploy.result }}\"],
+              \"alert_type\": \"$ALERT_TYPE\",
+              \"source_type_name\": \"github\"
+            }" || true
+
+      - name: Notify PagerDuty (on failure)
+        if: failure() || needs.deploy.result == 'failure'
+        env:
+          PD_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
+        run: |
+          [ -z "$PD_ROUTING_KEY" ] && exit 0
+
+          curl -s -X POST "https://events.pagerduty.com/v2/enqueue" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"routing_key\": \"$PD_ROUTING_KEY\",
+              \"event_action\": \"trigger\",
+              \"dedup_key\": \"deploy-${{ env.APP_NAME }}-${{ env.ENVIRONMENT }}-${{ github.run_id }}\",
+              \"payload\": {
+                \"summary\": \"Deployment failed: ${{ env.APP_NAME }} to ${{ env.ENVIRONMENT }}\",
+                \"severity\": \"error\",
+                \"source\": \"dokku-deploy\",
+                \"custom_details\": {
+                  \"app\": \"${{ env.APP_NAME }}\",
+                  \"environment\": \"${{ env.ENVIRONMENT }}\",
+                  \"commit\": \"${GITHUB_SHA:0:7}\",
+                  \"actor\": \"${{ github.actor }}\",
+                  \"branch\": \"${{ github.ref_name }}\"
+                }
+              },
+              \"links\": [{
+                \"href\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                \"text\": \"View Workflow\"
+              }]
+            }" || true
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Update Dashboard - Update the deployment dashboard

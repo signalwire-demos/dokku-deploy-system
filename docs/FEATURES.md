@@ -13,6 +13,9 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Commit Status Checks](#commit-status-checks)
 - [Scheduled Deployments](#scheduled-deployments)
 - [Audit Log](#audit-log)
+- [Approval Gates](#approval-gates)
+- [Security Scanning](#security-scanning)
+- [Webhook Integrations](#webhook-integrations)
 
 ---
 
@@ -548,3 +551,291 @@ For compliance or tracking external events:
 - Last 1000 entries are kept
 - Older entries are automatically removed
 - For longer retention, download and archive the JSON file
+
+---
+
+## Approval Gates
+
+Require manual approval before deploying to production environments.
+
+### How It Works
+
+The system uses GitHub's built-in environment protection rules. When configured:
+
+1. Developer pushes to `main` branch
+2. Deploy workflow starts and reaches the deploy job
+3. Workflow **pauses** waiting for approval
+4. Designated reviewers receive email notification
+5. Reviewer approves or rejects from GitHub UI
+6. If approved, deployment proceeds
+
+### Setup
+
+Configure in your repository:
+
+1. Go to **Settings** → **Environments** → **production**
+2. Enable **Required reviewers**
+   - Add individual users or teams
+   - Set minimum number of approvals (default: 1)
+3. Optional: Set **Wait timer**
+   - Delay before deployment starts (even after approval)
+   - Useful for scheduled deployments
+4. Optional: Set **Deployment branches**
+   - Restrict which branches can deploy to this environment
+   - Recommended: Only `main` for production
+
+### Reviewer Options
+
+When a deployment needs approval, reviewers can:
+
+- **Approve**: Deployment proceeds
+- **Reject**: Deployment cancelled
+- **Comment**: Add notes for the requester
+
+### Notifications
+
+Reviewers receive:
+- Email notification when approval is needed
+- Link to the pending deployment in GitHub
+
+### Best Practices
+
+- Require at least 2 reviewers for production
+- Set branch protection to require PR reviews before merge
+- Use wait timer (5-15 min) to allow last-minute cancellation
+- Document approval criteria in CONTRIBUTING.md
+
+### Bypass for Emergencies
+
+If an emergency deployment is needed:
+1. Repository admins can bypass protection rules
+2. Or, temporarily disable protection, deploy, then re-enable
+3. All bypasses are logged in audit log
+
+---
+
+## Security Scanning
+
+Automatic vulnerability scanning before every deployment using Trivy.
+
+### How It Works
+
+1. **Security scan job** runs in parallel with tests
+2. **Trivy scans** the codebase for vulnerabilities
+3. **Results** are parsed and categorized (Critical/High/Medium)
+4. **Summary** appears in GitHub workflow summary
+5. **Blocking** occurs if critical vulnerabilities are found (configurable)
+6. **Artifacts** are uploaded for detailed review
+
+### Supported Ecosystems
+
+Trivy scans:
+- **Python**: requirements.txt, Pipfile, pyproject.toml
+- **Node.js**: package-lock.json, yarn.lock
+- **Go**: go.mod
+- **Ruby**: Gemfile.lock
+- **PHP**: composer.lock
+- **Container images**: Dockerfile
+- **Infrastructure**: Terraform, CloudFormation
+
+### Workflow Summary
+
+After each scan, the workflow summary shows:
+
+| Severity | Count |
+|----------|-------|
+| Critical | 0 |
+| High | 3 |
+| Medium | 12 |
+
+### Configuration
+
+#### Disable Blocking
+
+To allow deployments despite critical vulnerabilities:
+
+```yaml
+# .dokku/config.yml
+security:
+  block_on_critical: false
+```
+
+#### Environment-Specific Policies
+
+Different strictness per environment:
+
+```yaml
+# .dokku/config.yml
+security:
+  environments:
+    production: strict      # Block on critical
+    staging: moderate       # Warn only
+    development: permissive # No blocking
+```
+
+#### Ignore Specific CVEs
+
+Create `.trivyignore` in your repo root:
+
+```
+# Accepted risks
+CVE-2023-12345
+CVE-2023-67890
+
+# False positive in test dependency
+CVE-2023-11111
+```
+
+### Viewing Detailed Results
+
+1. Go to the workflow run
+2. Click "Summary" tab
+3. Download the `security-scan-results` artifact
+4. Open `trivy-results.json` for full details
+
+### Fixing Vulnerabilities
+
+Most vulnerabilities can be fixed by updating dependencies:
+
+```bash
+# Python
+pip install --upgrade vulnerable-package
+
+# Node.js
+npm audit fix
+
+# Go
+go get -u vulnerable-module
+```
+
+### Best Practices
+
+- Review vulnerability reports weekly
+- Update dependencies regularly
+- Add accepted risks to `.trivyignore` with comments
+- Consider using Dependabot for automated updates
+
+---
+
+## Webhook Integrations
+
+Send deployment notifications to external services and trigger deployments from external systems.
+
+### Outbound Webhooks
+
+#### Custom Webhooks
+
+Send deployment events to any HTTP endpoint:
+
+1. Set `DEPLOY_WEBHOOK_URLS` secret (comma-separated list)
+2. Optionally set `DEPLOY_WEBHOOK_SECRET` for HMAC signing
+
+**Example:**
+```
+https://hooks.example.com/deploy,https://api.internal.com/events
+```
+
+**Payload:**
+```json
+{
+  "event": "deployment",
+  "app": "myapp",
+  "environment": "production",
+  "status": "success",
+  "commit_sha": "abc1234def5678...",
+  "commit_sha_short": "abc1234",
+  "deployed_by": "username",
+  "branch": "main",
+  "app_url": "https://myapp.domain.com",
+  "workflow_url": "https://github.com/.../runs/123",
+  "repository": "org/repo",
+  "timestamp": "2025-12-11T15:00:00Z"
+}
+```
+
+**Headers:**
+- `Content-Type: application/json`
+- `X-Deploy-Event: deployment`
+- `X-Deploy-Signature: sha256=...` (if secret configured)
+
+#### Verifying Signatures
+
+To verify webhook authenticity:
+
+```python
+import hmac
+import hashlib
+
+def verify_signature(payload, signature, secret):
+    expected = hmac.new(
+        secret.encode(),
+        payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(f"sha256={expected}", signature)
+```
+
+### Pre-configured Integrations
+
+#### Datadog
+
+Send deployment events to Datadog for tracking and correlation.
+
+**Setup:**
+1. Get API key from Datadog → Organization Settings → API Keys
+2. Add `DD_API_KEY` secret to GitHub
+
+**Events sent:**
+- Deployment started
+- Deployment succeeded (info)
+- Deployment failed (error)
+
+**Tags added:**
+- `app:myapp`
+- `env:production`
+- `deploy`
+- `status:success`
+
+#### PagerDuty
+
+Alert on-call when deployments fail.
+
+**Setup:**
+1. Create integration in PagerDuty → Services → Integrations → Events API v2
+2. Add `PAGERDUTY_ROUTING_KEY` secret to GitHub
+
+**When triggered:**
+- Only on deployment failures
+- Creates incident with deployment details
+- Links to workflow run
+
+**Deduplication:**
+- Uses `deploy-{app}-{env}-{run_id}` as dedup key
+- Prevents duplicate alerts for same failure
+
+### Inbound Webhooks (Trigger Deployments)
+
+Trigger deployments from external CI/CD systems using repository dispatch:
+
+```bash
+curl -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  https://api.github.com/repos/ORG/REPO/dispatches \
+  -d '{
+    "event_type": "deploy",
+    "client_payload": {
+      "environment": "production",
+      "ref": "main"
+    }
+  }'
+```
+
+### Secrets Reference
+
+| Secret | Required | Description |
+|--------|----------|-------------|
+| `DEPLOY_WEBHOOK_URLS` | No | Comma-separated webhook URLs |
+| `DEPLOY_WEBHOOK_SECRET` | No | HMAC secret for signature |
+| `DD_API_KEY` | No | Datadog API key |
+| `PAGERDUTY_ROUTING_KEY` | No | PagerDuty routing key |

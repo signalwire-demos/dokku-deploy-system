@@ -22,6 +22,7 @@ _dokku_cli() {
     local -a commands
     commands=(
         'setup:Configure CLI settings'
+        'doctor:Check server plugins and feature availability'
         'list:List all apps'
         'create:Create a new app'
         'destroy:Permanently delete an app'

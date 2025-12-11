@@ -649,6 +649,212 @@ EOF
     fi
 }
 
+cmd_doctor() {
+    log_header "Dokku CLI Doctor"
+
+    echo "Checking local environment..."
+    echo ""
+
+    # Check local tools
+    echo -e "${BOLD}Local Tools${NC}"
+
+    # fzf
+    if command -v fzf &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} fzf $(fzf --version 2>/dev/null | head -1)"
+    else
+        echo -e "  ${YELLOW}○${NC} fzf (not installed - interactive mode unavailable)"
+        echo "      Install: brew install fzf (macOS) or apt install fzf (Linux)"
+    fi
+
+    # git
+    if command -v git &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} git $(git --version | cut -d' ' -f3)"
+    else
+        echo -e "  ${RED}✗${NC} git (required for deploy)"
+    fi
+
+    # ssh
+    if command -v ssh &>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} ssh"
+    else
+        echo -e "  ${RED}✗${NC} ssh (required)"
+    fi
+
+    echo ""
+    echo "Checking Dokku server connection..."
+    echo ""
+
+    # Test SSH connection
+    echo -e "${BOLD}Server Connection${NC}"
+    echo "  Host: $DOKKU_HOST"
+
+    if [ -f "$SSH_KEY" ]; then
+        echo -e "  SSH Key: ${GREEN}✓${NC} $SSH_KEY"
+    else
+        echo -e "  SSH Key: ${RED}✗${NC} $SSH_KEY (not found)"
+        echo ""
+        log_error "Cannot connect to server - SSH key missing"
+        return 1
+    fi
+
+    # Test connection and get version
+    local dokku_version=$(dokku_ssh version 2>/dev/null)
+    if [ -n "$dokku_version" ]; then
+        echo -e "  Connection: ${GREEN}✓${NC} Connected"
+        echo -e "  Dokku Version: $dokku_version"
+    else
+        echo -e "  Connection: ${RED}✗${NC} Failed"
+        echo ""
+        log_error "Cannot connect to Dokku server"
+        log_info "Check DOKKU_HOST and SSH_KEY settings"
+        return 1
+    fi
+
+    echo ""
+    echo -e "${BOLD}Dokku Plugins${NC}"
+    echo ""
+
+    # Check each plugin
+    local plugins=$(dokku_ssh plugin:list 2>/dev/null)
+
+    # Core features (always available)
+    echo "  Core (built-in):"
+    echo -e "    ${GREEN}✓${NC} apps, config, domains, ps, run, enter, releases"
+    echo ""
+
+    # SSL - Let's Encrypt
+    echo "  SSL/TLS:"
+    if echo "$plugins" | grep -q "letsencrypt"; then
+        echo -e "    ${GREEN}✓${NC} letsencrypt - SSL certificates available"
+    else
+        echo -e "    ${YELLOW}○${NC} letsencrypt - Not installed"
+        echo "        Install: dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git"
+        echo "        Enables: dokku-cli ssl enable/disable"
+    fi
+    echo ""
+
+    # Databases
+    echo "  Databases:"
+
+    # PostgreSQL
+    if echo "$plugins" | grep -q "postgres"; then
+        echo -e "    ${GREEN}✓${NC} postgres"
+    else
+        echo -e "    ${YELLOW}○${NC} postgres - Not installed"
+        echo "        Install: dokku plugin:install https://github.com/dokku/dokku-postgres.git"
+    fi
+
+    # MySQL
+    if echo "$plugins" | grep -q "mysql"; then
+        echo -e "    ${GREEN}✓${NC} mysql"
+    else
+        echo -e "    ${CYAN}○${NC} mysql - Not installed (optional)"
+    fi
+
+    # Redis
+    if echo "$plugins" | grep -q "redis"; then
+        echo -e "    ${GREEN}✓${NC} redis"
+    else
+        echo -e "    ${CYAN}○${NC} redis - Not installed (optional)"
+    fi
+
+    # MongoDB
+    if echo "$plugins" | grep -q "mongo"; then
+        echo -e "    ${GREEN}✓${NC} mongo"
+    else
+        echo -e "    ${CYAN}○${NC} mongo - Not installed (optional)"
+    fi
+
+    # RabbitMQ
+    if echo "$plugins" | grep -q "rabbitmq"; then
+        echo -e "    ${GREEN}✓${NC} rabbitmq"
+    else
+        echo -e "    ${CYAN}○${NC} rabbitmq - Not installed (optional)"
+    fi
+
+    # Elasticsearch
+    if echo "$plugins" | grep -q "elasticsearch"; then
+        echo -e "    ${GREEN}✓${NC} elasticsearch"
+    else
+        echo -e "    ${CYAN}○${NC} elasticsearch - Not installed (optional)"
+    fi
+
+    echo ""
+
+    # Other useful plugins
+    echo "  Other:"
+
+    # Resource limits
+    if echo "$plugins" | grep -q "resource"; then
+        echo -e "    ${GREEN}✓${NC} resource - Memory/CPU limits available"
+    else
+        echo -e "    ${CYAN}○${NC} resource - Not installed (optional)"
+        echo "        Install: dokku plugin:install https://github.com/dokku/dokku-resource.git"
+    fi
+
+    echo ""
+    echo "─────────────────────────────────────────────────────────────────"
+    echo ""
+
+    # Summary
+    local missing_required=0
+    local missing_recommended=0
+
+    if ! echo "$plugins" | grep -q "letsencrypt"; then
+        missing_recommended=$((missing_recommended + 1))
+    fi
+    if ! echo "$plugins" | grep -q "postgres"; then
+        missing_recommended=$((missing_recommended + 1))
+    fi
+
+    if [ $missing_recommended -eq 0 ]; then
+        echo -e "${GREEN}✓${NC} All recommended plugins installed"
+    else
+        echo -e "${YELLOW}!${NC} $missing_recommended recommended plugin(s) not installed"
+        echo ""
+        echo "Quick install (run on Dokku server):"
+        echo ""
+        if ! echo "$plugins" | grep -q "letsencrypt"; then
+            echo "  sudo dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git"
+        fi
+        if ! echo "$plugins" | grep -q "postgres"; then
+            echo "  sudo dokku plugin:install https://github.com/dokku/dokku-postgres.git"
+        fi
+    fi
+
+    echo ""
+
+    # Feature availability summary
+    echo -e "${BOLD}Feature Availability${NC}"
+    echo ""
+    echo "  Command               Status"
+    echo "  ─────────────────────────────────────────"
+    echo -e "  list, info, logs      ${GREEN}Available${NC}"
+    echo -e "  config, restart       ${GREEN}Available${NC}"
+    echo -e "  deploy, rollback      ${GREEN}Available${NC}"
+    echo -e "  shell, run            ${GREEN}Available${NC}"
+    echo -e "  lock, unlock          ${GREEN}Available${NC}"
+    echo -e "  domains               ${GREEN}Available${NC}"
+
+    if echo "$plugins" | grep -q "letsencrypt"; then
+        echo -e "  ssl enable/disable    ${GREEN}Available${NC}"
+    else
+        echo -e "  ssl enable/disable    ${YELLOW}Unavailable${NC} (needs letsencrypt)"
+    fi
+
+    if echo "$plugins" | grep -q "postgres\|mysql\|mongo\|redis"; then
+        echo -e "  db commands           ${GREEN}Available${NC}"
+    else
+        echo -e "  db commands           ${YELLOW}Unavailable${NC} (needs database plugin)"
+    fi
+
+    if command -v fzf &>/dev/null; then
+        echo -e "  interactive mode      ${GREEN}Available${NC}"
+    else
+        echo -e "  interactive mode      ${YELLOW}Unavailable${NC} (needs fzf)"
+    fi
+}
+
 cmd_alias() {
     local ACTION="${1:-list}"
     local ALIAS_NAME="$2"
@@ -1022,6 +1228,7 @@ GLOBAL OPTIONS
 
 GENERAL
   setup                      Configure CLI settings
+  doctor                     Check server plugins and feature availability
   list                       List all apps
   create <name>              Create a new app
   destroy [app]              Permanently delete an app
@@ -1126,7 +1333,7 @@ while [[ "$1" == -* ]]; do
             exit 0
             ;;
         --version|-v)
-            echo "dokku-cli v2.1.0"
+            echo "dokku-cli v2.2.0"
             exit 0
             ;;
         *)
@@ -1145,6 +1352,7 @@ fi
 case "${1:-help}" in
     # General
     setup)          cmd_setup ;;
+    doctor)         cmd_doctor ;;
     list|ls)        cmd_list ;;
     create)         cmd_create "$2" ;;
     destroy|delete) cmd_destroy "$2" ;;

@@ -40,6 +40,7 @@ end
 
 # Commands
 complete -c dokku-cli -n "__fish_use_subcommand" -a "setup" -d "Configure CLI settings"
+complete -c dokku-cli -n "__fish_use_subcommand" -a "doctor" -d "Check server plugins and feature availability"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "list" -d "List all apps"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "create" -d "Create a new app"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "destroy" -d "Permanently delete an app"

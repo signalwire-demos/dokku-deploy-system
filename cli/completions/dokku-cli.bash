@@ -19,7 +19,7 @@ _dokku_cli_completions() {
     _init_completion || return
 
     # All available commands
-    local commands="setup list create destroy info logs logs:follow config config:set config:unset restart start stop scale shell deploy rollback releases lock unlock lock:status ssl domains db run alias i interactive pick help version"
+    local commands="setup doctor list create destroy info logs logs:follow config config:set config:unset restart start stop scale shell deploy rollback releases lock unlock lock:status ssl domains db run alias i interactive pick help version"
 
     # Subcommands for specific commands
     local ssl_actions="enable disable status"

@@ -54,6 +54,7 @@ jobs:
         with:
           ref: gh-pages
           path: dashboard
+          token: ${{ secrets.GH_ORG_TOKEN }}
 
       - name: Setup SSH
         run: |

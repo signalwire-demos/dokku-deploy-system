@@ -53,6 +53,8 @@ on:
     secrets:
       DASHBOARD_TOKEN:
         required: true
+      BASE_DOMAIN:
+        required: false
 
   workflow_dispatch:
     inputs:
@@ -205,6 +207,8 @@ jobs:
 
       - name: Update apps.json
         if: inputs.action != 'sync-from-dokku'
+        env:
+          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
         run: |
           # Initialize apps.json if it doesn't exist
           if [ ! -f apps.json ]; then
@@ -217,6 +221,12 @@ jobs:
           ENVIRONMENT="${{ inputs.environment }}"
           URL="${{ inputs.url }}"
           COMMIT_SHA="${{ inputs.commit_sha }}"
+
+          # Reconstruct URL if empty (GitHub masks outputs containing secrets)
+          if [ -z "$URL" ] && [ -n "$BASE_DOMAIN" ] && [ -n "$APP_NAME" ]; then
+            URL="https://${APP_NAME}.${BASE_DOMAIN}"
+            echo "Reconstructed URL: $URL"
+          fi
           ACTOR="${{ inputs.actor }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 

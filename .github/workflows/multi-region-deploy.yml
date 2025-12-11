@@ -189,7 +189,7 @@ jobs:
 
           if [ "$SERVER" == "default" ]; then
             echo "host=${{ secrets.DOKKU_HOST }}" >> $GITHUB_OUTPUT
-            echo "domain=${{ secrets.BASE_DOMAIN }}" >> $GITHUB_OUTPUT
+            echo "domain=${{ vars.BASE_DOMAIN }}" >> $GITHUB_OUTPUT
           else
             # Read from config file
             if [ -f ".dokku/config.yml" ]; then
@@ -201,7 +201,7 @@ jobs:
               SECRET_SUFFIX=$(echo "$SERVER" | tr '[:lower:]-' '[:upper:]_')
 
               echo "host=${HOST}" >> $GITHUB_OUTPUT
-              echo "domain=${DOMAIN:-${{ secrets.BASE_DOMAIN }}}" >> $GITHUB_OUTPUT
+              echo "domain=${DOMAIN:-${{ vars.BASE_DOMAIN }}}" >> $GITHUB_OUTPUT
               echo "secret_suffix=${SECRET_SUFFIX}" >> $GITHUB_OUTPUT
             fi
           fi

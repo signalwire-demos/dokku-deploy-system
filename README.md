@@ -366,13 +366,17 @@ Optionally set `DEPLOY_WEBHOOK_SECRET` for HMAC signature verification.
 
 ## Database Backups
 
-Automatic daily backups at 2 AM UTC, plus manual backups on demand.
+Automatic daily backups at 2 AM UTC with dual storage (local + S3), plus manual backups on demand.
 
 **Scheduled Backups:**
 - Runs daily for all apps with linked databases
-- PostgreSQL, MySQL, Redis, MongoDB, RabbitMQ supported
-- 14-day retention with automatic cleanup
-- Stored at `/var/backups/dokku/{service}/{app}/`
+- PostgreSQL and MySQL supported
+- Dual storage: local server + S3 (if configured)
+
+| Location | Retention | Cleanup |
+|----------|-----------|---------|
+| Server (`/var/backups/dokku/`) | 7 days | Workflow auto-deletes |
+| S3 (`s3://{bucket}/{postgres,mysql}/{app}/`) | 30 days | S3 lifecycle rule |
 
 **Manual Backup:**
 ```
@@ -389,9 +393,16 @@ dokku-cli db myapp restore backup.gz postgres
 
 **Server Setup Required:**
 ```bash
-sudo mkdir -p /var/backups/dokku/{postgres,mysql,redis,mongo,rabbitmq,elasticsearch}
+sudo mkdir -p /var/backups/dokku/{postgres,mysql}
 sudo chown -R dokku:dokku /var/backups/dokku
 ```
+
+**S3 Setup (Optional but Recommended):**
+Add these org secrets for S3 backup storage:
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_S3_BUCKET`
+- `AWS_REGION` (optional, defaults to us-east-1)
 
 ## Deploy Dashboard
 
@@ -482,20 +493,30 @@ TTL: 300
 # 2. Add private key to GitHub Secrets
 ```
 
-### 4. Configure GitHub Secrets (Infrastructure Only)
+### 4. Configure GitHub Secrets & Variables
 
-Add to your GitHub organization (Settings → Secrets → Actions):
+**Org-Level Secrets** (Settings → Secrets and variables → Actions → Secrets):
 
 | Secret | Value | Purpose |
 |--------|-------|---------|
 | `DOKKU_HOST` | `dokku.yourdomain.com` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | (generated private key) | SSH authentication |
-| `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
 | `GH_ORG_TOKEN` | (fine-grained PAT) | Multi-purpose org token (see below) |
 | `SLACK_WEBHOOK_URL` | (optional) | Slack notifications |
 | `DISCORD_WEBHOOK_URL` | (optional) | Discord notifications |
+| `AWS_ACCESS_KEY_ID` | (optional) | S3 backup storage |
+| `AWS_SECRET_ACCESS_KEY` | (optional) | S3 backup storage |
+| `AWS_S3_BUCKET` | (optional) | S3 bucket name |
 
-**Note**: Org-level secrets are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
+**Org-Level Variables** (Settings → Secrets and variables → Actions → Variables):
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
+
+**Note**: `BASE_DOMAIN` is a variable (not secret) so URLs are visible in logs.
+
+**Note**: Org-level secrets/variables are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
 
 **GH_ORG_TOKEN**: A single fine-grained PAT that handles multiple functions:
 - Preview security (check org membership)

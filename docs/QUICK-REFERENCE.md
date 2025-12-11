@@ -249,13 +249,13 @@ ssh dokku@server run myapp env
 
 ---
 
-## GitHub Secrets (Infrastructure)
+## GitHub Configuration (Infrastructure)
 
+**Secrets:**
 | Secret | Description |
 |--------|-------------|
 | `DOKKU_HOST` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | Deploy SSH key |
-| `BASE_DOMAIN` | Base domain |
 | `GH_ORG_TOKEN` | Multi-purpose PAT (dashboard, environments, cleanup, preview security) |
 | `SLACK_WEBHOOK_URL` | Slack notifications (optional) |
 | `DISCORD_WEBHOOK_URL` | Discord notifications (optional) |
@@ -263,21 +263,27 @@ ssh dokku@server run myapp env
 | `DEPLOY_WEBHOOK_SECRET` | HMAC secret for webhook signatures (optional) |
 | `DD_API_KEY` | Datadog API key (optional) |
 | `PAGERDUTY_ROUTING_KEY` | PagerDuty routing key (optional) |
-| `AWS_ACCESS_KEY_ID` | AWS credentials for Secrets Manager (optional) |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials for Secrets Manager (optional) |
-| `AWS_REGION` | AWS region for Secrets Manager (optional, default: us-east-1) |
-| `VAULT_ADDR` | HashiCorp Vault URL (optional) |
-| `VAULT_TOKEN` | HashiCorp Vault token (optional) |
-| `VAULT_ROLE_ID` | HashiCorp Vault AppRole ID (optional) |
-| `VAULT_SECRET_ID` | HashiCorp Vault AppRole Secret (optional) |
-| `OP_SERVICE_ACCOUNT_TOKEN` | 1Password service account token (optional) |
-| `PAPERTRAIL_HOST` | Papertrail syslog host (optional) |
-| `PAPERTRAIL_PORT` | Papertrail syslog port (optional) |
-| `LOGTAIL_TOKEN` | Logtail/Better Stack token (optional) |
-| `COST_CPU_RATE` | CPU cost per core-hour, default $0.01 (optional) |
-| `COST_MEM_RATE` | Memory cost per GB-hour, default $0.005 (optional) |
-| `COST_STORAGE_RATE` | Storage cost per GB-month, default $0.10 (optional) |
-| `COST_BUDGET_MONTHLY` | Monthly budget for alerts (optional) |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for S3 backups (optional) |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for S3 backups (optional) |
+| `AWS_S3_BUCKET` | S3 bucket for backups (optional) |
+| `AWS_REGION` | AWS region (optional, default: us-east-1) |
+
+**Variables (org-level):**
+| Variable | Description |
+|----------|-------------|
+| `BASE_DOMAIN` | Base domain for apps (required) |
+
+**Optional Secrets (integrations):**
+| Secret | Description |
+|--------|-------------|
+| `OP_SERVICE_ACCOUNT_TOKEN` | 1Password service account token |
+| `PAPERTRAIL_HOST` | Papertrail syslog host |
+| `PAPERTRAIL_PORT` | Papertrail syslog port |
+| `LOGTAIL_TOKEN` | Logtail/Better Stack token |
+| `COST_CPU_RATE` | CPU cost per core-hour, default $0.01 |
+| `COST_MEM_RATE` | Memory cost per GB-hour, default $0.005 |
+| `COST_STORAGE_RATE` | Storage cost per GB-month, default $0.10 |
+| `COST_BUDGET_MONTHLY` | Monthly budget for alerts |
 
 ---
 

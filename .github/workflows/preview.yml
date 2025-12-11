@@ -627,7 +627,7 @@ jobs:
           github-token: ${{ secrets.GH_ORG_TOKEN || github.token }}
           script: |
             const [owner, repo] = process.env.TARGET_REPO.split('/');
-            const domain = `${process.env.APP_NAME}.${{ secrets.BASE_DOMAIN }}`;
+            const domain = `${process.env.APP_NAME}.${{ vars.BASE_DOMAIN }}`;
             await github.rest.repos.createCommitStatus({
               owner,
               repo,

@@ -207,7 +207,7 @@ jobs:
 
       - name: Verify canary health
         run: |
-          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ secrets.BASE_DOMAIN }}"
+          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ vars.BASE_DOMAIN }}"
 
           echo "Waiting for canary to start..."
           sleep 20
@@ -267,7 +267,7 @@ jobs:
           STABLE_PCT=$((100 - CANARY_PCT))
           STABLE_IP="${{ steps.ips.outputs.stable_ip }}"
           CANARY_IP="${{ steps.ips.outputs.canary_ip }}"
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
@@ -319,7 +319,7 @@ jobs:
         run: |
           DURATION=${{ inputs.monitoring_duration }}
           ERROR_THRESHOLD=${{ inputs.error_threshold }}
-          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ secrets.BASE_DOMAIN }}"
+          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ vars.BASE_DOMAIN }}"
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
@@ -506,7 +506,7 @@ jobs:
 
       - name: Verify stable deployment
         run: |
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           echo "Verifying stable deployment..."
           sleep 10
@@ -521,7 +521,7 @@ jobs:
 
       - name: Update summary
         run: |
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           echo "## ✅ Canary Promoted to Stable" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

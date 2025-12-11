@@ -287,7 +287,7 @@ jobs:
         id: verify
         run: |
           TARGET_APP="${{ needs.validate.outputs.target_app }}"
-          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${TARGET_APP}.${{ vars.BASE_DOMAIN }}"
 
           echo "Waiting for app to be ready..."
           sleep 15
@@ -312,7 +312,7 @@ jobs:
       - name: Update job summary
         run: |
           TARGET_APP="${{ needs.validate.outputs.target_app }}"
-          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${TARGET_APP}.${{ vars.BASE_DOMAIN }}"
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
@@ -342,7 +342,7 @@ jobs:
           [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
 
           TARGET_APP="${{ needs.validate.outputs.target_app }}"
-          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${TARGET_APP}.${{ vars.BASE_DOMAIN }}"
 
           if [ "${{ needs.promote.result }}" == "success" ]; then
             COLOR="good"
@@ -376,7 +376,7 @@ jobs:
           [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
 
           TARGET_APP="${{ needs.validate.outputs.target_app }}"
-          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${TARGET_APP}.${{ vars.BASE_DOMAIN }}"
 
           if [ "${{ needs.promote.result }}" == "success" ]; then
             COLOR=3066993

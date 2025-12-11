@@ -82,15 +82,20 @@ git push -u origin main
 
 ## GitHub Secrets (Infrastructure Only)
 
-These secrets are configured organization-wide for infrastructure:
+These are configured organization-wide for infrastructure:
 
+**Secrets:**
 | Secret | Description |
 |--------|-------------|
 | `DOKKU_HOST` | Dokku server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | SSH key for deployments |
+
+**Variables:**
+| Variable | Description |
+|----------|-------------|
 | `BASE_DOMAIN` | Base domain for apps |
 
-**Note**: These are infrastructure secrets. App-specific config uses Environment Variables.
+**Note**: `BASE_DOMAIN` is a variable (not secret) so URLs are visible in logs. App-specific config uses Environment Variables.
 
 ## Adding App-Specific Configuration
 

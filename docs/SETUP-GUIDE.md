@@ -290,23 +290,31 @@ gh secret set DOKKU_SSH_PRIVATE_KEY \
   --visibility all \
   < ~/.ssh/dokku_deploy_key
 
-# Set BASE_DOMAIN
-gh secret set BASE_DOMAIN \
-  --org signalwire-demos \
-  --visibility all \
-  --body "yourdomain.com"
+# Set BASE_DOMAIN as a VARIABLE (not secret) so URLs are visible in logs
+gh api --method POST \
+  /orgs/signalwire-demos/actions/variables \
+  -f name=BASE_DOMAIN \
+  -f value="yourdomain.com" \
+  -f visibility=all
 ```
 
-### 5.2 Verify Secrets Were Created
+### 5.2 Verify Secrets/Variables Were Created
 
 ```bash
+# Check secrets
 gh api orgs/signalwire-demos/actions/secrets --jq '.secrets[].name'
+
+# Check variables
+gh api orgs/signalwire-demos/actions/variables --jq '.variables[].name'
 ```
 
 Should output:
 ```
+# Secrets:
 DOKKU_HOST
 DOKKU_SSH_PRIVATE_KEY
+
+# Variables:
 BASE_DOMAIN
 ```
 
@@ -664,7 +672,10 @@ gh api orgs/signalwire-demos/actions/secrets --jq '.secrets[].name'
 # === Set Org Secrets (Infrastructure Only) ===
 gh secret set DOKKU_HOST --org signalwire-demos --visibility all --body "host"
 gh secret set DOKKU_SSH_PRIVATE_KEY --org signalwire-demos --visibility all < key
-gh secret set BASE_DOMAIN --org signalwire-demos --visibility all --body "domain"
+
+# === Set Org Variables ===
+gh api --method POST /orgs/signalwire-demos/actions/variables \
+  -f name=BASE_DOMAIN -f value="domain" -f visibility=all
 
 # === Set Environment Variables (App Config) ===
 gh api repos/ORG/REPO/environments/production/variables -X POST -f name=VAR -f value=val

@@ -764,7 +764,7 @@ jobs:
       - name: Cleanup old local backups
         run: |
           echo "Cleaning up local backups older than 7 days..."
-          ssh dokku@${{ secrets.DOKKU_HOST }} "find /var/backups/dokku -type f -mtime +7 -delete 2>/dev/null || true"
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} "find /var/backups/dokku -type f -mtime +7 -delete 2>/dev/null || true"
           echo "S3 backups auto-expire after 30 days via lifecycle rule"
 
       - name: Notify Slack

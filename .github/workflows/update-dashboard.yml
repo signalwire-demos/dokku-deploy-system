@@ -9,7 +9,10 @@
 #
 # Required Secrets:
 #   - GH_ORG_TOKEN: Fine-grained PAT with Contents (read/write) and admin permissions
-#   - DOKKU_HOST, DOKKU_SSH_PRIVATE_KEY, BASE_DOMAIN: For sync-from-dokku
+#   - DOKKU_HOST, DOKKU_SSH_PRIVATE_KEY: For sync-from-dokku
+#
+# Required Variables (set at org level):
+#   - BASE_DOMAIN: For sync-from-dokku
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -53,8 +56,6 @@ on:
     secrets:
       GH_ORG_TOKEN:
         required: true
-      BASE_DOMAIN:
-        required: false
 
   workflow_dispatch:
     inputs:
@@ -98,7 +99,7 @@ jobs:
       - name: Sync from Dokku
         if: inputs.action == 'sync-from-dokku'
         env:
-          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -208,7 +209,7 @@ jobs:
       - name: Update apps.json
         if: inputs.action != 'sync-from-dokku'
         env:
-          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
         run: |
           # Initialize apps.json if it doesn't exist
           if [ ! -f apps.json ]; then

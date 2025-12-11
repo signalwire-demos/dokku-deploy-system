@@ -16,8 +16,10 @@
 # Required Secrets (set at org level):
 #   - DOKKU_HOST: Dokku server hostname
 #   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
-#   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
 #   - GH_ORG_TOKEN: PAT with read:org scope (for membership check)
+#
+# Required Variables (set at org level - Settings → Variables → New org variable):
+#   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
 #
 # Optional Secrets:
 #   - PREVIEW_AUTH_USER: HTTP auth username for previews
@@ -72,8 +74,6 @@ on:
       DOKKU_HOST:
         required: true
       DOKKU_SSH_PRIVATE_KEY:
-        required: true
-      BASE_DOMAIN:
         required: true
       GH_ORG_TOKEN:
         required: false
@@ -422,7 +422,7 @@ jobs:
         env:
           ALL_VARS: ${{ toJSON(vars) }}
         run: |
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           echo "Configuring preview environment..."
 
@@ -515,7 +515,7 @@ jobs:
       - name: Verify deployment
         id: verify
         run: |
-          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           echo "Verifying preview via HTTP..."
           sleep 10
@@ -573,7 +573,7 @@ jobs:
           script: |
             const [owner, repo] = process.env.TARGET_REPO.split('/');
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
-            const domain = `${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}`;
+            const domain = `${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}`;
             const url = `https://${domain}`;
             const status = '${{ steps.verify.outputs.status }}' === 'success' ? '✅ Deployed' : '⚠️ Deployed (check logs)';
 
@@ -812,7 +812,7 @@ jobs:
       - name: Notify Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
 
@@ -868,7 +868,7 @@ jobs:
       - name: Notify Discord
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
         run: |
           [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
 

@@ -119,7 +119,13 @@ dokku-cli db myapp list-backups
 ### Required Org-Level Secrets
 - `DOKKU_HOST`: Dokku server hostname
 - `DOKKU_SSH_PRIVATE_KEY`: SSH key for deployments
-- `BASE_DOMAIN`: Base domain for apps
+
+### Required Org-Level Variables
+- `BASE_DOMAIN`: Base domain for apps (e.g., `dokku.signalwire.io`)
+
+Set at: Organization → Settings → Secrets and variables → Actions → Variables tab → New organization variable
+
+Note: Using variables instead of secrets means URLs will be visible in logs (not masked).
 
 ### App Configuration
 Use **GitHub Environment Variables** (not secrets) for app-specific config. Set in: Repo → Settings → Environments → [env] → Environment variables. The workflow clears and resets Dokku config on each deploy using `toJSON(vars)`.
@@ -135,6 +141,31 @@ Created automatically by workflows: `production`, `staging`, `development`, `pre
 - Preview apps can use shared services (`shared: true` in services.yml) to save resources
 - SSL enabled via Let's Encrypt after health check passes (HTTP first, then HTTPS)
 - Scheduled maintenance has safety check: won't delete apps if corresponding GitHub repo still exists
+- Docker cleanup runs daily with configurable retention (default: 7 days for images, 24h for containers)
+- Resource limits and scaling configured via `.dokku/config.yml` or workflow inputs
+
+## Release Tracking
+
+Each deploy creates an incrementing release version (v1, v2, v3...) stored in Dokku config:
+- `RELEASE_VERSION`: Current version number
+- `RELEASE_HISTORY_B64`: Base64-encoded JSON of last 10 releases
+
+Use the CLI to view releases and rollback:
+```bash
+dokku-cli releases myapp       # List release history
+dokku-cli rollback myapp v3    # Rollback to specific version
+```
+
+## gh-pages Branch
+
+The `gh-pages` branch stores dashboard data. Multiple workflows write to it:
+- `update-dashboard.yml`: App status after deploys
+- `audit-log.yml`: Deployment audit trail
+- `cost-report.yml`: Resource usage reports
+- `update-repo-list.yml`: Deployable repos cache
+- `performance-monitor.yml`: Response time metrics
+
+All workflows use retry with `git pull --rebase` to handle concurrent updates.
 
 ## Preview Security
 

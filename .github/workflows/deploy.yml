@@ -11,6 +11,8 @@
 # Required Secrets (set at org level):
 #   - DOKKU_HOST: Dokku server hostname
 #   - DOKKU_SSH_PRIVATE_KEY: SSH private key for deployment
+#
+# Required Variables (set at org level - Settings → Variables → New org variable):
 #   - BASE_DOMAIN: Base domain for apps (e.g., yourdomain.com)
 #
 # Optional Secrets:
@@ -46,8 +48,6 @@ on:
       DOKKU_HOST:
         required: true
       DOKKU_SSH_PRIVATE_KEY:
-        required: true
-      BASE_DOMAIN:
         required: true
       GH_ORG_TOKEN:
         required: false
@@ -90,7 +90,7 @@ jobs:
       - name: Determine deployment environment
         id: env
         env:
-          BASE_DOMAIN: ${{ secrets.BASE_DOMAIN }}
+          BASE_DOMAIN: ${{ vars.BASE_DOMAIN }}
         run: |
           BRANCH="${GITHUB_REF#refs/heads/}"
           BASE_APP="${{ env.BASE_APP_NAME }}"
@@ -362,7 +362,7 @@ jobs:
     env:
       APP_NAME: ${{ needs.setup.outputs.app_name }}
       ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
+      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ vars.BASE_DOMAIN }}
 
     steps:
       - name: Set pending commit status
@@ -1071,7 +1071,7 @@ jobs:
     env:
       APP_NAME: ${{ needs.setup.outputs.app_name }}
       ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
+      DOMAIN: ${{ needs.setup.outputs.app_name }}.${{ vars.BASE_DOMAIN }}
 
     steps:
       - name: Notify Slack

@@ -78,7 +78,7 @@ jobs:
       - name: Collect performance metrics
         id: metrics
         run: |
-          BASE_DOMAIN="${{ secrets.BASE_DOMAIN }}"
+          BASE_DOMAIN="${{ vars.BASE_DOMAIN }}"
           DETAILED="${{ inputs.detailed }}"
           TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -272,8 +272,27 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add metrics.json
-          git diff --staged --quiet || git commit -m "Update performance metrics"
-          git push || true
+          git diff --staged --quiet || {
+            git commit -m "Update performance metrics"
+
+            # Retry push with pull/rebase to handle concurrent updates
+            MAX_RETRIES=3
+            RETRY=0
+            while [ $RETRY -lt $MAX_RETRIES ]; do
+              if git push; then
+                echo "Push successful"
+                break
+              else
+                RETRY=$((RETRY + 1))
+                if [ $RETRY -lt $MAX_RETRIES ]; then
+                  echo "Push failed, retrying ($RETRY/$MAX_RETRIES)..."
+                  git pull --rebase
+                else
+                  echo "::warning::Failed to push metrics after $MAX_RETRIES retries"
+                fi
+              fi
+            done
+          }
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Send Alerts

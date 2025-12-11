@@ -243,8 +243,24 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update repo and app lists"
-            git push
-            echo "✅ Lists updated"
+
+            # Retry push with pull/rebase to handle concurrent updates
+            MAX_RETRIES=3
+            RETRY=0
+            while [ $RETRY -lt $MAX_RETRIES ]; do
+              if git push; then
+                echo "✅ Lists updated"
+                break
+              else
+                RETRY=$((RETRY + 1))
+                if [ $RETRY -lt $MAX_RETRIES ]; then
+                  echo "Push failed, retrying ($RETRY/$MAX_RETRIES)..."
+                  git pull --rebase
+                else
+                  echo "::warning::Failed to push repo list after $MAX_RETRIES retries"
+                fi
+              fi
+            done
           fi
 
       - name: Generate summary

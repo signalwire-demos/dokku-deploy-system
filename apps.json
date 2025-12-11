@@ -1,65 +1,73 @@
-{"last_updated":"2025-12-11T20:49:48Z","apps":[
 {
-  "name": "blackjack",
-  "status": "running",
-  "environment": "production",
-  "url": "https://blackjack.signalwire.io",
-  "last_deploy": "2025-12-11T20:49:48Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "a35ffc9d36186aada9a63a5569b1b0807c9b837d",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 166424,
-    "response_time_ms": 219,
-    "last_check": "2025-12-11T20:49:48Z"
-  }
+  "last_updated": "2025-12-11T20:50:30Z",
+  "apps": [
+    {
+      "name": "blackjack",
+      "base_app": "blackjack",
+      "environment": "production",
+      "repo": "signalwire-demos/blackjack",
+      "status": "running",
+      "url": "https://blackjack.signalwire.io",
+      "last_deploy": "2025-12-11T20:49:48Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "a35ffc9d36186aada9a63a5569b1b0807c9b837d",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 166424,
+        "response_time_ms": 219,
+        "last_check": "2025-12-11T20:49:48Z"
+      }
+    },
+    {
+      "name": "cinebot",
+      "base_app": "cinebot",
+      "environment": "production",
+      "repo": "signalwire-demos/cinebot",
+      "status": "running",
+      "url": "https://cinebot.signalwire.io",
+      "last_deploy": "2025-12-11T20:49:48Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "d383e36af3bd90f5c6ed1abe6f7a460582e1756b",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 119167,
+        "response_time_ms": 444,
+        "last_check": "2025-12-11T20:49:48Z"
+      }
+    },
+    {
+      "name": "example",
+      "base_app": "example",
+      "environment": "production",
+      "repo": "signalwire-demos/example",
+      "status": "running",
+      "url": "https://example.signalwire.io",
+      "last_deploy": "2025-12-11T20:49:48Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "3778fb2ff49cdd2a9e1f965ab8c3f83f9b0fad2a",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 11019,
+        "response_time_ms": 206,
+        "last_check": "2025-12-11T20:49:48Z"
+      }
+    },
+    {
+      "name": "santa",
+      "base_app": "santa",
+      "environment": "production",
+      "repo": "signalwire-demos/santa",
+      "status": "running",
+      "url": "https://santa.signalwire.io",
+      "last_deploy": "2025-12-11T20:49:48Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "30179755713ef56d9568a4cd2ad059a15f703c09",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 170145,
+        "response_time_ms": 697,
+        "last_check": "2025-12-11T20:49:48Z"
+      }
+    }
+  ]
 }
-,
-{
-  "name": "cinebot",
-  "status": "running",
-  "environment": "production",
-  "url": "https://cinebot.signalwire.io",
-  "last_deploy": "2025-12-11T20:49:48Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "d383e36af3bd90f5c6ed1abe6f7a460582e1756b",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 119167,
-    "response_time_ms": 444,
-    "last_check": "2025-12-11T20:49:48Z"
-  }
-}
-,
-{
-  "name": "example",
-  "status": "running",
-  "environment": "production",
-  "url": "https://example.signalwire.io",
-  "last_deploy": "2025-12-11T20:49:48Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "3778fb2ff49cdd2a9e1f965ab8c3f83f9b0fad2a",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 11019,
-    "response_time_ms": 206,
-    "last_check": "2025-12-11T20:49:48Z"
-  }
-}
-,
-{
-  "name": "santa",
-  "status": "running",
-  "environment": "production",
-  "url": "https://santa.signalwire.io",
-  "last_deploy": "2025-12-11T20:49:48Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "30179755713ef56d9568a4cd2ad059a15f703c09",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 170145,
-    "response_time_ms": 697,
-    "last_check": "2025-12-11T20:49:48Z"
-  }
-}
-]}

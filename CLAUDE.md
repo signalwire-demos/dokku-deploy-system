@@ -10,26 +10,48 @@ This is a GitHub + Dokku auto-deployment system providing reusable workflows for
 
 ### Workflow Interconnections
 ```
-deploy.yml ──────┬──→ update-dashboard.yml
-preview.yml ─────┤
-cleanup.yml ─────┤
-scheduled.yml ───┘
-     │
-     └──→ health checks, backups, SSL renewal
+deploy.yml ──────┬──→ update-dashboard.yml ──→ gh-pages
+preview.yml ─────┤         │
+cleanup.yml ─────┤         ├──→ audit-log.yml ──→ gh-pages
+scheduled.yml ───┘         │
+     │                     └──→ apps.json, audit-log.json
+     └──→ health checks, backups (S3 + local), SSL renewal, Docker cleanup
 ```
 
-**Reusable workflows** (called by other repos via `uses:`):
-- **deploy.yml**: Main deployment - app creation, service provisioning, env vars, release tasks, SSL, dashboard update
-- **preview.yml**: PR preview environments - creates temp apps, auto-destroys on PR close
-  - **Security**: Only auto-deploys for org members. External PRs require manual trigger.
-- **update-dashboard.yml**: Updates `gh-pages` branch with app status (called by deploy/preview/cleanup/scheduled)
+### Reusable Workflows (called by other repos)
 
-**Standalone workflows** (run in this repo only):
-- **scheduled.yml**: Daily maintenance (6 AM UTC) - orphan cleanup, SSL renewal, health checks; backups (2 AM UTC)
-- **cleanup.yml**: Manual app destruction with safety checks
-- **rollback.yml**: Manual rollback (requires typing "ROLLBACK" to confirm)
-- **lock.yml**: Deploy lock management
-- **backup.yml**: Manual database backup
+| Workflow | Purpose |
+|----------|---------|
+| **deploy.yml** | Main deployment - app creation, services, env vars, resource limits, security scan, release tracking, SSL |
+| **preview.yml** | PR preview environments - auto-deploy for org members, auto-destroy on PR close |
+| **update-dashboard.yml** | Updates gh-pages with app status |
+| **audit-log.yml** | Records deployment audit trail |
+
+### Standalone Workflows (this repo only)
+
+| Workflow | Purpose | Schedule |
+|----------|---------|----------|
+| **scheduled.yml** | Orphan cleanup, SSL renewal, health checks, Docker cleanup | Daily 6 AM UTC |
+| **scheduled.yml** | Database backups (local + S3) | Daily 2 AM UTC |
+| **cleanup.yml** | Manual app destruction with safety checks | Manual |
+| **rollback.yml** | Rollback to previous release version | Manual |
+| **lock.yml** | Deploy lock management | Manual |
+| **backup.yml** | Manual database backup | Manual |
+| **cost-report.yml** | Resource usage & cost tracking | Weekly/Monthly |
+| **performance-monitor.yml** | Response time & availability metrics | Every 15 min |
+| **update-repo-list.yml** | Cache of deployable repos | Every 6 hours |
+
+### Advanced Workflows (available but less commonly used)
+
+| Workflow | Purpose |
+|----------|---------|
+| **canary-deploy.yml** | Gradual traffic shifting for canary releases |
+| **promote.yml** | Promote builds between environments |
+| **autoscaler.yml** | Auto-scale based on metrics |
+| **multi-region-deploy.yml** | Deploy to multiple regions |
+| **schedule-deploy.yml** | Schedule deployments for specific times |
+| **sync-secrets.yml** | Sync secrets across repos |
+| **log-drain.yml** | Configure centralized logging |
 
 ### Branch-to-Environment Mapping
 - `main` → `{app}` (production) → `{app}.domain.com`
@@ -117,13 +139,28 @@ dokku-cli db myapp list-backups
 ## GitHub Configuration
 
 ### Required Org-Level Secrets
-- `DOKKU_HOST`: Dokku server hostname
-- `DOKKU_SSH_PRIVATE_KEY`: SSH key for deployments
+| Secret | Purpose |
+|--------|---------|
+| `DOKKU_HOST` | Dokku server hostname |
+| `DOKKU_SSH_PRIVATE_KEY` | SSH private key for deployments |
+| `GH_ORG_TOKEN` | Fine-grained PAT for cross-repo operations (dashboard, cleanup, org membership checks) |
+
+### Optional Org-Level Secrets
+| Secret | Purpose |
+|--------|---------|
+| `AWS_ACCESS_KEY_ID` | S3 backup uploads |
+| `AWS_SECRET_ACCESS_KEY` | S3 backup uploads |
+| `AWS_S3_BUCKET` | S3 bucket name for backups |
+| `AWS_REGION` | AWS region (default: us-east-1) |
+| `SLACK_WEBHOOK_URL` | Slack notifications |
+| `DISCORD_WEBHOOK_URL` | Discord notifications |
 
 ### Required Org-Level Variables
-- `BASE_DOMAIN`: Base domain for apps (e.g., `dokku.signalwire.io`)
+| Variable | Purpose |
+|----------|---------|
+| `BASE_DOMAIN` | Base domain for apps (e.g., `dokku.signalwire.io`) |
 
-Set at: Organization → Settings → Secrets and variables → Actions → Variables tab → New organization variable
+Set at: Organization → Settings → Secrets and variables → Actions → Variables tab
 
 Note: Using variables instead of secrets means URLs will be visible in logs (not masked).
 
@@ -143,6 +180,26 @@ Created automatically by workflows: `production`, `staging`, `development`, `pre
 - Scheduled maintenance has safety check: won't delete apps if corresponding GitHub repo still exists
 - Docker cleanup runs daily with configurable retention (default: 7 days for images, 24h for containers)
 - Resource limits and scaling configured via `.dokku/config.yml` or workflow inputs
+- Security scanning via Trivy - blocks deploys with critical vulnerabilities (configurable)
+
+## Security Scanning
+
+Every deploy runs a Trivy vulnerability scan on dependencies:
+- Scans for CRITICAL, HIGH, and MEDIUM severity issues
+- Results shown in GitHub Actions step summary
+- Critical vulnerabilities block deploy by default
+
+To ignore false positives, create `.trivyignore` in repo root:
+```
+CVE-2023-12345
+CVE-2023-67890
+```
+
+To disable blocking, add to `.dokku/config.yml`:
+```yaml
+security:
+  block_on_critical: false
+```
 
 ## Release Tracking
 
@@ -155,6 +212,23 @@ Use the CLI to view releases and rollback:
 dokku-cli releases myapp       # List release history
 dokku-cli rollback myapp v3    # Rollback to specific version
 ```
+
+## Database Backups
+
+Backups run daily at 2 AM UTC with dual storage:
+
+| Location | Retention | Cleanup |
+|----------|-----------|---------|
+| Server (`/var/backups/dokku/`) | 7 days | Workflow deletes old files |
+| S3 (`s3://{bucket}/{postgres,mysql}/{app}/`) | 30 days | S3 lifecycle rule |
+
+Manual backup via CLI:
+```bash
+dokku-cli db myapp backup postgres           # Download locally
+dokku-cli db myapp backup-server postgres    # Store on server
+```
+
+Requires AWS secrets configured (see GitHub Configuration above).
 
 ## gh-pages Branch
 

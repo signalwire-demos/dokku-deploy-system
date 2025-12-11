@@ -16,6 +16,9 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Approval Gates](#approval-gates)
 - [Security Scanning](#security-scanning)
 - [Webhook Integrations](#webhook-integrations)
+- [Environment Promotion](#environment-promotion)
+- [Custom Domains](#custom-domains)
+- [Secrets Management](#secrets-management)
 
 ---
 
@@ -839,3 +842,281 @@ curl -X POST \
 | `DEPLOY_WEBHOOK_SECRET` | No | HMAC secret for signature |
 | `DD_API_KEY` | No | Datadog API key |
 | `PAGERDUTY_ROUTING_KEY` | No | PagerDuty routing key |
+
+---
+
+## Environment Promotion
+
+Promote deployments between environments with version comparison and safety checks.
+
+### Promotion Paths
+
+Only these promotion paths are allowed:
+- `development` → `staging`
+- `staging` → `production`
+
+### How It Works
+
+1. Go to [Actions → Promote Environment](../../actions/workflows/promote.yml)
+2. Enter the app name (repo name, e.g., `myapp`)
+3. Select source environment (`development` or `staging`)
+4. Select target environment (`staging` or `production`)
+5. Type `PROMOTE` to confirm
+6. Review the diff and approve (if approval gates enabled)
+
+### What Happens
+
+1. **Validation**: Checks promotion path is valid
+2. **Version Check**: Gets current versions from both environments
+3. **Diff Display**: Shows commits to be promoted
+4. **Deploy**: Pushes source version to target environment
+5. **Update GIT_REV**: Tracks the promoted version
+6. **Verify**: Health check on promoted app
+
+### Workflow Summary
+
+After promotion, the workflow summary shows:
+
+| | |
+|---|---|
+| **App** | myapp |
+| **From** | staging (abc1234) |
+| **To** | production (def5678) |
+
+### Commits to be Promoted
+
+- `abc1234` Fix login bug
+- `def5678` Update dependencies
+
+### Environment App Naming
+
+| Environment | App Name |
+|-------------|----------|
+| development | `myapp-dev` |
+| staging | `myapp-staging` |
+| production | `myapp` |
+
+### Approval Gates
+
+When promoting to production:
+- If the `production` environment has required reviewers configured
+- Deployment will pause for approval
+- Reviewers receive email notification
+
+### Notifications
+
+Slack/Discord notifications are sent with:
+- App name
+- Promotion path (from → to)
+- Number of commits promoted
+- URL of promoted app
+- Who triggered the promotion
+
+---
+
+## Custom Domains
+
+Configure custom domains for your apps through `.dokku/config.yml`.
+
+### Configuration
+
+Add custom domains to your `.dokku/config.yml`:
+
+```yaml
+# Global custom domains (all environments)
+custom_domains:
+  - api.example.com
+  - app.example.com
+
+# Environment-specific domains
+environments:
+  production:
+    custom_domains:
+      - www.example.com
+      - example.com
+  staging:
+    custom_domains:
+      - staging.example.com
+```
+
+### How It Works
+
+During deployment:
+1. Workflow reads `.dokku/config.yml`
+2. Extracts global and environment-specific domains
+3. Adds each domain to the Dokku app
+4. SSL is automatically provisioned via Let's Encrypt
+
+### DNS Setup
+
+Before adding a custom domain:
+
+1. **A Record**: Point to your Dokku server IP
+   ```
+   example.com.  A  192.0.2.1
+   ```
+
+2. **CNAME Record**: For subdomains
+   ```
+   www.example.com.  CNAME  myapp.dokku.domain.com.
+   ```
+
+### Wildcard Domains
+
+Dokku supports wildcard domains:
+
+```yaml
+custom_domains:
+  - "*.example.com"
+```
+
+Note: Wildcard SSL requires DNS challenge (not supported by default Let's Encrypt setup).
+
+### Verifying Domains
+
+Check configured domains:
+
+```bash
+ssh dokku@server domains:report myapp
+```
+
+### Removing Domains
+
+Domains are only added, not removed automatically. To remove:
+
+```bash
+ssh dokku@server domains:remove myapp old-domain.com
+```
+
+---
+
+## Secrets Management
+
+Sync secrets from external vaults to GitHub Environment Variables.
+
+### Supported Providers
+
+| Provider | Secret Required |
+|----------|-----------------|
+| AWS Secrets Manager | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| HashiCorp Vault | `VAULT_ADDR` + (`VAULT_TOKEN` or `VAULT_ROLE_ID`/`VAULT_SECRET_ID`) |
+| 1Password | `OP_SERVICE_ACCOUNT_TOKEN` |
+
+### Manual Sync
+
+1. Go to [Actions → Sync Secrets](../../actions/workflows/sync-secrets.yml)
+2. Select provider
+3. Enter target repository (e.g., `signalwire-demos/myapp`)
+4. Select target environment (`production`, `staging`, `development`)
+5. Enter secret path in vault
+6. Enable dry run to preview (recommended first)
+
+### Vault Configuration Examples
+
+#### AWS Secrets Manager
+
+Secret path format: `myapp/production`
+
+Store secrets as JSON:
+```json
+{
+  "SIGNALWIRE_TOKEN": "PT...",
+  "API_KEY": "abc123",
+  "DATABASE_URL": "postgres://..."
+}
+```
+
+#### HashiCorp Vault
+
+Secret path format: `secret/myapp/production` (KV v2) or `secret/myapp/production` (KV v1)
+
+```bash
+# KV v2
+vault kv put secret/myapp/production \
+  SIGNALWIRE_TOKEN="PT..." \
+  API_KEY="abc123"
+
+# KV v1
+vault write secret/myapp/production \
+  SIGNALWIRE_TOKEN="PT..." \
+  API_KEY="abc123"
+```
+
+#### 1Password
+
+Secret path format: `vault/item` or just `item`
+
+Create a Secure Note with fields:
+- Field Label: `SIGNALWIRE_TOKEN`, Value: `PT...`
+- Field Label: `API_KEY`, Value: `abc123`
+
+### Scheduled Sync
+
+Enable automatic daily sync by creating `.github/secrets-sync.yml`:
+
+```yaml
+syncs:
+  - provider: aws-secrets-manager
+    repo: signalwire-demos/myapp
+    environment: production
+    secret_path: myapp/production
+
+  - provider: hashicorp-vault
+    repo: signalwire-demos/myapp
+    environment: staging
+    secret_path: secret/myapp/staging
+
+  - provider: 1password
+    repo: signalwire-demos/otherapp
+    environment: production
+    secret_path: DevVault/otherapp-secrets
+```
+
+Schedule runs daily at 4 AM UTC.
+
+### Dry Run Mode
+
+Always use dry run first to preview changes:
+
+```
+═══════════════════════════════════════════════════════
+  DRY RUN - Preview Only
+═══════════════════════════════════════════════════════
+
+  Target: signalwire-demos/myapp
+  Environment: production
+
+  Current variables in environment:
+    • SIGNALWIRE_TOKEN
+    • API_KEY
+
+  Variables to sync:
+    • SIGNALWIRE_TOKEN
+    • API_KEY
+    • NEW_VARIABLE
+
+  Run again with dry_run=false to apply changes.
+```
+
+### Security Considerations
+
+- Secrets are synced as **Environment Variables** (not GitHub Secrets)
+- This allows visibility for debugging but means they appear in logs
+- Only sync non-sensitive configuration this way
+- For highly sensitive data, use GitHub Secrets directly
+- All sync operations are logged in the audit log
+
+### Troubleshooting
+
+**AWS authentication failed:**
+- Verify `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are set
+- Check IAM permissions include `secretsmanager:GetSecretValue`
+
+**Vault authentication failed:**
+- For token auth: ensure `VAULT_TOKEN` is valid and not expired
+- For AppRole: verify `VAULT_ROLE_ID` and `VAULT_SECRET_ID`
+- Check Vault policies allow reading the secret path
+
+**1Password authentication failed:**
+- Verify `OP_SERVICE_ACCOUNT_TOKEN` is a valid service account token
+- Check the service account has access to the vault/item

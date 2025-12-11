@@ -700,6 +700,34 @@ jobs:
             fi
           done
 
+      - name: Configure custom domains
+        run: |
+          if [ -f ".dokku/config.yml" ]; then
+            # Check for custom_domains in config
+            CUSTOM_DOMAINS=$(yq e '.custom_domains[]' .dokku/config.yml 2>/dev/null || echo "")
+
+            # Also check environment-specific domains
+            ENV_DOMAINS=$(yq e ".environments.${{ env.ENVIRONMENT }}.custom_domains[]" .dokku/config.yml 2>/dev/null || echo "")
+
+            # Combine both lists
+            ALL_DOMAINS=$(echo -e "$CUSTOM_DOMAINS\n$ENV_DOMAINS" | grep -v '^$' | sort -u)
+
+            if [ -n "$ALL_DOMAINS" ]; then
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  Configuring Custom Domains"
+              echo "═══════════════════════════════════════════════════════"
+
+              for DOMAIN in $ALL_DOMAINS; do
+                echo "  Adding domain: $DOMAIN"
+                ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN" 2>/dev/null || \
+                  echo "  (domain already configured)"
+              done
+
+              echo "═══════════════════════════════════════════════════════"
+            fi
+          fi
+
       - name: Enable SSL
         timeout-minutes: 2
         run: |

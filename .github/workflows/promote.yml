@@ -1,0 +1,421 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# promote.yml - Environment Promotion Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Promote deployments between environments with version comparison.
+#
+# Valid promotion paths:
+#   development → staging
+#   staging → production
+#
+# Usage:
+#   1. Go to Actions → Promote Environment → Run workflow
+#   2. Enter the app name, source, and target environments
+#   3. Type "PROMOTE" to confirm
+#   4. Review the diff and approve (if approval gates are enabled)
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Promote Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App to promote (repo name, e.g., myapp)'
+        required: true
+        type: string
+      from_environment:
+        description: 'Source environment'
+        type: choice
+        options:
+          - development
+          - staging
+        required: true
+      to_environment:
+        description: 'Target environment'
+        type: choice
+        options:
+          - staging
+          - production
+        required: true
+      confirm:
+        description: 'Type PROMOTE to confirm'
+        required: true
+        type: string
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Validate - Check promotion path and get version info
+  # ═══════════════════════════════════════════════════════════════════════════
+  validate:
+    name: Validate Promotion
+    runs-on: ubuntu-latest
+    outputs:
+      source_app: ${{ steps.info.outputs.source_app }}
+      target_app: ${{ steps.info.outputs.target_app }}
+      source_sha: ${{ steps.info.outputs.source_sha }}
+      target_sha: ${{ steps.info.outputs.target_sha }}
+      commit_count: ${{ steps.diff.outputs.commit_count }}
+
+    steps:
+      - name: Validate confirmation
+        if: inputs.confirm != 'PROMOTE'
+        run: |
+          echo "::error::Confirmation text must be 'PROMOTE'"
+          echo ""
+          echo "You entered: '${{ inputs.confirm }}'"
+          echo "Please run the workflow again and type PROMOTE to confirm."
+          exit 1
+
+      - name: Validate promotion path
+        run: |
+          FROM="${{ inputs.from_environment }}"
+          TO="${{ inputs.to_environment }}"
+
+          echo "Validating promotion path: $FROM → $TO"
+
+          # Valid paths: development→staging, staging→production
+          if [ "$FROM" == "development" ] && [ "$TO" != "staging" ]; then
+            echo "::error::Development can only promote to staging"
+            exit 1
+          fi
+          if [ "$FROM" == "staging" ] && [ "$TO" != "production" ]; then
+            echo "::error::Staging can only promote to production"
+            exit 1
+          fi
+          if [ "$FROM" == "$TO" ]; then
+            echo "::error::Source and target environments must be different"
+            exit 1
+          fi
+
+          echo "✅ Valid promotion path"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Get environment info
+        id: info
+        run: |
+          BASE_APP="${{ inputs.app_name }}"
+
+          # Determine source app name
+          case "${{ inputs.from_environment }}" in
+            development) SOURCE_APP="${BASE_APP}-dev" ;;
+            staging) SOURCE_APP="${BASE_APP}-staging" ;;
+            production) SOURCE_APP="${BASE_APP}" ;;
+          esac
+
+          # Determine target app name
+          case "${{ inputs.to_environment }}" in
+            development) TARGET_APP="${BASE_APP}-dev" ;;
+            staging) TARGET_APP="${BASE_APP}-staging" ;;
+            production) TARGET_APP="${BASE_APP}" ;;
+          esac
+
+          echo "source_app=$SOURCE_APP" >> $GITHUB_OUTPUT
+          echo "target_app=$TARGET_APP" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Environment Info"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Source: $SOURCE_APP (${{ inputs.from_environment }})"
+          echo "  Target: $TARGET_APP (${{ inputs.to_environment }})"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Get current versions from Dokku
+          SOURCE_SHA=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:get $SOURCE_APP GIT_REV 2>/dev/null || echo "unknown")
+          TARGET_SHA=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:get $TARGET_APP GIT_REV 2>/dev/null || echo "none")
+
+          echo "source_sha=$SOURCE_SHA" >> $GITHUB_OUTPUT
+          echo "target_sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "  Source version: ${SOURCE_SHA:0:7}"
+          echo "  Target version: ${TARGET_SHA:0:7}"
+
+          # Verify source app exists and has a version
+          if [ "$SOURCE_SHA" == "unknown" ] || [ -z "$SOURCE_SHA" ]; then
+            echo ""
+            echo "::error::Source app '$SOURCE_APP' not found or has no deployed version"
+            exit 1
+          fi
+
+      - name: Compare versions
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          SOURCE="${{ steps.info.outputs.source_sha }}"
+          TARGET="${{ steps.info.outputs.target_sha }}"
+
+          echo ""
+          echo "## 🔄 Promotion Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **App** | ${{ inputs.app_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **From** | ${{ inputs.from_environment }} (${SOURCE:0:7}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **To** | ${{ inputs.to_environment }} (${TARGET:0:7}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$TARGET" == "none" ] || [ -z "$TARGET" ]; then
+            echo "First deployment to ${{ inputs.to_environment }}"
+            echo "commit_count=initial" >> $GITHUB_OUTPUT
+            echo "### ℹ️ First deployment to ${{ inputs.to_environment }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "$SOURCE" == "$TARGET" ]; then
+            echo "::error::Source and target are already at the same version ($SOURCE)"
+            echo "### ❌ Already at same version" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "### 📝 Changes to be promoted" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Get commit diff using GitHub API
+            # Find the repo that contains these commits
+            REPO="signalwire-demos/${{ inputs.app_name }}"
+
+            COMPARE_RESULT=$(gh api repos/$REPO/compare/${TARGET}...${SOURCE} 2>/dev/null || echo '{"commits":[]}')
+            COMMITS=$(echo "$COMPARE_RESULT" | jq '.commits | length')
+
+            if [ "$COMMITS" == "0" ] || [ "$COMMITS" == "null" ]; then
+              echo "Could not determine commit diff (commits may be in different repos)"
+              echo "commit_count=unknown" >> $GITHUB_OUTPUT
+              echo "⚠️ Could not determine commit diff" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**$COMMITS commits** will be promoted:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+
+              echo "$COMPARE_RESULT" | jq -r '.commits[] | "- `\(.sha[0:7])` \(.commit.message | split("\n")[0])"' \
+                >> $GITHUB_STEP_SUMMARY
+
+              echo "commit_count=$COMMITS" >> $GITHUB_OUTPUT
+
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  $COMMITS commits to promote"
+              echo "═══════════════════════════════════════════════════════"
+            fi
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Promote - Deploy source version to target environment
+  # ═══════════════════════════════════════════════════════════════════════════
+  promote:
+    name: Promote to ${{ inputs.to_environment }}
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: ${{ inputs.to_environment }}
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Checkout source version
+        uses: actions/checkout@v4
+        with:
+          repository: signalwire-demos/${{ inputs.app_name }}
+          ref: ${{ needs.validate.outputs.source_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Create target app if needed
+        run: |
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+
+          # Check if app exists
+          if ! ssh dokku apps:exists $TARGET_APP 2>/dev/null; then
+            echo "Creating app: $TARGET_APP"
+            ssh dokku apps:create $TARGET_APP
+          fi
+
+      - name: Deploy to target
+        id: deploy
+        run: |
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          START_TIME=$(date +%s)
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Promoting to $TARGET_APP"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Add dokku remote
+          git remote add dokku dokku@${{ secrets.DOKKU_HOST }}:$TARGET_APP 2>/dev/null || \
+          git remote set-url dokku dokku@${{ secrets.DOKKU_HOST }}:$TARGET_APP
+
+          # Push to deploy
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push dokku HEAD:refs/heads/main --force
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo "duration=${DURATION}s" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "✅ Deployment completed in ${DURATION}s"
+
+      - name: Update GIT_REV config
+        run: |
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          SOURCE_SHA="${{ needs.validate.outputs.source_sha }}"
+
+          ssh dokku config:set --no-restart $TARGET_APP GIT_REV=$SOURCE_SHA
+
+      - name: Verify promotion
+        id: verify
+        run: |
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Waiting for app to be ready..."
+          sleep 15
+
+          # Try health check
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://$DOMAIN/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo ""
+            echo "═══════════════════════════════════════════════════════"
+            echo "  ✅ Promotion Successful!"
+            echo "═══════════════════════════════════════════════════════"
+            echo "  URL: https://$DOMAIN"
+            echo "  Health: HTTP $HTTP_STATUS"
+            echo "═══════════════════════════════════════════════════════"
+          else
+            echo "status=unknown" >> $GITHUB_OUTPUT
+            echo "::warning::App returned HTTP $HTTP_STATUS - verify manually at https://$DOMAIN"
+          fi
+
+      - name: Update job summary
+        run: |
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | https://$DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Duration** | ${{ steps.deploy.outputs.duration }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Health** | ${{ steps.verify.outputs.status }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify - Send notifications
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, promote]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+
+          if [ "${{ needs.promote.result }}" == "success" ]; then
+            COLOR="good"
+            STATUS="✅ Promoted successfully"
+          else
+            COLOR="danger"
+            STATUS="❌ Promotion failed"
+          fi
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$STATUS\",
+                \"fields\": [
+                  {\"title\": \"App\", \"value\": \"${{ inputs.app_name }}\", \"short\": true},
+                  {\"title\": \"Promotion\", \"value\": \"${{ inputs.from_environment }} → ${{ inputs.to_environment }}\", \"short\": true},
+                  {\"title\": \"Commits\", \"value\": \"${{ needs.validate.outputs.commit_count }}\", \"short\": true},
+                  {\"title\": \"Actor\", \"value\": \"${{ github.actor }}\", \"short\": true},
+                  {\"title\": \"URL\", \"value\": \"https://$DOMAIN\", \"short\": false}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" || true
+
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          TARGET_APP="${{ needs.validate.outputs.target_app }}"
+          DOMAIN="${TARGET_APP}.${{ secrets.BASE_DOMAIN }}"
+
+          if [ "${{ needs.promote.result }}" == "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Environment Promoted"
+          else
+            COLOR=15158332
+            TITLE="❌ Promotion Failed"
+          fi
+
+          curl -s -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"App\", \"value\": \"${{ inputs.app_name }}\", \"inline\": true},
+                  {\"name\": \"Promotion\", \"value\": \"${{ inputs.from_environment }} → ${{ inputs.to_environment }}\", \"inline\": true},
+                  {\"name\": \"Commits\", \"value\": \"${{ needs.validate.outputs.commit_count }}\", \"inline\": true},
+                  {\"name\": \"URL\", \"value\": \"https://$DOMAIN\", \"inline\": false}
+                ],
+                \"footer\": {\"text\": \"Promoted by ${{ github.actor }}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Audit Log - Record promotion
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-log:
+    name: Audit Log
+    needs: [validate, promote]
+    if: always()
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: promote
+      app_name: ${{ inputs.app_name }}
+      environment: ${{ inputs.to_environment }}
+      status: ${{ needs.promote.result }}
+      commit_sha: ${{ needs.validate.outputs.source_sha }}
+      metadata: '{"from_environment": "${{ inputs.from_environment }}", "to_environment": "${{ inputs.to_environment }}", "commit_count": "${{ needs.validate.outputs.commit_count }}"}'
+    secrets: inherit

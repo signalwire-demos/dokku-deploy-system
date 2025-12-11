@@ -263,6 +263,14 @@ ssh dokku@server run myapp env
 | `DEPLOY_WEBHOOK_SECRET` | HMAC secret for webhook signatures (optional) |
 | `DD_API_KEY` | Datadog API key (optional) |
 | `PAGERDUTY_ROUTING_KEY` | PagerDuty routing key (optional) |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for Secrets Manager (optional) |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials for Secrets Manager (optional) |
+| `AWS_REGION` | AWS region for Secrets Manager (optional, default: us-east-1) |
+| `VAULT_ADDR` | HashiCorp Vault URL (optional) |
+| `VAULT_TOKEN` | HashiCorp Vault token (optional) |
+| `VAULT_ROLE_ID` | HashiCorp Vault AppRole ID (optional) |
+| `VAULT_SECRET_ID` | HashiCorp Vault AppRole Secret (optional) |
+| `OP_SERVICE_ACCOUNT_TOKEN` | 1Password service account token (optional) |
 
 ---
 

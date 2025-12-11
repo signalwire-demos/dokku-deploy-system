@@ -919,7 +919,6 @@ jobs:
       environment: preview
       status: ${{ needs.deploy-preview.result }}
       commit_sha: ${{ needs.setup.outputs.head_sha }}
-      url: https://${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
       metadata: '{"pr_number": "${{ needs.setup.outputs.pr_number }}", "pr_author": "${{ needs.setup.outputs.pr_author }}", "repo": "${{ needs.setup.outputs.repo }}"}'
     secrets: inherit
 

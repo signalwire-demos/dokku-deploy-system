@@ -6,6 +6,7 @@
 #   - Cleanup orphaned apps (apps whose repos no longer exist, closed PR previews)
 #   - Renew SSL certificates
 #   - Health checks for all apps
+#   - Docker cleanup (old images, containers, build cache)
 #   - Backup databases (daily at 2 AM UTC)
 #
 # Required Secrets:
@@ -41,11 +42,22 @@ on:
           - renew-certs
           - health-check
           - backup-databases
+          - docker-cleanup
       dry_run:
         description: 'Dry run (cleanup only - show what would be deleted)'
         required: false
         type: boolean
         default: false
+      docker_image_retention_hours:
+        description: 'Docker image retention (hours, default 168 = 7 days)'
+        required: false
+        type: string
+        default: '168'
+      docker_container_retention_hours:
+        description: 'Docker container retention (hours, default 24)'
+        required: false
+        type: string
+        default: '24'
 
 env:
   GH_ORG: signalwire-demos
@@ -757,12 +769,199 @@ jobs:
             "$DISCORD_WEBHOOK_URL" || true
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # Docker Cleanup - Prevent disk space issues
+  # ═══════════════════════════════════════════════════════════════════════════
+  docker-cleanup:
+    name: Docker Cleanup
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'docker-cleanup'
+    outputs:
+      space_before: ${{ steps.cleanup.outputs.space_before }}
+      space_after: ${{ steps.cleanup.outputs.space_after }}
+      space_freed: ${{ steps.cleanup.outputs.space_freed }}
+
+    steps:
+      - name: Setup SSH connection
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku-server
+            HostName ${{ secrets.DOKKU_HOST }}
+            User root
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Docker cleanup
+        id: cleanup
+        env:
+          IMAGE_RETENTION: ${{ github.event.inputs.docker_image_retention_hours || '168' }}
+          CONTAINER_RETENTION: ${{ github.event.inputs.docker_container_retention_hours || '24' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Docker Cleanup"
+          echo "  Image retention: ${IMAGE_RETENTION}h ($(( IMAGE_RETENTION / 24 )) days)"
+          echo "  Container retention: ${CONTAINER_RETENTION}h"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          # Get disk space before
+          SPACE_BEFORE=$(ssh dokku-server "df -h /var/lib/docker | tail -1 | awk '{print \$4}'" 2>/dev/null || echo "unknown")
+          echo "space_before=$SPACE_BEFORE" >> $GITHUB_OUTPUT
+          echo "Disk space before cleanup: $SPACE_BEFORE available"
+          echo ""
+
+          if [ "$DRY_RUN" == "true" ]; then
+            echo "[DRY RUN] Would run the following cleanup commands:"
+            echo ""
+            echo "  docker container prune -f --filter \"until=${CONTAINER_RETENTION}h\""
+            echo "  docker image prune -a -f --filter \"until=${IMAGE_RETENTION}h\""
+            echo "  docker builder prune -f --filter \"until=${IMAGE_RETENTION}h\""
+            echo "  docker network prune -f"
+            echo "  dokku cleanup"
+            echo ""
+            echo "space_after=$SPACE_BEFORE" >> $GITHUB_OUTPUT
+            echo "space_freed=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Run dokku's built-in cleanup first
+          echo "Running dokku cleanup..."
+          ssh dokku-server "dokku cleanup" 2>/dev/null || true
+          echo ""
+
+          # Remove stopped containers older than retention period
+          echo "Removing containers stopped for more than ${CONTAINER_RETENTION}h..."
+          ssh dokku-server "docker container prune -f --filter \"until=${CONTAINER_RETENTION}h\"" 2>/dev/null || true
+          echo ""
+
+          # Remove unused images older than retention period
+          echo "Removing unused images older than ${IMAGE_RETENTION}h..."
+          ssh dokku-server "docker image prune -a -f --filter \"until=${IMAGE_RETENTION}h\"" 2>/dev/null || true
+          echo ""
+
+          # Remove build cache older than retention period
+          echo "Removing build cache older than ${IMAGE_RETENTION}h..."
+          ssh dokku-server "docker builder prune -f --filter \"until=${IMAGE_RETENTION}h\"" 2>/dev/null || true
+          echo ""
+
+          # Remove unused networks
+          echo "Removing unused networks..."
+          ssh dokku-server "docker network prune -f" 2>/dev/null || true
+          echo ""
+
+          # Get disk space after
+          SPACE_AFTER=$(ssh dokku-server "df -h /var/lib/docker | tail -1 | awk '{print \$4}'" 2>/dev/null || echo "unknown")
+          echo "space_after=$SPACE_AFTER" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Cleanup Complete"
+          echo "  Space before: $SPACE_BEFORE"
+          echo "  Space after:  $SPACE_AFTER"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Calculate freed space (rough estimate)
+          # This is tricky with human-readable units, so we just report before/after
+          echo "space_freed=see_logs" >> $GITHUB_OUTPUT
+
+      - name: Show Docker disk usage
+        run: |
+          echo ""
+          echo "Current Docker disk usage:"
+          ssh dokku-server "docker system df" 2>/dev/null || true
+
+      - name: Notify Slack - Docker Cleanup Results
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          SPACE_BEFORE="${{ steps.cleanup.outputs.space_before }}"
+          SPACE_AFTER="${{ steps.cleanup.outputs.space_after }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR="good"
+            if [ "$DRY_RUN" == "true" ]; then
+              TITLE="Docker Cleanup (Dry Run): No changes made"
+            else
+              TITLE="Docker Cleanup: Complete"
+            fi
+          else
+            COLOR="danger"
+            TITLE="Docker Cleanup: Failed"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": [
+                  {\"title\": \"Space Before\", \"value\": \"$SPACE_BEFORE\", \"short\": true},
+                  {\"title\": \"Space After\", \"value\": \"$SPACE_AFTER\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+      - name: Notify Discord - Docker Cleanup Results
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          SPACE_BEFORE="${{ steps.cleanup.outputs.space_before }}"
+          SPACE_AFTER="${{ steps.cleanup.outputs.space_after }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            COLOR=3066993
+            if [ "$DRY_RUN" == "true" ]; then
+              TITLE="🐳 Docker Cleanup (Dry Run): No changes made"
+            else
+              TITLE="🐳 Docker Cleanup: Complete"
+            fi
+          else
+            COLOR=15158332
+            TITLE="❌ Docker Cleanup: Failed"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Space Before\", \"value\": \"$SPACE_BEFORE\", \"inline\": true},
+                  {\"name\": \"Space After\", \"value\": \"$SPACE_AFTER\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"Scheduled Maintenance\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Summary Notification
   # ═══════════════════════════════════════════════════════════════════════════
   summary:
     name: Summary
     runs-on: ubuntu-latest
-    needs: [cleanup-orphans, renew-certs, health-check]
+    needs: [cleanup-orphans, renew-certs, health-check, docker-cleanup]
     # Only run for the 6 AM schedule (not the 2 AM backup schedule)
     if: always() && github.event_name == 'schedule' && github.event.schedule == '0 6 * * *'
 
@@ -777,8 +976,9 @@ jobs:
           CLEANUP_STATUS="${{ needs.cleanup-orphans.result }}"
           CERTS_STATUS="${{ needs.renew-certs.result }}"
           HEALTH_STATUS="${{ needs.health-check.result }}"
+          DOCKER_STATUS="${{ needs.docker-cleanup.result }}"
 
-          if [ "$CLEANUP_STATUS" == "success" ] && [ "$CERTS_STATUS" == "success" ] && [ "$HEALTH_STATUS" == "success" ]; then
+          if [ "$CLEANUP_STATUS" == "success" ] && [ "$CERTS_STATUS" == "success" ] && [ "$HEALTH_STATUS" == "success" ] && [ "$DOCKER_STATUS" == "success" ]; then
             COLOR="good"
             TITLE="Daily Maintenance: All tasks completed successfully"
           elif [ "$HEALTH_STATUS" != "success" ]; then
@@ -795,9 +995,10 @@ jobs:
                 \"color\": \"$COLOR\",
                 \"title\": \"$TITLE\",
                 \"fields\": [
-                  {\"title\": \"Cleanup\", \"value\": \"$CLEANUP_STATUS\", \"short\": true},
+                  {\"title\": \"Orphan Cleanup\", \"value\": \"$CLEANUP_STATUS\", \"short\": true},
                   {\"title\": \"SSL Renewal\", \"value\": \"$CERTS_STATUS\", \"short\": true},
-                  {\"title\": \"Health Check\", \"value\": \"$HEALTH_STATUS\", \"short\": true}
+                  {\"title\": \"Health Check\", \"value\": \"$HEALTH_STATUS\", \"short\": true},
+                  {\"title\": \"Docker Cleanup\", \"value\": \"$DOCKER_STATUS\", \"short\": true}
                 ],
                 \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
               }]
@@ -814,8 +1015,9 @@ jobs:
           CLEANUP_STATUS="${{ needs.cleanup-orphans.result }}"
           CERTS_STATUS="${{ needs.renew-certs.result }}"
           HEALTH_STATUS="${{ needs.health-check.result }}"
+          DOCKER_STATUS="${{ needs.docker-cleanup.result }}"
 
-          if [ "$CLEANUP_STATUS" == "success" ] && [ "$CERTS_STATUS" == "success" ] && [ "$HEALTH_STATUS" == "success" ]; then
+          if [ "$CLEANUP_STATUS" == "success" ] && [ "$CERTS_STATUS" == "success" ] && [ "$HEALTH_STATUS" == "success" ] && [ "$DOCKER_STATUS" == "success" ]; then
             COLOR=3066993
             TITLE="📊 Daily Maintenance: All tasks completed successfully"
           elif [ "$HEALTH_STATUS" != "success" ]; then
@@ -832,9 +1034,10 @@ jobs:
                 \"title\": \"$TITLE\",
                 \"color\": $COLOR,
                 \"fields\": [
-                  {\"name\": \"Cleanup\", \"value\": \"$CLEANUP_STATUS\", \"inline\": true},
+                  {\"name\": \"Orphan Cleanup\", \"value\": \"$CLEANUP_STATUS\", \"inline\": true},
                   {\"name\": \"SSL Renewal\", \"value\": \"$CERTS_STATUS\", \"inline\": true},
-                  {\"name\": \"Health Check\", \"value\": \"$HEALTH_STATUS\", \"inline\": true}
+                  {\"name\": \"Health Check\", \"value\": \"$HEALTH_STATUS\", \"inline\": true},
+                  {\"name\": \"Docker Cleanup\", \"value\": \"$DOCKER_STATUS\", \"inline\": true}
                 ],
                 \"footer\": {\"text\": \"Scheduled Maintenance\"},
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"

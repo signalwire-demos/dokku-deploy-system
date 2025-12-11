@@ -660,7 +660,6 @@ jobs:
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           BACKUP_COUNT=0
-          S3_COUNT=0
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
@@ -670,13 +669,11 @@ jobs:
           echo ""
 
           # Check if S3 is configured
-          S3_ENABLED="false"
-          if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ] && [ -n "$AWS_S3_BUCKET" ]; then
-            S3_ENABLED="true"
-            echo "S3 backup enabled: s3://$AWS_S3_BUCKET/"
-          else
-            echo "S3 backup disabled (AWS credentials not configured)"
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_S3_BUCKET" ]; then
+            echo "::error::S3 backup not configured - set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_S3_BUCKET secrets"
+            exit 1
           fi
+          echo "S3 bucket: s3://$AWS_S3_BUCKET/"
           echo ""
 
           # Get list of all apps
@@ -691,30 +688,15 @@ jobs:
             # PostgreSQL
             DB_NAME="postgres-$APP"
             if ssh dokku postgres:exists "$DB_NAME" 2>/dev/null; then
-              BACKUP_DIR="/var/backups/dokku/postgres/$APP"
-              BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.sql.gz"
               S3_KEY="postgres/$APP/${TIMESTAMP}.sql.gz"
 
               echo "Backing up PostgreSQL: $DB_NAME"
-              ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
 
-              # Export and save locally
+              # Export directly to S3 (no local storage needed)
               if ssh dokku postgres:export "$DB_NAME" 2>/dev/null | gzip | \
-                ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
-                SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'" 2>/dev/null || echo "?")
-                echo "  ✅ Local: $BACKUP_FILE ($SIZE)"
+                aws s3 cp - "s3://$AWS_S3_BUCKET/$S3_KEY"; then
+                echo "  ✅ s3://$AWS_S3_BUCKET/$S3_KEY"
                 BACKUP_COUNT=$((BACKUP_COUNT + 1))
-
-                # Upload to S3
-                if [ "$S3_ENABLED" == "true" ]; then
-                  if ssh dokku@${{ secrets.DOKKU_HOST }} "cat $BACKUP_FILE" | \
-                    aws s3 cp - "s3://$AWS_S3_BUCKET/$S3_KEY"; then
-                    echo "  ✅ S3: s3://$AWS_S3_BUCKET/$S3_KEY"
-                    S3_COUNT=$((S3_COUNT + 1))
-                  else
-                    echo "  ⚠️ S3 upload failed"
-                  fi
-                fi
               else
                 echo "  ❌ Backup failed"
               fi
@@ -723,30 +705,15 @@ jobs:
             # MySQL
             DB_NAME="mysql-$APP"
             if ssh dokku mysql:exists "$DB_NAME" 2>/dev/null; then
-              BACKUP_DIR="/var/backups/dokku/mysql/$APP"
-              BACKUP_FILE="$BACKUP_DIR/${TIMESTAMP}.sql.gz"
               S3_KEY="mysql/$APP/${TIMESTAMP}.sql.gz"
 
               echo "Backing up MySQL: $DB_NAME"
-              ssh dokku@${{ secrets.DOKKU_HOST }} "mkdir -p $BACKUP_DIR"
 
-              # Export and save locally
+              # Export directly to S3 (no local storage needed)
               if ssh dokku mysql:export "$DB_NAME" 2>/dev/null | gzip | \
-                ssh dokku@${{ secrets.DOKKU_HOST }} "cat > $BACKUP_FILE"; then
-                SIZE=$(ssh dokku@${{ secrets.DOKKU_HOST }} "ls -lh $BACKUP_FILE | awk '{print \$5}'" 2>/dev/null || echo "?")
-                echo "  ✅ Local: $BACKUP_FILE ($SIZE)"
+                aws s3 cp - "s3://$AWS_S3_BUCKET/$S3_KEY"; then
+                echo "  ✅ s3://$AWS_S3_BUCKET/$S3_KEY"
                 BACKUP_COUNT=$((BACKUP_COUNT + 1))
-
-                # Upload to S3
-                if [ "$S3_ENABLED" == "true" ]; then
-                  if ssh dokku@${{ secrets.DOKKU_HOST }} "cat $BACKUP_FILE" | \
-                    aws s3 cp - "s3://$AWS_S3_BUCKET/$S3_KEY"; then
-                    echo "  ✅ S3: s3://$AWS_S3_BUCKET/$S3_KEY"
-                    S3_COUNT=$((S3_COUNT + 1))
-                  else
-                    echo "  ⚠️ S3 upload failed"
-                  fi
-                fi
               else
                 echo "  ❌ Backup failed"
               fi
@@ -755,17 +722,11 @@ jobs:
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
-          echo "  Backups completed: $BACKUP_COUNT local, $S3_COUNT to S3"
+          echo "  Backups completed: $BACKUP_COUNT to S3"
+          echo "  S3 lifecycle rule auto-deletes after 30 days"
           echo "═══════════════════════════════════════════════════════"
 
           echo "backup_count=$BACKUP_COUNT" >> $GITHUB_OUTPUT
-          echo "s3_count=$S3_COUNT" >> $GITHUB_OUTPUT
-
-      - name: Cleanup old local backups
-        run: |
-          echo "Cleaning up local backups older than 7 days..."
-          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} "find /var/backups/dokku -type f -mtime +7 -delete 2>/dev/null || true"
-          echo "S3 backups auto-expire after 30 days via lifecycle rule"
 
       - name: Notify Slack
         if: always()
@@ -775,15 +736,10 @@ jobs:
           [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
 
           BACKUP_COUNT="${{ steps.backup.outputs.backup_count }}"
-          S3_COUNT="${{ steps.backup.outputs.s3_count }}"
 
           if [ "$BACKUP_COUNT" -gt 0 ]; then
             COLOR="good"
-            if [ "${S3_COUNT:-0}" -gt 0 ]; then
-              TITLE="Database Backup: $BACKUP_COUNT local, $S3_COUNT to S3"
-            else
-              TITLE="Database Backup: $BACKUP_COUNT backup(s) created"
-            fi
+            TITLE="Database Backup: $BACKUP_COUNT backup(s) to S3"
           else
             COLOR="warning"
             TITLE="Database Backup: No databases to backup"
@@ -807,15 +763,10 @@ jobs:
           [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
 
           BACKUP_COUNT="${{ steps.backup.outputs.backup_count }}"
-          S3_COUNT="${{ steps.backup.outputs.s3_count }}"
 
           if [ "$BACKUP_COUNT" -gt 0 ]; then
             COLOR=3066993
-            if [ "${S3_COUNT:-0}" -gt 0 ]; then
-              TITLE="💾 Database Backup: $BACKUP_COUNT local, $S3_COUNT to S3"
-            else
-              TITLE="💾 Database Backup: $BACKUP_COUNT backup(s) created"
-            fi
+            TITLE="💾 Database Backup: $BACKUP_COUNT backup(s) to S3"
           else
             COLOR=16776960
             TITLE="💾 Database Backup: No databases to backup"

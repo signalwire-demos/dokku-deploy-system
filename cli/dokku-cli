@@ -339,20 +339,46 @@ cmd_rollback() {
     local APP=$(get_app_name "$1")
     local VERSION="$2"
 
+    log_warning "Rolling back $APP..."
+
     if [ -n "$VERSION" ]; then
-        log_warning "Rolling back $APP to $VERSION..."
-        dokku_ssh releases:rollback "$APP" "$VERSION"
+        # Rollback to specific git SHA
+        log_info "Deploying commit: $VERSION"
+        dokku_ssh git:from-image "$APP" "$VERSION" 2>/dev/null || \
+        dokku_ssh ps:rebuild "$APP" 2>/dev/null || \
+        log_error "Rollback failed - try manual: git push dokku $VERSION:main --force"
     else
-        log_warning "Rolling back $APP to previous version..."
-        dokku_ssh releases:rollback "$APP"
+        # Show recent deployments and ask user to pick
+        log_info "Recent deployments:"
+        dokku_ssh git:report "$APP" 2>/dev/null | grep -E "rev|sha|deploy" || \
+            echo "  No deployment history available"
+        echo ""
+        log_info "To rollback, redeploy a previous commit:"
+        echo "  git push dokku <commit-sha>:main --force"
     fi
-    log_success "Rolled back"
 }
 
 cmd_releases() {
     local APP=$(get_app_name "$1")
-    log_header "Releases: $APP"
-    dokku_ssh releases:list "$APP"
+    log_header "Deployment Info: $APP"
+
+    # Show git deployment info
+    echo -e "${BOLD}Git Info:${NC}"
+    dokku_ssh git:report "$APP" 2>/dev/null || echo "  No git info available"
+
+    echo ""
+    echo -e "${BOLD}Current Deploy:${NC}"
+    local git_rev=$(dokku_ssh config:get "$APP" GIT_REV 2>/dev/null)
+    if [ -n "$git_rev" ]; then
+        echo "  Commit: $git_rev"
+    else
+        echo "  No GIT_REV set"
+    fi
+
+    echo ""
+    echo -e "${BOLD}Note:${NC} Dokku doesn't track releases by default."
+    echo "  To rollback, redeploy a previous git commit:"
+    echo "  git push dokku <commit-sha>:main --force"
 }
 
 cmd_create() {
@@ -1146,12 +1172,13 @@ cmd_interactive() {
                 fi
                 ;;
             "Rollback")
-                echo "Recent releases:"
                 cmd_releases "$app"
                 echo ""
-                echo "Enter version to rollback to (or press Enter for previous):"
+                echo "Enter commit SHA to rollback to (or press Enter to cancel):"
                 read -p "> " version
-                cmd_rollback "$app" "$version"
+                if [ -n "$version" ]; then
+                    cmd_rollback "$app" "$version"
+                fi
                 sleep 2
                 ;;
             "View Releases")

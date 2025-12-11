@@ -46,6 +46,10 @@ _dokku_cli() {
         'domains:Manage domains'
         'db:Database operations'
         'run:Run one-off command'
+        'alias:Manage app aliases'
+        'i:Interactive mode (TUI)'
+        'interactive:Interactive mode (TUI)'
+        'pick:Pick an app interactively'
         'help:Show help'
         'version:Show version'
     )

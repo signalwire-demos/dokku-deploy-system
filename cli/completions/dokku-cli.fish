@@ -64,6 +64,10 @@ complete -c dokku-cli -n "__fish_use_subcommand" -a "ssl" -d "Manage SSL certifi
 complete -c dokku-cli -n "__fish_use_subcommand" -a "domains" -d "Manage domains"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "db" -d "Database operations"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "run" -d "Run one-off command"
+complete -c dokku-cli -n "__fish_use_subcommand" -a "alias" -d "Manage app aliases"
+complete -c dokku-cli -n "__fish_use_subcommand" -a "i" -d "Interactive mode (TUI)"
+complete -c dokku-cli -n "__fish_use_subcommand" -a "interactive" -d "Interactive mode (TUI)"
+complete -c dokku-cli -n "__fish_use_subcommand" -a "pick" -d "Pick an app interactively"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "help" -d "Show help"
 complete -c dokku-cli -n "__fish_use_subcommand" -a "version" -d "Show version"
 

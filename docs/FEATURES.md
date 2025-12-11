@@ -1816,3 +1816,49 @@ dokku-cli db myapp list-backups
 # Restore from backup
 dokku-cli db myapp restore backup.dump postgres
 ```
+
+### Interactive Mode (requires fzf)
+
+The CLI includes a full interactive TUI for browsing and managing apps:
+
+```bash
+# Launch interactive mode
+dokku-cli i
+# or
+dokku-cli interactive
+```
+
+**Features:**
+- Fuzzy search through all apps
+- Preview pane showing app status, URL, and lock state
+- Action menu for common operations
+- Branch picker for deployments
+
+**Quick app selection:**
+```bash
+# Pick app interactively, then run command
+dokku-cli logs -i
+dokku-cli restart -i
+dokku-cli config -i
+dokku-cli deploy -i    # Also picks branch interactively
+
+# Or use pick for piping
+dokku-cli restart $(dokku-cli pick)
+```
+
+**Install fzf:**
+```bash
+# macOS
+brew install fzf
+
+# Ubuntu/Debian
+sudo apt install fzf
+
+# Fedora
+sudo dnf install fzf
+
+# Arch
+sudo pacman -S fzf
+```
+
+If fzf is not installed, the CLI will show installation instructions when you try to use interactive mode.

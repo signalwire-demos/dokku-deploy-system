@@ -49,6 +49,8 @@ on:
         required: true
       BASE_DOMAIN:
         required: true
+      GH_ORG_TOKEN:
+        required: false
       SLACK_WEBHOOK_URL:
         required: false
       DISCORD_WEBHOOK_URL:
@@ -71,7 +73,7 @@ jobs:
     steps:
       - name: Create environments if needed
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
         run: |
           for env in production staging development preview; do
             gh api repos/${{ github.repository }}/environments/$env -X PUT 2>/dev/null || true

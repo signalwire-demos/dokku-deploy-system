@@ -1,0 +1,268 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# update-repo-list.yml - Repo & App List Cache
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Maintains cached lists of deployable repos and deployed apps.
+# Used by other workflows for validation and discovery.
+#
+# Generated files (in gh-pages branch):
+#   - repos.json: Org repos with deployment capability
+#   - apps.json: Deployed apps with repo mapping (enhanced)
+#
+# Runs:
+#   - Every 6 hours (scheduled)
+#   - On demand via workflow_dispatch
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Update Repo List
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+
+  workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: 'Force refresh all data (slower)'
+        type: boolean
+        default: false
+
+jobs:
+  update:
+    name: Update Lists
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: dashboard
+
+      - name: Fetch org repos
+        id: repos
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          echo "Fetching repos from signalwire-demos org..."
+
+          # Get all non-archived repos
+          gh api orgs/signalwire-demos/repos --paginate -q '.[] | select(.archived == false)' | \
+            jq -s '.' > /tmp/all_repos.json
+
+          TOTAL=$(jq length /tmp/all_repos.json)
+          echo "Found $TOTAL total repos"
+
+          # Check each repo for deployment capability
+          echo '[]' > /tmp/deployable_repos.json
+
+          for REPO in $(jq -r '.[].full_name' /tmp/all_repos.json); do
+            REPO_NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+            # Check for .dokku directory or deploy workflow
+            HAS_DOKKU="false"
+            HAS_DEPLOY="false"
+
+            # Check .dokku/
+            if gh api "repos/$REPO/contents/.dokku" --silent 2>/dev/null; then
+              HAS_DOKKU="true"
+            fi
+
+            # Check deploy workflow (in the repo itself or using reusable)
+            if gh api "repos/$REPO/contents/.github/workflows" --silent 2>/dev/null | jq -e '.[] | select(.name | test("deploy"))' > /dev/null 2>&1; then
+              HAS_DEPLOY="true"
+            fi
+
+            if [ "$HAS_DOKKU" == "true" ] || [ "$HAS_DEPLOY" == "true" ]; then
+              echo "  ✓ $REPO_NAME (dokku=$HAS_DOKKU, deploy=$HAS_DEPLOY)"
+
+              # Get repo data
+              REPO_DATA=$(jq --arg r "$REPO" '.[] | select(.full_name == $r) | {
+                name: .name,
+                full_name: .full_name,
+                default_branch: .default_branch,
+                updated_at: .updated_at,
+                description: .description
+              }' /tmp/all_repos.json)
+
+              # Add deployment info
+              REPO_DATA=$(echo "$REPO_DATA" | jq \
+                --argjson dokku "$HAS_DOKKU" \
+                --argjson deploy "$HAS_DEPLOY" \
+                '. + {has_dokku_config: $dokku, has_deploy_workflow: $deploy}')
+
+              # Append to list
+              jq --argjson r "$REPO_DATA" '. + [$r]' /tmp/deployable_repos.json > /tmp/deployable_repos_new.json
+              mv /tmp/deployable_repos_new.json /tmp/deployable_repos.json
+            fi
+          done
+
+          COUNT=$(jq length /tmp/deployable_repos.json)
+          echo ""
+          echo "Found $COUNT deployable repos"
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Fetch deployed apps
+        id: apps
+        run: |
+          echo "Fetching apps from Dokku server..."
+
+          # Get all apps
+          APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | tail -n +2 || echo "")
+
+          if [ -z "$APPS" ]; then
+            echo "No apps found or unable to connect"
+            echo '[]' > /tmp/apps_list.json
+            echo "count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo '[]' > /tmp/apps_list.json
+
+          for APP in $APPS; do
+            # Determine environment and base app name
+            if [[ "$APP" == *"-staging" ]]; then
+              ENV="staging"
+              BASE_APP="${APP%-staging}"
+            elif [[ "$APP" == *"-dev" ]]; then
+              ENV="development"
+              BASE_APP="${APP%-dev}"
+            elif [[ "$APP" =~ -pr-[0-9]+$ ]]; then
+              ENV="preview"
+              BASE_APP=$(echo "$APP" | sed 's/-pr-[0-9]*$//')
+            elif [[ "$APP" == *"-canary" ]]; then
+              ENV="canary"
+              BASE_APP="${APP%-canary}"
+            else
+              ENV="production"
+              BASE_APP="$APP"
+            fi
+
+            # Try to find matching repo
+            REPO=$(jq -r --arg b "$BASE_APP" '.[] | select(.name == $b) | .full_name // empty' /tmp/deployable_repos.json | head -1)
+
+            # Get app status
+            STATUS="unknown"
+            if ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} ps:report "$APP" 2>/dev/null | grep -q "running"; then
+              STATUS="running"
+            elif ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:exists "$APP" 2>/dev/null; then
+              STATUS="stopped"
+            fi
+
+            echo "  $APP ($ENV) -> $REPO"
+
+            # Build app entry
+            APP_DATA=$(jq -n \
+              --arg name "$APP" \
+              --arg base "$BASE_APP" \
+              --arg env "$ENV" \
+              --arg repo "$REPO" \
+              --arg status "$STATUS" \
+              '{
+                name: $name,
+                base_app: $base,
+                environment: $env,
+                repo: (if $repo == "" then null else $repo end),
+                status: $status
+              }')
+
+            jq --argjson a "$APP_DATA" '. + [$a]' /tmp/apps_list.json > /tmp/apps_list_new.json
+            mv /tmp/apps_list_new.json /tmp/apps_list.json
+          done
+
+          COUNT=$(jq length /tmp/apps_list.json)
+          echo ""
+          echo "Found $COUNT deployed apps"
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Generate repos.json
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          jq --arg ts "$TIMESTAMP" '{
+            last_updated: $ts,
+            repos: .
+          }' /tmp/deployable_repos.json > dashboard/repos.json
+
+          echo "Generated repos.json with $(jq '.repos | length' dashboard/repos.json) repos"
+
+      - name: Update apps.json
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Merge with existing apps.json to preserve uptime/deploy data
+          if [ -f dashboard/apps.json ]; then
+            jq -s --arg ts "$TIMESTAMP" '
+              .[0] as $existing |
+              .[1] as $new |
+              {
+                last_updated: $ts,
+                apps: [
+                  $new[] |
+                  . as $app |
+                  ($existing.apps // [] | map(select(.name == $app.name)) | .[0]) as $old |
+                  $app + {
+                    url: ($old.url // null),
+                    last_deploy: ($old.last_deploy // null),
+                    last_deploy_by: ($old.last_deploy_by // null),
+                    commit_sha: ($old.commit_sha // null),
+                    uptime: ($old.uptime // null)
+                  }
+                ]
+              }
+            ' dashboard/apps.json /tmp/apps_list.json > /tmp/merged_apps.json
+            mv /tmp/merged_apps.json dashboard/apps.json
+          else
+            jq --arg ts "$TIMESTAMP" '{
+              last_updated: $ts,
+              apps: .
+            }' /tmp/apps_list.json > dashboard/apps.json
+          fi
+
+          echo "Updated apps.json with $(jq '.apps | length' dashboard/apps.json) apps"
+
+      - name: Commit changes
+        run: |
+          cd dashboard
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add repos.json apps.json
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update repo and app lists"
+            git push
+            echo "✅ Lists updated"
+          fi
+
+      - name: Generate summary
+        run: |
+          echo "## Repo & App List Update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployable Repos | ${{ steps.repos.outputs.count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed Apps | ${{ steps.apps.outputs.count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Deployable Repos" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          jq -r '.repos[] | "- \(.name)"' dashboard/repos.json >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployed Apps" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| App | Environment | Repo |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------------|------|" >> $GITHUB_STEP_SUMMARY
+          jq -r '.apps[] | "| \(.name) | \(.environment) | \(.repo // "-") |"' dashboard/apps.json >> $GITHUB_STEP_SUMMARY

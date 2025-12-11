@@ -248,7 +248,12 @@ cmd_config_unset() {
 cmd_shell() {
     local APP=$(get_app_name "$1")
     log_info "Opening shell for $APP..."
-    dokku_ssh enter "$APP" web
+    # Need -t for interactive TTY
+    if [ -f "$SSH_KEY" ]; then
+        ssh -t -i "$SSH_KEY" "dokku@$DOKKU_HOST" enter "$APP" web
+    else
+        ssh -t "dokku@$DOKKU_HOST" enter "$APP" web
+    fi
 }
 
 cmd_run() {

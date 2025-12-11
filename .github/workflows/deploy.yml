@@ -272,6 +272,36 @@ jobs:
           echo "| Critical | ${{ steps.scan.outputs.critical }} |" >> $GITHUB_STEP_SUMMARY
           echo "| High | ${{ steps.scan.outputs.high }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Medium | ${{ steps.scan.outputs.medium }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add vulnerability details if any found
+          if [ -f trivy-results.json ]; then
+            TOTAL=$(( ${{ steps.scan.outputs.critical }} + ${{ steps.scan.outputs.high }} ))
+            if [ "$TOTAL" -gt 0 ]; then
+              echo "### Vulnerability Details" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "| Severity | Package | Vulnerability | Fixed Version |" >> $GITHUB_STEP_SUMMARY
+              echo "|----------|---------|---------------|---------------|" >> $GITHUB_STEP_SUMMARY
+
+              # Extract CRITICAL and HIGH vulnerabilities
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | "| \(.Severity) | \(.PkgName) | [\(.VulnerabilityID)](https://nvd.nist.gov/vuln/detail/\(.VulnerabilityID)) | \(.FixedVersion // "N/A") |"' trivy-results.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "<details><summary>How to fix</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "1. **Update the package** to the fixed version shown above" >> $GITHUB_STEP_SUMMARY
+              echo "2. **Ignore if false positive** - add to \`.trivyignore\`:" >> $GITHUB_STEP_SUMMARY
+              echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+              jq -r '.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH") | .VulnerabilityID' trivy-results.json 2>/dev/null | head -5 >> $GITHUB_STEP_SUMMARY || true
+              echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "3. **Disable blocking** - set in \`.dokku/config.yml\`:" >> $GITHUB_STEP_SUMMARY
+              echo "   \`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+              echo "   security:" >> $GITHUB_STEP_SUMMARY
+              echo "     block_on_critical: false" >> $GITHUB_STEP_SUMMARY
+              echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
 
       - name: Check vulnerability thresholds
         id: check

@@ -104,15 +104,27 @@ jobs:
   log-entry:
     name: Write Audit Log
     runs-on: ubuntu-latest
+    # Don't fail the calling workflow if audit log fails
+    continue-on-error: true
 
     steps:
       - name: Checkout gh-pages
+        id: checkout
+        continue-on-error: true
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           token: ${{ secrets.GH_ORG_TOKEN || github.token }}
 
+      - name: Skip if gh-pages doesn't exist
+        if: steps.checkout.outcome == 'failure'
+        run: |
+          echo "::warning::gh-pages branch not found - skipping audit log"
+          echo "To enable audit logging, create a gh-pages branch in the dokku-deploy-system repo"
+          exit 0
+
       - name: Create audit log entry
+        if: steps.checkout.outcome == 'success'
         env:
           ACTION: ${{ inputs.action || github.event.inputs.action }}
           APP_NAME: ${{ inputs.app_name || github.event.inputs.app_name }}
@@ -214,6 +226,7 @@ jobs:
           echo "═══════════════════════════════════════════════════════"
 
       - name: Generate audit report
+        if: steps.checkout.outcome == 'success'
         run: |
           # Generate a human-readable audit report (last 100 entries)
           AUDIT_FILE="audit-log.json"
@@ -265,6 +278,7 @@ jobs:
           EOF
 
       - name: Commit audit log
+        if: steps.checkout.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

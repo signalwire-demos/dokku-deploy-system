@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-# Cost Report - Resource Usage & Cost Tracking
+# cost-report.yml - Resource Usage & Cost Tracking
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # Track resource usage and generate cost reports per app.
@@ -407,13 +407,13 @@ jobs:
     name: Check Budget
     runs-on: ubuntu-latest
     needs: collect
-    if: secrets.COST_BUDGET_MONTHLY != ''
 
     steps:
       - name: Check against budget
         env:
           BUDGET: ${{ secrets.COST_BUDGET_MONTHLY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: env.BUDGET != ''
         run: |
           TOTAL_COST="${{ needs.collect.outputs.total_cost }}"
           PERIOD="${{ inputs.period || 'weekly' }}"

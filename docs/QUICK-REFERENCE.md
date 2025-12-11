@@ -271,6 +271,13 @@ ssh dokku@server run myapp env
 | `VAULT_ROLE_ID` | HashiCorp Vault AppRole ID (optional) |
 | `VAULT_SECRET_ID` | HashiCorp Vault AppRole Secret (optional) |
 | `OP_SERVICE_ACCOUNT_TOKEN` | 1Password service account token (optional) |
+| `PAPERTRAIL_HOST` | Papertrail syslog host (optional) |
+| `PAPERTRAIL_PORT` | Papertrail syslog port (optional) |
+| `LOGTAIL_TOKEN` | Logtail/Better Stack token (optional) |
+| `COST_CPU_RATE` | CPU cost per core-hour, default $0.01 (optional) |
+| `COST_MEM_RATE` | Memory cost per GB-hour, default $0.005 (optional) |
+| `COST_STORAGE_RATE` | Storage cost per GB-month, default $0.10 (optional) |
+| `COST_BUDGET_MONTHLY` | Monthly budget for alerts (optional) |
 
 ---
 

@@ -22,6 +22,9 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Canary Deployments](#canary-deployments)
 - [Multi-Region Deployment](#multi-region-deployment)
 - [Resource Auto-Scaling](#resource-auto-scaling)
+- [Log Aggregation](#log-aggregation)
+- [Performance Monitoring](#performance-monitoring)
+- [Cost Tracking](#cost-tracking)
 
 ---
 
@@ -1392,3 +1395,250 @@ ssh dokku@server ps:scale myapp
 - Combine with scheduled scaling for predictable patterns
 - Monitor scaling events in audit log
 - Set alerts for hitting max instances
+
+---
+
+## Log Aggregation
+
+Ship logs to external services for centralized search, analysis, and alerting.
+
+### Supported Destinations
+
+| Destination | Secret Required | URL Format |
+|-------------|-----------------|------------|
+| Papertrail | `PAPERTRAIL_HOST`, `PAPERTRAIL_PORT` | `syslog+tls://host:port` |
+| Datadog | `DD_API_KEY` | Datadog intake endpoint |
+| Logtail/Better Stack | `LOGTAIL_TOKEN` | `https://in.logtail.com/token` |
+| Custom | None | Any syslog URL |
+
+### Usage
+
+1. Go to [Actions → Configure Log Drain](../../actions/workflows/log-drain.yml)
+2. Select action:
+   - `list` - Show current drains
+   - `add` - Add log drain
+   - `remove` - Remove log drain
+3. Select destination and app(s)
+
+### Adding a Log Drain
+
+**For all apps:**
+- Leave "App name" empty
+- Select destination
+- Workflow configures drain on all apps
+
+**For specific app:**
+- Enter app name
+- Select destination
+- Drain configured only for that app
+
+### Papertrail Setup
+
+1. Create a Papertrail account at papertrailapp.com
+2. Add a log destination (Settings → Log Destinations)
+3. Copy the host and port
+4. Add secrets to GitHub:
+   - `PAPERTRAIL_HOST`: e.g., `logs.papertrailapp.com`
+   - `PAPERTRAIL_PORT`: e.g., `12345`
+
+### Datadog Setup
+
+1. Get API key from Datadog → Organization Settings → API Keys
+2. Add `DD_API_KEY` secret to GitHub
+3. Logs will appear in Datadog Logs Explorer
+
+Additional environment variables set on apps:
+- `DD_LOGS_ENABLED=true`
+- `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true`
+
+### Logtail/Better Stack Setup
+
+1. Create a source in Logtail
+2. Copy the source token
+3. Add `LOGTAIL_TOKEN` secret to GitHub
+
+### Custom Syslog
+
+For custom syslog endpoints:
+1. Select "custom" destination
+2. Enter full syslog URL:
+   - `syslog://host:port` (UDP)
+   - `syslog+tcp://host:port` (TCP)
+   - `syslog+tls://host:port` (TLS)
+
+### Viewing Logs
+
+After configuration, logs flow automatically to your destination:
+
+```bash
+# Local logs still available
+ssh dokku@server logs myapp -t
+
+# Or view in your log aggregation service
+```
+
+---
+
+## Performance Monitoring
+
+Track response times, error rates, and availability metrics for all apps.
+
+### How It Works
+
+**Every 15 minutes:**
+1. Workflow pings each app's health endpoint
+2. Collects response time samples (20 requests)
+3. Calculates percentiles (p50, p95, p99)
+4. Checks error rates and SSL expiry
+5. Stores metrics in `dashboard/metrics.json`
+6. Sends alerts if thresholds exceeded
+
+### Metrics Collected
+
+| Metric | Description |
+|--------|-------------|
+| Response Time p50 | Median response time |
+| Response Time p95 | 95th percentile |
+| Response Time p99 | 99th percentile |
+| Success Rate | % of 2xx responses |
+| Error Rate | % of 4xx/5xx responses |
+| SSL Days | Days until certificate expiry |
+
+### Usage
+
+**Automatic:**
+- Runs every 15 minutes via cron
+- Results stored in gh-pages branch
+
+**Manual:**
+1. Go to [Actions → Performance Monitor](../../actions/workflows/performance-monitor.yml)
+2. Optionally specify app name
+3. Enable "detailed" for 100 requests instead of 20
+
+### Alert Thresholds
+
+Alerts are triggered when:
+
+| Condition | Alert Level |
+|-----------|-------------|
+| p99 > 2000ms | ⚠️ Warning |
+| Error rate > 5% | 🚨 Critical |
+| SSL < 14 days | 🔐 Warning |
+
+### Viewing Metrics
+
+**Dashboard:**
+Access `dashboard/metrics.json` on gh-pages branch:
+```
+https://signalwire-demos.github.io/dokku-deploy-system/metrics.json
+```
+
+**Workflow Summary:**
+Manual runs show a summary table with all app metrics.
+
+### Metrics History
+
+The workflow keeps 24 hours of historical data (96 entries at 15-minute intervals).
+
+Structure:
+```json
+{
+  "latest": { ... current metrics ... },
+  "history": [ ... last 96 entries ... ]
+}
+```
+
+### Alert Destinations
+
+Alerts are sent to:
+- Slack (if `SLACK_WEBHOOK_URL` configured)
+- Discord (if `DISCORD_WEBHOOK_URL` configured)
+- PagerDuty (if `PAGERDUTY_ROUTING_KEY` configured, critical only)
+
+---
+
+## Cost Tracking
+
+Track resource usage and generate cost reports per app.
+
+### How It Works
+
+**Scheduled reports:**
+- Monthly (1st of month)
+- Weekly (Sundays)
+
+**Metrics collected:**
+- CPU allocation per app
+- Memory allocation per app
+- Storage usage (databases)
+- Instance count
+
+**Cost calculation:**
+```
+CPU Cost = CPU cores × instances × hours × rate
+Memory Cost = GB × instances × hours × rate
+Storage Cost = GB × rate
+```
+
+### Usage
+
+1. Go to [Actions → Cost Report](../../actions/workflows/cost-report.yml)
+2. Select period: daily, weekly, or monthly
+3. Enable "detailed" for per-app breakdown
+
+### Cost Rates
+
+Default rates (configurable via secrets):
+
+| Resource | Rate | Secret |
+|----------|------|--------|
+| CPU | $0.01/core-hour | `COST_CPU_RATE` |
+| Memory | $0.005/GB-hour | `COST_MEM_RATE` |
+| Storage | $0.10/GB-month | `COST_STORAGE_RATE` |
+
+### Report Contents
+
+**Summary:**
+- Total CPU cores
+- Total memory (GB)
+- Total storage (GB)
+- Total estimated cost
+
+**By Environment:**
+- Production, staging, development, preview
+- App count and cost per environment
+
+**Top 10 Apps:**
+- Highest cost apps
+- Resource breakdown
+
+### Budget Alerts
+
+Set a monthly budget to receive alerts:
+
+1. Add `COST_BUDGET_MONTHLY` secret (e.g., `500` for $500)
+2. Alerts triggered at:
+   - ⚠️ 80% of budget
+   - 🚨 100% of budget (overage)
+
+### Viewing Reports
+
+**Dashboard:**
+Reports saved to `dashboard/cost-reports/`:
+```
+https://signalwire-demos.github.io/dokku-deploy-system/cost-reports/latest.json
+```
+
+**Historical reports:**
+```
+cost-reports/weekly-2025-12-07.json
+cost-reports/monthly-2025-12-01.json
+```
+
+### Optimizing Costs
+
+Based on reports, consider:
+- Reducing instance counts for low-traffic apps
+- Lowering memory limits if not fully utilized
+- Cleaning up unused preview environments
+- Using scheduled scaling for off-hours

@@ -1,0 +1,457 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# cost-report.yml - Resource Usage & Cost Tracking
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Track resource usage and generate cost reports per app.
+#
+# Metrics collected:
+#   - CPU allocation per app
+#   - Memory allocation per app
+#   - Storage usage (databases)
+#   - Estimated costs based on configurable rates
+#
+# Runs:
+#   - Monthly (1st of month at midnight)
+#   - Weekly (Sundays at midnight)
+#   - On demand via workflow_dispatch
+#
+# Reports:
+#   - Stored in dashboard/cost-reports/
+#   - Sent via Slack/Discord/Email
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Cost Report
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'   # Monthly on 1st
+    - cron: '0 0 * * 0'   # Weekly on Sunday
+
+  workflow_dispatch:
+    inputs:
+      period:
+        description: 'Report period'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - monthly
+        default: 'weekly'
+      detailed:
+        description: 'Include per-app breakdown'
+        type: boolean
+        default: true
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Collect Resource Usage
+  # ═══════════════════════════════════════════════════════════════════════════
+  collect:
+    name: Collect Resource Usage
+    runs-on: ubuntu-latest
+    outputs:
+      report: ${{ steps.report.outputs.json }}
+      total_cost: ${{ steps.report.outputs.total_cost }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: dashboard
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Collect resource data
+        id: report
+        run: |
+          PERIOD="${{ inputs.period || 'weekly' }}"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          REPORT_DATE=$(date +%Y-%m-%d)
+
+          # Cost rates (configurable via secrets or defaults)
+          # These are example rates - adjust based on your infrastructure costs
+          CPU_RATE_HOUR="${{ secrets.COST_CPU_RATE || '0.01' }}"      # $/CPU-hour
+          MEM_RATE_GB_HOUR="${{ secrets.COST_MEM_RATE || '0.005' }}"  # $/GB-hour
+          STORAGE_RATE_GB="${{ secrets.COST_STORAGE_RATE || '0.10' }}" # $/GB-month
+
+          # Hours in period
+          case "$PERIOD" in
+            daily) HOURS=24 ;;
+            weekly) HOURS=168 ;;
+            monthly) HOURS=720 ;;
+          esac
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Resource Usage Report"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Period: $PERIOD ($HOURS hours)"
+          echo "  Date: $REPORT_DATE"
+          echo "  Rates: CPU=\$${CPU_RATE_HOUR}/hr, Mem=\$${MEM_RATE_GB_HOUR}/GB-hr"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          # Initialize report
+          TOTAL_CPU=0
+          TOTAL_MEM=0
+          TOTAL_STORAGE=0
+          TOTAL_COST=0
+
+          # Get all apps
+          APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | tail -n +2)
+
+          # Start JSON report
+          echo '{"timestamp":"'$TIMESTAMP'","period":"'$PERIOD'","hours":'$HOURS',"apps":[],"totals":{},"rates":{}}' > /tmp/report.json
+
+          for APP in $APPS; do
+            echo "Processing $APP..."
+
+            # Get resource limits
+            RESOURCE_INFO=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              resource:report $APP 2>/dev/null || echo "")
+
+            # Parse CPU (format: "1" or "0.5" or "500m")
+            CPU_LIMIT=$(echo "$RESOURCE_INFO" | grep -i "cpu" | grep -i "limit" | awk '{print $NF}' | head -1)
+            if [ -z "$CPU_LIMIT" ] || [ "$CPU_LIMIT" == "none" ]; then
+              CPU_LIMIT="1"
+            fi
+            # Convert millicores to cores
+            if [[ "$CPU_LIMIT" == *"m" ]]; then
+              CPU_LIMIT=$(echo "$CPU_LIMIT" | sed 's/m//' | awk '{print $1/1000}')
+            fi
+
+            # Parse Memory (format: "512m" or "1g")
+            MEM_LIMIT=$(echo "$RESOURCE_INFO" | grep -i "memory" | grep -i "limit" | awk '{print $NF}' | head -1)
+            if [ -z "$MEM_LIMIT" ] || [ "$MEM_LIMIT" == "none" ]; then
+              MEM_LIMIT="512m"
+            fi
+            # Convert to GB
+            if [[ "$MEM_LIMIT" == *"g" ]] || [[ "$MEM_LIMIT" == *"G" ]]; then
+              MEM_GB=$(echo "$MEM_LIMIT" | sed 's/[gG]//')
+            elif [[ "$MEM_LIMIT" == *"m" ]] || [[ "$MEM_LIMIT" == *"M" ]]; then
+              MEM_GB=$(echo "$MEM_LIMIT" | sed 's/[mM]//' | awk '{print $1/1024}')
+            else
+              MEM_GB=$(echo "$MEM_LIMIT" | awk '{print $1/1024/1024/1024}')
+            fi
+
+            # Get instance count
+            SCALE_INFO=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              ps:scale $APP 2>/dev/null | grep -E "^web:" | awk '{print $2}' || echo "1")
+            INSTANCES=${SCALE_INFO:-1}
+
+            # Calculate storage (check for linked databases)
+            STORAGE_GB=0
+
+            # Check PostgreSQL
+            PG_LINK=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+              postgres:linked $APP 2>/dev/null | head -1 || echo "")
+            if [ -n "$PG_LINK" ] && [ "$PG_LINK" != "false" ]; then
+              PG_INFO=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+                postgres:info "$PG_LINK" 2>/dev/null || echo "")
+              # Try to extract size (this varies by Dokku version)
+              PG_SIZE=$(echo "$PG_INFO" | grep -i "size" | awk '{print $NF}' | grep -oE '[0-9.]+' | head -1 || echo "0")
+              STORAGE_GB=$(echo "$STORAGE_GB + ${PG_SIZE:-0}" | bc)
+            fi
+
+            # Calculate costs
+            CPU_COST=$(echo "scale=2; ${CPU_LIMIT:-1} * $INSTANCES * $HOURS * $CPU_RATE_HOUR" | bc)
+            MEM_COST=$(echo "scale=2; ${MEM_GB:-0.5} * $INSTANCES * $HOURS * $MEM_RATE_GB_HOUR" | bc)
+            STORAGE_COST=$(echo "scale=2; ${STORAGE_GB:-0} * $STORAGE_RATE_GB" | bc)
+            APP_TOTAL=$(echo "scale=2; $CPU_COST + $MEM_COST + $STORAGE_COST" | bc)
+
+            # Accumulate totals
+            TOTAL_CPU=$(echo "scale=2; $TOTAL_CPU + ${CPU_LIMIT:-1} * $INSTANCES" | bc)
+            TOTAL_MEM=$(echo "scale=2; $TOTAL_MEM + ${MEM_GB:-0.5} * $INSTANCES" | bc)
+            TOTAL_STORAGE=$(echo "scale=2; $TOTAL_STORAGE + ${STORAGE_GB:-0}" | bc)
+            TOTAL_COST=$(echo "scale=2; $TOTAL_COST + $APP_TOTAL" | bc)
+
+            # Determine environment
+            if [[ "$APP" == *"-dev" ]]; then
+              ENV="development"
+            elif [[ "$APP" == *"-staging" ]]; then
+              ENV="staging"
+            elif [[ "$APP" == *"-pr-"* ]]; then
+              ENV="preview"
+            else
+              ENV="production"
+            fi
+
+            echo "  CPU: ${CPU_LIMIT} x $INSTANCES = \$${CPU_COST}"
+            echo "  Memory: ${MEM_GB}GB x $INSTANCES = \$${MEM_COST}"
+            echo "  Storage: ${STORAGE_GB}GB = \$${STORAGE_COST}"
+            echo "  Total: \$${APP_TOTAL}"
+            echo ""
+
+            # Add to report JSON
+            APP_JSON=$(jq -n \
+              --arg app "$APP" \
+              --arg env "$ENV" \
+              --argjson cpu "${CPU_LIMIT:-1}" \
+              --argjson mem "${MEM_GB:-0.5}" \
+              --argjson storage "${STORAGE_GB:-0}" \
+              --argjson instances "$INSTANCES" \
+              --argjson cpu_cost "$CPU_COST" \
+              --argjson mem_cost "$MEM_COST" \
+              --argjson storage_cost "$STORAGE_COST" \
+              --argjson total "$APP_TOTAL" \
+              '{
+                name: $app,
+                environment: $env,
+                resources: {
+                  cpu: $cpu,
+                  memory_gb: $mem,
+                  storage_gb: $storage,
+                  instances: $instances
+                },
+                costs: {
+                  cpu: $cpu_cost,
+                  memory: $mem_cost,
+                  storage: $storage_cost,
+                  total: $total
+                }
+              }')
+
+            jq --argjson app "$APP_JSON" '.apps += [$app]' /tmp/report.json > /tmp/report_new.json
+            mv /tmp/report_new.json /tmp/report.json
+          done
+
+          # Add totals and rates
+          jq --argjson cpu "$TOTAL_CPU" \
+             --argjson mem "$TOTAL_MEM" \
+             --argjson storage "$TOTAL_STORAGE" \
+             --argjson cost "$TOTAL_COST" \
+             --argjson cpu_rate "$CPU_RATE_HOUR" \
+             --argjson mem_rate "$MEM_RATE_GB_HOUR" \
+             --argjson storage_rate "$STORAGE_RATE_GB" \
+             '.totals = {cpu: $cpu, memory_gb: $mem, storage_gb: $storage, cost: $cost} |
+              .rates = {cpu_per_hour: $cpu_rate, memory_per_gb_hour: $mem_rate, storage_per_gb_month: $storage_rate}' \
+             /tmp/report.json > /tmp/report_final.json
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Totals"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Total CPU: $TOTAL_CPU cores"
+          echo "  Total Memory: $TOTAL_MEM GB"
+          echo "  Total Storage: $TOTAL_STORAGE GB"
+          echo "  Total Cost: \$${TOTAL_COST}"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Output
+          REPORT_JSON=$(cat /tmp/report_final.json)
+          echo "json<<EOF" >> $GITHUB_OUTPUT
+          echo "$REPORT_JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "total_cost=$TOTAL_COST" >> $GITHUB_OUTPUT
+
+      - name: Save report
+        run: |
+          cd dashboard
+          mkdir -p cost-reports
+
+          PERIOD="${{ inputs.period || 'weekly' }}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Save report
+          echo '${{ steps.report.outputs.json }}' > "cost-reports/${PERIOD}-${DATE}.json"
+
+          # Update latest
+          echo '${{ steps.report.outputs.json }}' > "cost-reports/latest.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cost-reports/
+          git diff --staged --quiet || git commit -m "Add cost report: $PERIOD $DATE"
+          git push || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Generate Report
+  # ═══════════════════════════════════════════════════════════════════════════
+  report:
+    name: Generate Report
+    runs-on: ubuntu-latest
+    needs: collect
+
+    steps:
+      - name: Generate markdown report
+        id: markdown
+        run: |
+          PERIOD="${{ inputs.period || 'weekly' }}"
+          TOTAL_COST="${{ needs.collect.outputs.total_cost }}"
+
+          cat << 'EOF' > /tmp/report.md
+          # Resource Usage & Cost Report
+
+          **Period:** $PERIOD
+          **Generated:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          ## Summary
+
+          | Metric | Value |
+          |--------|-------|
+          EOF
+
+          echo '${{ needs.collect.outputs.report }}' | jq -r '
+            "| Total CPU | \(.totals.cpu) cores |",
+            "| Total Memory | \(.totals.memory_gb) GB |",
+            "| Total Storage | \(.totals.storage_gb) GB |",
+            "| **Total Cost** | **$\(.totals.cost)** |"
+          ' >> /tmp/report.md
+
+          echo "" >> /tmp/report.md
+          echo "## By Environment" >> /tmp/report.md
+          echo "" >> /tmp/report.md
+          echo "| Environment | Apps | Cost |" >> /tmp/report.md
+          echo "|-------------|------|------|" >> /tmp/report.md
+
+          echo '${{ needs.collect.outputs.report }}' | jq -r '
+            .apps | group_by(.environment) | .[] |
+            "| \(.[0].environment) | \(length) | $\([.[].costs.total] | add | . * 100 | floor / 100) |"
+          ' >> /tmp/report.md
+
+          echo "" >> /tmp/report.md
+          echo "## Top 10 Apps by Cost" >> /tmp/report.md
+          echo "" >> /tmp/report.md
+          echo "| App | Environment | CPU | Memory | Cost |" >> /tmp/report.md
+          echo "|-----|-------------|-----|--------|------|" >> /tmp/report.md
+
+          echo '${{ needs.collect.outputs.report }}' | jq -r '
+            .apps | sort_by(.costs.total) | reverse | .[0:10][] |
+            "| \(.name) | \(.environment) | \(.resources.cpu) | \(.resources.memory_gb)GB | $\(.costs.total) |"
+          ' >> /tmp/report.md
+
+          REPORT=$(cat /tmp/report.md)
+          echo "markdown<<EOF" >> $GITHUB_OUTPUT
+          echo "$REPORT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update summary
+        run: |
+          echo "${{ steps.markdown.outputs.markdown }}" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [collect, report]
+
+    steps:
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          PERIOD="${{ inputs.period || 'weekly' }}"
+          TOTAL_COST="${{ needs.collect.outputs.total_cost }}"
+
+          # Get environment breakdown
+          ENV_BREAKDOWN=$(echo '${{ needs.collect.outputs.report }}' | jq -r '
+            .apps | group_by(.environment) | .[] |
+            "\(.[0].environment): $\([.[].costs.total] | add | . * 100 | floor / 100)"
+          ' | tr '\n' ', ' | sed 's/,$//')
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"good\",
+                \"title\": \"📊 ${PERIOD^} Cost Report\",
+                \"fields\": [
+                  {\"title\": \"Total Cost\", \"value\": \"\$${TOTAL_COST}\", \"short\": true},
+                  {\"title\": \"Period\", \"value\": \"$PERIOD\", \"short\": true},
+                  {\"title\": \"By Environment\", \"value\": \"$ENV_BREAKDOWN\", \"short\": false}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Full Report>\"
+              }]
+            }" || true
+
+      - name: Send Discord notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          PERIOD="${{ inputs.period || 'weekly' }}"
+          TOTAL_COST="${{ needs.collect.outputs.total_cost }}"
+
+          curl -s -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"📊 ${PERIOD^} Cost Report\",
+                \"color\": 3066993,
+                \"fields\": [
+                  {\"name\": \"Total Cost\", \"value\": \"\$${TOTAL_COST}\", \"inline\": true},
+                  {\"name\": \"Period\", \"value\": \"$PERIOD\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"Generated by dokku-deploy-system\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Budget Alert
+  # ═══════════════════════════════════════════════════════════════════════════
+  budget-alert:
+    name: Check Budget
+    runs-on: ubuntu-latest
+    needs: collect
+    if: secrets.COST_BUDGET_MONTHLY != ''
+
+    steps:
+      - name: Check against budget
+        env:
+          BUDGET: ${{ secrets.COST_BUDGET_MONTHLY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          TOTAL_COST="${{ needs.collect.outputs.total_cost }}"
+          PERIOD="${{ inputs.period || 'weekly' }}"
+
+          # Extrapolate to monthly if needed
+          case "$PERIOD" in
+            daily) MONTHLY_ESTIMATE=$(echo "scale=2; $TOTAL_COST * 30" | bc) ;;
+            weekly) MONTHLY_ESTIMATE=$(echo "scale=2; $TOTAL_COST * 4.33" | bc) ;;
+            monthly) MONTHLY_ESTIMATE="$TOTAL_COST" ;;
+          esac
+
+          BUDGET_PCT=$(echo "scale=0; $MONTHLY_ESTIMATE * 100 / $BUDGET" | bc)
+
+          echo "Monthly estimate: \$${MONTHLY_ESTIMATE}"
+          echo "Budget: \$${BUDGET}"
+          echo "Usage: ${BUDGET_PCT}%"
+
+          if [ "$BUDGET_PCT" -gt 80 ]; then
+            echo "::warning::Budget alert: ${BUDGET_PCT}% of monthly budget"
+
+            if [ -n "$SLACK_WEBHOOK_URL" ]; then
+              if [ "$BUDGET_PCT" -gt 100 ]; then
+                COLOR="danger"
+                EMOJI="🚨"
+              else
+                COLOR="warning"
+                EMOJI="⚠️"
+              fi
+
+              curl -s -X POST "$SLACK_WEBHOOK_URL" \
+                -H 'Content-type: application/json' \
+                --data "{
+                  \"attachments\": [{
+                    \"color\": \"$COLOR\",
+                    \"title\": \"$EMOJI Budget Alert\",
+                    \"text\": \"Estimated monthly cost (\$${MONTHLY_ESTIMATE}) is ${BUDGET_PCT}% of budget (\$${BUDGET})\",
+                    \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Report>\"
+                  }]
+                }" || true
+            fi
+          fi

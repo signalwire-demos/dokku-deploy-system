@@ -1,0 +1,389 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# performance-monitor.yml - Performance Monitoring Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Track response times, error rates, and availability metrics for all apps.
+#
+# Metrics collected:
+#   - Response time (p50, p95, p99)
+#   - Error rate (4xx, 5xx)
+#   - Availability (uptime percentage)
+#   - SSL certificate expiry
+#
+# Runs:
+#   - Every 15 minutes (scheduled)
+#   - On demand via workflow_dispatch
+#
+# Results:
+#   - Updated in dashboard/metrics.json
+#   - Alerts sent if thresholds exceeded
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Performance Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Every 15 minutes
+
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'Specific app to monitor (leave empty for all)'
+        required: false
+        type: string
+      detailed:
+        description: 'Run detailed analysis (more requests, slower)'
+        type: boolean
+        default: false
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Collect Metrics
+  # ═══════════════════════════════════════════════════════════════════════════
+  collect:
+    name: Collect Metrics
+    runs-on: ubuntu-latest
+    outputs:
+      metrics: ${{ steps.metrics.outputs.json }}
+      alerts: ${{ steps.alerts.outputs.alerts }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: dashboard
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Get app list
+        id: apps
+        run: |
+          if [ -n "${{ inputs.app_name }}" ]; then
+            echo "apps=${{ inputs.app_name }}" >> $GITHUB_OUTPUT
+          else
+            # Get all apps, excluding previews and canaries
+            APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | \
+              tail -n +2 | grep -v "\-pr-" | grep -v "\-canary" | tr '\n' ' ')
+            echo "apps=$APPS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Collect performance metrics
+        id: metrics
+        run: |
+          BASE_DOMAIN="${{ secrets.BASE_DOMAIN }}"
+          DETAILED="${{ inputs.detailed }}"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Number of requests for percentile calculation
+          if [ "$DETAILED" == "true" ]; then
+            NUM_REQUESTS=100
+          else
+            NUM_REQUESTS=20
+          fi
+
+          echo "Collecting metrics for apps: ${{ steps.apps.outputs.apps }}"
+          echo ""
+
+          # Initialize metrics JSON
+          echo '{"timestamp":"'$TIMESTAMP'","apps":{}}' > /tmp/metrics.json
+
+          for APP in ${{ steps.apps.outputs.apps }}; do
+            DOMAIN="${APP}.${BASE_DOMAIN}"
+            URL="https://${DOMAIN}"
+
+            echo "═══════════════════════════════════════════════════════"
+            echo "  $APP"
+            echo "═══════════════════════════════════════════════════════"
+
+            # Initialize app metrics
+            TIMES=""
+            SUCCESS=0
+            CLIENT_ERRORS=0
+            SERVER_ERRORS=0
+            TOTAL=0
+
+            # Make requests and collect timing
+            for i in $(seq 1 $NUM_REQUESTS); do
+              RESULT=$(curl -s -o /dev/null -w "%{http_code},%{time_total}" \
+                --max-time 10 "${URL}/health" 2>/dev/null || echo "000,10.0")
+
+              HTTP_CODE=$(echo "$RESULT" | cut -d',' -f1)
+              TIME_TOTAL=$(echo "$RESULT" | cut -d',' -f2)
+
+              TIMES="$TIMES $TIME_TOTAL"
+              TOTAL=$((TOTAL + 1))
+
+              if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                SUCCESS=$((SUCCESS + 1))
+              elif [ "$HTTP_CODE" -ge 400 ] && [ "$HTTP_CODE" -lt 500 ]; then
+                CLIENT_ERRORS=$((CLIENT_ERRORS + 1))
+              elif [ "$HTTP_CODE" -ge 500 ]; then
+                SERVER_ERRORS=$((SERVER_ERRORS + 1))
+              fi
+            done
+
+            # Calculate percentiles
+            SORTED_TIMES=$(echo $TIMES | tr ' ' '\n' | sort -n | grep -v '^$')
+
+            P50_IDX=$((NUM_REQUESTS * 50 / 100))
+            P95_IDX=$((NUM_REQUESTS * 95 / 100))
+            P99_IDX=$((NUM_REQUESTS * 99 / 100))
+
+            P50=$(echo "$SORTED_TIMES" | sed -n "${P50_IDX}p" | awk '{printf "%.0f", $1 * 1000}')
+            P95=$(echo "$SORTED_TIMES" | sed -n "${P95_IDX}p" | awk '{printf "%.0f", $1 * 1000}')
+            P99=$(echo "$SORTED_TIMES" | sed -n "${P99_IDX}p" | awk '{printf "%.0f", $1 * 1000}')
+
+            # Calculate rates
+            if [ "$TOTAL" -gt 0 ]; then
+              SUCCESS_RATE=$(echo "scale=2; $SUCCESS * 100 / $TOTAL" | bc)
+              ERROR_RATE=$(echo "scale=2; ($CLIENT_ERRORS + $SERVER_ERRORS) * 100 / $TOTAL" | bc)
+            else
+              SUCCESS_RATE=0
+              ERROR_RATE=100
+            fi
+
+            # Check SSL expiry
+            SSL_EXPIRY=$(echo | openssl s_client -servername "$DOMAIN" -connect "$DOMAIN:443" 2>/dev/null | \
+              openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+            if [ -n "$SSL_EXPIRY" ]; then
+              SSL_EXPIRY_EPOCH=$(date -d "$SSL_EXPIRY" +%s 2>/dev/null || echo "0")
+              NOW_EPOCH=$(date +%s)
+              SSL_DAYS_LEFT=$(( (SSL_EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+            else
+              SSL_DAYS_LEFT=-1
+            fi
+
+            echo "  Response times: p50=${P50}ms, p95=${P95}ms, p99=${P99}ms"
+            echo "  Success rate: ${SUCCESS_RATE}%"
+            echo "  Error rate: ${ERROR_RATE}%"
+            echo "  SSL expires in: ${SSL_DAYS_LEFT} days"
+            echo ""
+
+            # Add to metrics JSON
+            APP_METRICS=$(jq -n \
+              --arg app "$APP" \
+              --arg url "$URL" \
+              --argjson p50 "${P50:-0}" \
+              --argjson p95 "${P95:-0}" \
+              --argjson p99 "${P99:-0}" \
+              --argjson success_rate "${SUCCESS_RATE:-0}" \
+              --argjson error_rate "${ERROR_RATE:-0}" \
+              --argjson ssl_days "${SSL_DAYS_LEFT:--1}" \
+              --argjson requests "$TOTAL" \
+              --argjson successes "$SUCCESS" \
+              --argjson client_errors "$CLIENT_ERRORS" \
+              --argjson server_errors "$SERVER_ERRORS" \
+              '{
+                url: $url,
+                response_time: {
+                  p50: $p50,
+                  p95: $p95,
+                  p99: $p99
+                },
+                availability: {
+                  success_rate: $success_rate,
+                  error_rate: $error_rate,
+                  requests: $requests,
+                  successes: $successes,
+                  client_errors: $client_errors,
+                  server_errors: $server_errors
+                },
+                ssl: {
+                  days_until_expiry: $ssl_days
+                }
+              }')
+
+            # Merge into main metrics
+            jq --arg app "$APP" --argjson metrics "$APP_METRICS" \
+              '.apps[$app] = $metrics' /tmp/metrics.json > /tmp/metrics_new.json
+            mv /tmp/metrics_new.json /tmp/metrics.json
+          done
+
+          # Output metrics
+          METRICS_JSON=$(cat /tmp/metrics.json)
+          echo "json<<EOF" >> $GITHUB_OUTPUT
+          echo "$METRICS_JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Check alert thresholds
+        id: alerts
+        run: |
+          ALERTS=""
+
+          # Read metrics and check thresholds
+          echo '${{ steps.metrics.outputs.json }}' | jq -r '.apps | to_entries[] | "\(.key) \(.value.response_time.p99) \(.value.availability.error_rate) \(.value.ssl.days_until_expiry)"' | \
+          while read APP P99 ERROR_RATE SSL_DAYS; do
+            # High response time (> 2000ms p99)
+            if [ "${P99:-0}" -gt 2000 ]; then
+              ALERTS="$ALERTS\n⚠️ $APP: High response time (p99: ${P99}ms)"
+            fi
+
+            # High error rate (> 5%)
+            ERROR_INT=$(echo "$ERROR_RATE" | cut -d. -f1)
+            if [ "${ERROR_INT:-0}" -gt 5 ]; then
+              ALERTS="$ALERTS\n🚨 $APP: High error rate (${ERROR_RATE}%)"
+            fi
+
+            # SSL expiring soon (< 14 days)
+            if [ "${SSL_DAYS:-999}" -lt 14 ] && [ "${SSL_DAYS:-999}" -ge 0 ]; then
+              ALERTS="$ALERTS\n🔐 $APP: SSL expires in ${SSL_DAYS} days"
+            fi
+          done
+
+          if [ -n "$ALERTS" ]; then
+            echo "alerts<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$ALERTS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "alerts=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update metrics file
+        run: |
+          cd dashboard
+
+          # Merge new metrics with existing history
+          if [ -f "metrics.json" ]; then
+            # Keep last 24 hours of metrics (96 entries at 15 min intervals)
+            EXISTING=$(cat metrics.json)
+            NEW_ENTRY='${{ steps.metrics.outputs.json }}'
+
+            echo "$EXISTING" | jq --argjson new "$NEW_ENTRY" '
+              .history = ((.history // []) + [$new])[-96:]
+              | .latest = $new
+            ' > metrics_new.json
+            mv metrics_new.json metrics.json
+          else
+            # Initialize metrics file
+            echo '${{ steps.metrics.outputs.json }}' | jq '{latest: ., history: [.]}' > metrics.json
+          fi
+
+      - name: Commit metrics
+        run: |
+          cd dashboard
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add metrics.json
+          git diff --staged --quiet || git commit -m "Update performance metrics"
+          git push || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Send Alerts
+  # ═══════════════════════════════════════════════════════════════════════════
+  alerts:
+    name: Send Alerts
+    runs-on: ubuntu-latest
+    needs: collect
+    if: needs.collect.outputs.alerts != ''
+
+    steps:
+      - name: Send Slack alert
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          ALERTS="${{ needs.collect.outputs.alerts }}"
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"warning\",
+                \"title\": \"⚠️ Performance Alerts\",
+                \"text\": \"$ALERTS\",
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>\"
+              }]
+            }" || true
+
+      - name: Send Discord alert
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          ALERTS="${{ needs.collect.outputs.alerts }}"
+
+          curl -s -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"⚠️ Performance Alerts\",
+                \"description\": \"$ALERTS\",
+                \"color\": 16776960,
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+      - name: Send PagerDuty alert
+        env:
+          PAGERDUTY_ROUTING_KEY: ${{ secrets.PAGERDUTY_ROUTING_KEY }}
+        run: |
+          [ -z "$PAGERDUTY_ROUTING_KEY" ] && exit 0
+
+          ALERTS="${{ needs.collect.outputs.alerts }}"
+
+          # Only send to PagerDuty for critical alerts (high error rate)
+          if echo "$ALERTS" | grep -q "🚨"; then
+            curl -s -X POST "https://events.pagerduty.com/v2/enqueue" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"routing_key\": \"$PAGERDUTY_ROUTING_KEY\",
+                \"event_action\": \"trigger\",
+                \"dedup_key\": \"perf-monitor-$(date +%Y%m%d%H)\",
+                \"payload\": {
+                  \"summary\": \"High error rate detected\",
+                  \"severity\": \"error\",
+                  \"source\": \"dokku-deploy-system\",
+                  \"custom_details\": {
+                    \"alerts\": \"$ALERTS\"
+                  }
+                },
+                \"links\": [{
+                  \"href\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                  \"text\": \"View Details\"
+                }]
+              }" || true
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Summary
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Generate Summary
+    runs-on: ubuntu-latest
+    needs: collect
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Performance Monitoring Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### App Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| App | p50 | p95 | p99 | Success Rate | SSL Days |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-----|-----|-----|--------------|----------|" >> $GITHUB_STEP_SUMMARY
+
+          echo '${{ needs.collect.outputs.metrics }}' | jq -r '
+            .apps | to_entries[] |
+            "| \(.key) | \(.value.response_time.p50)ms | \(.value.response_time.p95)ms | \(.value.response_time.p99)ms | \(.value.availability.success_rate)% | \(.value.ssl.days_until_expiry) |"
+          ' >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ needs.collect.outputs.alerts }}" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Alerts" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.collect.outputs.alerts }}" >> $GITHUB_STEP_SUMMARY
+          fi

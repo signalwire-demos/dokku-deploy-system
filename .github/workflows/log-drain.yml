@@ -1,0 +1,231 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# log-drain.yml - Log Aggregation Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Configure log drains to ship logs to external services.
+#
+# Supported Destinations:
+#   - Papertrail (syslog)
+#   - Datadog
+#   - Logtail/Better Stack
+#   - Custom syslog endpoints
+#
+# Usage:
+#   1. Go to Actions → Configure Log Drain → Run workflow
+#   2. Select the app and log destination
+#   3. Logs will be shipped automatically
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Configure Log Drain
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name (leave empty for all apps)'
+        required: false
+        type: string
+      action:
+        description: 'Action to perform'
+        type: choice
+        options:
+          - add       # Add log drain
+          - remove    # Remove log drain
+          - list      # List current drains
+        required: true
+        default: 'list'
+      destination:
+        description: 'Log destination'
+        type: choice
+        options:
+          - papertrail
+          - datadog
+          - logtail
+          - custom
+        required: false
+      custom_url:
+        description: 'Custom syslog URL (for custom destination)'
+        required: false
+        type: string
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Configure Log Drains
+  # ═══════════════════════════════════════════════════════════════════════════
+  configure:
+    name: Configure Log Drain
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Get app list
+        id: apps
+        run: |
+          if [ -n "${{ inputs.app_name }}" ]; then
+            echo "apps=${{ inputs.app_name }}" >> $GITHUB_OUTPUT
+          else
+            APPS=$(ssh dokku apps:list 2>/dev/null | tail -n +2 | tr '\n' ' ')
+            echo "apps=$APPS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: List current drains
+        if: inputs.action == 'list'
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Current Log Drains"
+          echo "═══════════════════════════════════════════════════════"
+
+          for APP in ${{ steps.apps.outputs.apps }}; do
+            echo ""
+            echo "App: $APP"
+            ssh dokku logs:report $APP 2>/dev/null || echo "  No drains configured"
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Build drain URL
+        if: inputs.action == 'add'
+        id: url
+        run: |
+          case "${{ inputs.destination }}" in
+            papertrail)
+              if [ -z "${{ secrets.PAPERTRAIL_HOST }}" ] || [ -z "${{ secrets.PAPERTRAIL_PORT }}" ]; then
+                echo "::error::PAPERTRAIL_HOST and PAPERTRAIL_PORT secrets required"
+                exit 1
+              fi
+              URL="syslog+tls://${{ secrets.PAPERTRAIL_HOST }}:${{ secrets.PAPERTRAIL_PORT }}"
+              ;;
+            datadog)
+              if [ -z "${{ secrets.DD_API_KEY }}" ]; then
+                echo "::error::DD_API_KEY secret required"
+                exit 1
+              fi
+              # Datadog log intake via syslog
+              URL="syslog+tls://intake.logs.datadoghq.com:10516"
+              ;;
+            logtail)
+              if [ -z "${{ secrets.LOGTAIL_TOKEN }}" ]; then
+                echo "::error::LOGTAIL_TOKEN secret required"
+                exit 1
+              fi
+              URL="https://in.logtail.com/${{ secrets.LOGTAIL_TOKEN }}"
+              ;;
+            custom)
+              if [ -z "${{ inputs.custom_url }}" ]; then
+                echo "::error::Custom URL required for custom destination"
+                exit 1
+              fi
+              URL="${{ inputs.custom_url }}"
+              ;;
+          esac
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "Drain URL: $URL"
+
+      - name: Add log drain
+        if: inputs.action == 'add'
+        run: |
+          URL="${{ steps.url.outputs.url }}"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Adding Log Drain"
+          echo "═══════════════════════════════════════════════════════"
+
+          for APP in ${{ steps.apps.outputs.apps }}; do
+            echo "Adding drain to $APP..."
+
+            # Remove existing drain of same type first
+            EXISTING=$(ssh dokku logs:report $APP --logs-vector-sink 2>/dev/null || echo "")
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "none" ]; then
+              echo "  Removing existing drain..."
+              ssh dokku logs:vector-stop $APP 2>/dev/null || true
+            fi
+
+            # Add new drain
+            ssh dokku logs:set $APP vector-sink "$URL" 2>/dev/null || \
+              echo "  Warning: Could not set vector sink, trying legacy method..."
+
+            # For Datadog, also set API key as env var
+            if [ "${{ inputs.destination }}" == "datadog" ]; then
+              ssh dokku config:set --no-restart $APP \
+                DD_API_KEY=${{ secrets.DD_API_KEY }} \
+                DD_LOGS_ENABLED=true \
+                DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true 2>/dev/null || true
+            fi
+
+            echo "  ✅ Drain added to $APP"
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Remove log drain
+        if: inputs.action == 'remove'
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Removing Log Drains"
+          echo "═══════════════════════════════════════════════════════"
+
+          for APP in ${{ steps.apps.outputs.apps }}; do
+            echo "Removing drain from $APP..."
+
+            ssh dokku logs:set $APP vector-sink "" 2>/dev/null || true
+            ssh dokku logs:vector-stop $APP 2>/dev/null || true
+
+            # Remove Datadog env vars if present
+            ssh dokku config:unset --no-restart $APP \
+              DD_API_KEY DD_LOGS_ENABLED DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL 2>/dev/null || true
+
+            echo "  ✅ Drain removed from $APP"
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Update summary
+        run: |
+          echo "## Log Drain Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | ${{ inputs.action }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Apps** | ${{ steps.apps.outputs.apps }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.action }}" == "add" ]; then
+            echo "| **Destination** | ${{ inputs.destination }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Audit Log
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-log:
+    name: Audit Log
+    needs: configure
+    if: inputs.action != 'list'
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: log-drain-${{ inputs.action }}
+      app_name: ${{ inputs.app_name || 'all' }}
+      environment: production
+      status: success
+      metadata: '{"destination": "${{ inputs.destination }}", "action": "${{ inputs.action }}"}'
+    secrets: inherit

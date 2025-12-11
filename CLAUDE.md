@@ -15,7 +15,7 @@ preview.yml ─────┤         │
 cleanup.yml ─────┤         ├──→ audit-log.yml ──→ gh-pages
 scheduled.yml ───┘         │
      │                     └──→ apps.json, audit-log.json
-     └──→ health checks, backups (S3 + local), SSL renewal, Docker cleanup
+     └──→ health checks, backups (S3), SSL renewal, Docker cleanup
 ```
 
 ### Reusable Workflows (called by other repos)
@@ -32,7 +32,7 @@ scheduled.yml ───┘         │
 | Workflow | Purpose | Schedule |
 |----------|---------|----------|
 | **scheduled.yml** | Orphan cleanup, SSL renewal, health checks, Docker cleanup | Daily 6 AM UTC |
-| **scheduled.yml** | Database backups (local + S3) | Daily 2 AM UTC |
+| **scheduled.yml** | Database backups (S3) | Daily 2 AM UTC |
 | **cleanup.yml** | Manual app destruction with safety checks | Manual |
 | **rollback.yml** | Rollback to previous release version | Manual |
 | **lock.yml** | Deploy lock management | Manual |
@@ -215,17 +215,17 @@ dokku-cli rollback myapp v3    # Rollback to specific version
 
 ## Database Backups
 
-Backups run daily at 2 AM UTC with dual storage:
+Backups run daily at 2 AM UTC and stream directly to S3:
 
 | Location | Retention | Cleanup |
 |----------|-----------|---------|
-| Server (`/var/backups/dokku/`) | 7 days | Workflow deletes old files |
 | S3 (`s3://{bucket}/{postgres,mysql}/{app}/`) | 30 days | S3 lifecycle rule |
+
+The workflow streams `dokku postgres:export | gzip` directly to S3 without local storage.
 
 Manual backup via CLI:
 ```bash
 dokku-cli db myapp backup postgres           # Download locally
-dokku-cli db myapp backup-server postgres    # Store on server
 ```
 
 Requires AWS secrets configured (see GitHub Configuration above).

@@ -366,16 +366,15 @@ Optionally set `DEPLOY_WEBHOOK_SECRET` for HMAC signature verification.
 
 ## Database Backups
 
-Automatic daily backups at 2 AM UTC with dual storage (local + S3), plus manual backups on demand.
+Automatic daily backups at 2 AM UTC streamed directly to S3, plus manual backups on demand.
 
 **Scheduled Backups:**
 - Runs daily for all apps with linked databases
 - PostgreSQL and MySQL supported
-- Dual storage: local server + S3 (if configured)
+- Streams directly to S3 (no local storage required)
 
 | Location | Retention | Cleanup |
 |----------|-----------|---------|
-| Server (`/var/backups/dokku/`) | 7 days | Workflow auto-deletes |
 | S3 (`s3://{bucket}/{postgres,mysql}/{app}/`) | 30 days | S3 lifecycle rule |
 
 **Manual Backup:**
@@ -386,15 +385,8 @@ Actions → Database Backup → Run workflow
 **Via CLI:**
 ```bash
 dokku-cli db myapp backup postgres           # Download locally
-dokku-cli db myapp backup-server postgres    # Save to server
 dokku-cli db myapp list-backups              # List available backups
 dokku-cli db myapp restore backup.gz postgres
-```
-
-**Server Setup Required:**
-```bash
-sudo mkdir -p /var/backups/dokku/{postgres,mysql}
-sudo chown -R dokku:dokku /var/backups/dokku
 ```
 
 **S3 Setup (Optional but Recommended):**

@@ -205,14 +205,13 @@ sudo chown -R dokku:dokku /var/backups/dokku
 Runs daily at 2 AM UTC via `scheduled.yml`:
 - Backs up all linked PostgreSQL and MySQL databases
 - Skips preview apps (they use shared databases)
-- Dual storage: local server + S3 (if AWS credentials configured)
+- Streams directly to S3 (no local storage required)
 
 | Location | Retention | Cleanup |
 |----------|-----------|---------|
-| Server (`/var/backups/dokku/`) | 7 days | Workflow auto-deletes |
 | S3 (`s3://{bucket}/{postgres,mysql}/{app}/`) | 30 days | S3 lifecycle rule |
 
-**S3 Setup:** Add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_S3_BUCKET` to org secrets.
+**S3 Setup (Required):** Add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_S3_BUCKET` to org secrets.
 
 ### Manual Backups
 
@@ -228,10 +227,6 @@ Runs daily at 2 AM UTC via `scheduled.yml`:
 # Backup to local file
 dokku-cli db myapp backup postgres
 # Creates: myapp-20231210_153000.dump
-
-# Backup to server storage
-dokku-cli db myapp backup-server postgres
-# Creates: /var/backups/dokku/postgres/myapp/20231210_153000.gz
 
 # List available backups
 dokku-cli db myapp list-backups

@@ -16,6 +16,7 @@
 #
 # Optional Secrets:
 #   - SLACK_WEBHOOK_URL: Slack notifications
+#   - DISCORD_WEBHOOK_URL: Discord notifications
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -318,3 +319,44 @@ jobs:
               }]
             }" \
             "$SLACK_WEBHOOK_URL" || true
+
+      - name: Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          APP_NAME: ${{ steps.target.outputs.app_name }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          APPS_DESTROYED="${{ steps.cleanup.outputs.apps_destroyed }}"
+          SERVICES_DESTROYED="${{ steps.cleanup.outputs.services_destroyed }}"
+          DRY_RUN="${{ inputs.dry_run || 'false' }}"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            if [ "$DRY_RUN" == "true" ]; then
+              COLOR=16776960
+              TITLE="🔍 Cleanup (Dry Run): $APP_NAME"
+            else
+              COLOR=3066993
+              TITLE="🗑️ Cleanup Complete: $APP_NAME"
+            fi
+          else
+            COLOR=15158332
+            TITLE="❌ Cleanup Failed: $APP_NAME"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Apps Destroyed\", \"value\": \"$APPS_DESTROYED\", \"inline\": true},
+                  {\"name\": \"Services Destroyed\", \"value\": \"$SERVICES_DESTROYED\", \"inline\": true},
+                  {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"Cleanup Workflow\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true

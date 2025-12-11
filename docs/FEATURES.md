@@ -332,7 +332,20 @@ View Workflow | View Commit
 
 ### Configuration
 
-Set the `SLACK_WEBHOOK_URL` secret in your GitHub organization or repository settings.
+Set notification webhook secrets in your GitHub organization settings:
+
+| Secret | Description |
+|--------|-------------|
+| `SLACK_WEBHOOK_URL` | Slack incoming webhook URL |
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL |
+
+Both are optional - notifications will be skipped if the secret is not set.
+
+**Creating a Discord Webhook:**
+1. Open Discord and go to your server
+2. Right-click the channel → Edit Channel → Integrations → Webhooks
+3. Click "New Webhook" and copy the URL
+4. Add as `DISCORD_WEBHOOK_URL` secret in GitHub
 
 ---
 

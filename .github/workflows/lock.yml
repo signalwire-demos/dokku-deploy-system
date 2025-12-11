@@ -17,6 +17,7 @@
 #
 # Optional Secrets:
 #   - SLACK_WEBHOOK_URL: Slack notifications
+#   - DISCORD_WEBHOOK_URL: Discord notifications
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -199,3 +200,41 @@ jobs:
               }]
             }" \
             "$SLACK_WEBHOOK_URL" || true
+
+      - name: Notify Discord
+        if: inputs.action != 'status'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ inputs.action }}" == "lock" ]; then
+            COLOR=16776960
+            TITLE="🔒 App Locked: ${{ inputs.app_name }}"
+            DESC="Deployments are now blocked"
+            FIELDS="[
+              {\"name\": \"Reason\", \"value\": \"${{ inputs.reason }}\", \"inline\": false},
+              {\"name\": \"Locked by\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+            ]"
+          else
+            COLOR=3066993
+            TITLE="🔓 App Unlocked: ${{ inputs.app_name }}"
+            DESC="Deployments are now allowed"
+            FIELDS="[
+              {\"name\": \"Previously locked by\", \"value\": \"${{ steps.current.outputs.locked_by }}\", \"inline\": true},
+              {\"name\": \"Unlocked by\", \"value\": \"${{ github.actor }}\", \"inline\": true}
+            ]"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"description\": \"$DESC\",
+                \"color\": $COLOR,
+                \"fields\": $FIELDS,
+                \"footer\": {\"text\": \"Deploy Lock Workflow\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true

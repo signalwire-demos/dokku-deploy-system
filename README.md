@@ -362,6 +362,8 @@ Add to your GitHub organization (Settings → Secrets → Actions):
 | `DOKKU_SSH_PRIVATE_KEY` | (generated private key) | SSH authentication |
 | `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
 | `GH_ORG_TOKEN` | (fine-grained PAT) | Multi-purpose org token (see below) |
+| `SLACK_WEBHOOK_URL` | (optional) | Slack notifications |
+| `DISCORD_WEBHOOK_URL` | (optional) | Discord notifications |
 
 **Note**: Org-level secrets are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
 

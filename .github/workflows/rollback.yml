@@ -11,6 +11,7 @@
 #
 # Optional Secrets:
 #   - SLACK_WEBHOOK_URL: Slack notifications
+#   - DISCORD_WEBHOOK_URL: Discord notifications
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -226,6 +227,46 @@ jobs:
               }]
             }" \
             "$SLACK_WEBHOOK_URL" || true
+
+      - name: Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          APP="${{ steps.app.outputs.app_name }}"
+          PREV_REV="${{ steps.current.outputs.current_rev }}"
+          TARGET="${{ steps.rollback.outputs.target_release }}"
+          STATUS="${{ steps.verify.outputs.status }}"
+          DOMAIN="${{ steps.verify.outputs.domain }}"
+
+          if [ "${{ job.status }}" == "success" ] && [ "$STATUS" == "success" ]; then
+            COLOR=16776960
+            TITLE="⏪ Rollback Successful"
+          else
+            COLOR=15158332
+            TITLE="⚠️ Rollback Completed (verify manually)"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"App\", \"value\": \"$APP\", \"inline\": true},
+                  {\"name\": \"Environment\", \"value\": \"${{ github.event.inputs.environment }}\", \"inline\": true},
+                  {\"name\": \"Rolled back to\", \"value\": \"$TARGET\", \"inline\": true},
+                  {\"name\": \"Previous Rev\", \"value\": \"$PREV_REV\", \"inline\": true},
+                  {\"name\": \"Triggered by\", \"value\": \"${{ github.actor }}\", \"inline\": true},
+                  {\"name\": \"URL\", \"value\": \"https://$DOMAIN\", \"inline\": false}
+                ],
+                \"footer\": {\"text\": \"Rollback Workflow\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
 
   cancelled:
     name: Rollback Cancelled

@@ -256,6 +256,7 @@ ssh dokku@server run myapp env
 | `DOKKU_HOST` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | Deploy SSH key |
 | `BASE_DOMAIN` | Base domain |
+| `GH_ORG_TOKEN` | Multi-purpose PAT (dashboard, environments, cleanup, preview security) |
 
 ---
 

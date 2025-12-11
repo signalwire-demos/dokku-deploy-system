@@ -30,16 +30,7 @@ When a pull request is opened:
 
 ### Required Secret
 
-Add `GH_ORG_TOKEN` to your org secrets:
-- Type: Fine-grained Personal Access Token
-- Scope: `read:org` (to check org membership)
-
-```bash
-gh secret set GH_ORG_TOKEN \
-  --org signalwire-demos \
-  --visibility all \
-  --body "github_pat_xxx"
-```
+The `GH_ORG_TOKEN` org secret (a fine-grained PAT) is required for org membership checks. This is the same token used for dashboard updates, environment creation, and cleanup. See [SETUP-GUIDE.md](./SETUP-GUIDE.md#54-set-gh_org_token-required) for full configuration.
 
 ### Manual Trigger for External PRs
 

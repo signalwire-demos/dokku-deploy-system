@@ -148,9 +148,9 @@ Options:
 - `task`: Choose `all`, `cleanup-orphans`, `renew-certs`, or `health-check`
 - `dry_run`: Preview what would be deleted (cleanup only)
 
-### Required Secret for Cleanup
+### Required Secret: GH_ORG_TOKEN
 
-Add `GH_ORG_TOKEN` to org secrets (fine-grained PAT with Metadata read access):
+Add `GH_ORG_TOKEN` to org secrets (fine-grained PAT with expanded permissions):
 
 ```bash
 gh secret set GH_ORG_TOKEN \
@@ -159,7 +159,11 @@ gh secret set GH_ORG_TOKEN \
   --body "github_pat_xxx"
 ```
 
-This token allows the cleanup workflow to check if repos/PRs still exist.
+This single token handles multiple system functions:
+- **Cleanup**: Check if repos/PRs still exist before deletion
+- **Preview Security**: Verify PR authors are org members
+- **Dashboard Updates**: Push to gh-pages branch
+- **Environment Creation**: Auto-create GitHub environments on deploy
 
 ## Manual App Cleanup
 
@@ -357,11 +361,19 @@ Add to your GitHub organization (Settings → Secrets → Actions):
 | `DOKKU_HOST` | `dokku.yourdomain.com` | Server hostname |
 | `DOKKU_SSH_PRIVATE_KEY` | (generated private key) | SSH authentication |
 | `BASE_DOMAIN` | `yourdomain.com` | Base domain for apps |
-| `GH_ORG_TOKEN` | (fine-grained PAT) | Org membership check for preview security |
+| `GH_ORG_TOKEN` | (fine-grained PAT) | Multi-purpose org token (see below) |
 
 **Note**: Org-level secrets are for **infrastructure only**. App-specific configuration uses Environment Variables (see below).
 
-**GH_ORG_TOKEN**: Required for preview security. Create a fine-grained PAT with `read:org` scope to check if PR authors are org members.
+**GH_ORG_TOKEN**: A single fine-grained PAT that handles multiple functions:
+- Preview security (check org membership)
+- Dashboard updates (push to gh-pages)
+- Environment creation (create production/staging/development/preview)
+- Cleanup safety checks (verify repos exist)
+
+Required permissions:
+- **Repository**: Actions (R/W), Contents (R/W), Environments (R/W), Metadata (R), Pull requests (R/W)
+- **Organization**: Members (R)
 
 ### 5. Configure Environment Variables (App Config)
 

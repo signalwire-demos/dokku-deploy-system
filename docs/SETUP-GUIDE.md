@@ -320,15 +320,22 @@ gh secret set SLACK_WEBHOOK_URL \
   --body "https://hooks.slack.com/services/XXX/YYY/ZZZ"
 ```
 
-### 5.4 Optional: Set GH_ORG_TOKEN for Cleanup
+### 5.4 Set GH_ORG_TOKEN (Required)
 
-The automatic cleanup workflow needs a token to check if repos/PRs still exist:
+The `GH_ORG_TOKEN` is a multi-purpose token used by several workflows:
 
 ```bash
 # Create a fine-grained PAT at https://github.com/settings/tokens?type=beta
 # - Resource owner: signalwire-demos
 # - Repository access: All repositories
-# - Permissions: Metadata (read-only) - this is the default
+# - Repository permissions:
+#   - Actions: Read and write
+#   - Contents: Read and write
+#   - Environments: Read and write
+#   - Metadata: Read (auto-selected)
+#   - Pull requests: Read and write
+# - Organization permissions:
+#   - Members: Read
 
 gh secret set GH_ORG_TOKEN \
   --org signalwire-demos \
@@ -336,9 +343,11 @@ gh secret set GH_ORG_TOKEN \
   --body "github_pat_xxx"
 ```
 
-This enables the daily cleanup to detect:
-- Apps whose repos have been deleted
-- PR preview apps for closed/merged PRs
+This single token enables:
+- **Cleanup**: Check if repos/PRs still exist before deletion
+- **Preview Security**: Verify PR authors are org members
+- **Dashboard Updates**: Push app status to gh-pages branch
+- **Environment Creation**: Auto-create GitHub environments on deploy
 
 ### 5.5 Configure App-Specific Environment Variables
 

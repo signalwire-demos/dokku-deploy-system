@@ -150,4 +150,4 @@ Preview deployments are restricted to org members to prevent malicious code from
 3. Enter the repo (e.g., `signalwire-demos/my-app`) and PR number
 4. Select action: `deploy` or `destroy`
 
-Requires `GH_ORG_TOKEN` secret with `read:org` scope for org membership checks.
+Requires `GH_ORG_TOKEN` secret (fine-grained PAT with org members read + repo permissions for dashboard, environments, and cleanup).

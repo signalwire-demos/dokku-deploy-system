@@ -1,0 +1,395 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# schedule-deploy.yml - Scheduled Deployment Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Schedule deployments for a future time. Useful for:
+#   - Off-hours deployments (weekends, nights)
+#   - Coordinated releases across teams
+#   - Change window compliance
+#
+# Scheduled deploys are stored as repository variables and executed
+# by the scheduler job that runs every 15 minutes.
+#
+# Usage:
+#   1. Go to Actions → Schedule Deploy → Run workflow
+#   2. Enter the repository, branch, and scheduled time
+#   3. The deployment will run at the specified time
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Schedule Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - schedule
+          - cancel
+          - list
+        default: schedule
+      repo:
+        description: 'Repository (e.g., signalwire-demos/my-app)'
+        required: false
+        type: string
+      branch:
+        description: 'Branch to deploy (e.g., main, staging)'
+        required: false
+        type: string
+        default: 'main'
+      scheduled_time:
+        description: 'Scheduled time (ISO 8601, e.g., 2025-12-15T03:00:00Z)'
+        required: false
+        type: string
+      schedule_id:
+        description: 'Schedule ID to cancel (for cancel action)'
+        required: false
+        type: string
+
+  # Run every 15 minutes to check for scheduled deployments
+  schedule:
+    - cron: '*/15 * * * *'
+
+env:
+  SCHEDULES_FILE: scheduled-deploys.json
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Schedule Management - Add, cancel, or list scheduled deploys
+  # ═══════════════════════════════════════════════════════════════════════════
+  manage-schedule:
+    name: Manage Schedule
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      schedules_updated: ${{ steps.manage.outputs.updated }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Manage scheduled deploys
+        id: manage
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          ACTION: ${{ github.event.inputs.action }}
+          REPO: ${{ github.event.inputs.repo }}
+          BRANCH: ${{ github.event.inputs.branch }}
+          SCHEDULED_TIME: ${{ github.event.inputs.scheduled_time }}
+          SCHEDULE_ID: ${{ github.event.inputs.schedule_id }}
+        run: |
+          # Initialize or load schedules file
+          if [ ! -f "$SCHEDULES_FILE" ]; then
+            echo '{"schedules":[]}' > "$SCHEDULES_FILE"
+          fi
+
+          case "$ACTION" in
+            schedule)
+              # Validate inputs
+              if [ -z "$REPO" ] || [ -z "$SCHEDULED_TIME" ]; then
+                echo "::error::Repository and scheduled_time are required for scheduling"
+                exit 1
+              fi
+
+              # Validate time format and ensure it's in the future
+              SCHEDULED_EPOCH=$(date -d "$SCHEDULED_TIME" +%s 2>/dev/null || echo "invalid")
+              if [ "$SCHEDULED_EPOCH" == "invalid" ]; then
+                echo "::error::Invalid time format. Use ISO 8601 (e.g., 2025-12-15T03:00:00Z)"
+                exit 1
+              fi
+
+              NOW_EPOCH=$(date +%s)
+              if [ "$SCHEDULED_EPOCH" -le "$NOW_EPOCH" ]; then
+                echo "::error::Scheduled time must be in the future"
+                exit 1
+              fi
+
+              # Generate schedule ID
+              SCHEDULE_ID="sched-$(date +%s)-$(echo $RANDOM | md5sum | head -c 6)"
+
+              # Add to schedules
+              jq --arg id "$SCHEDULE_ID" \
+                 --arg repo "$REPO" \
+                 --arg branch "$BRANCH" \
+                 --arg time "$SCHEDULED_TIME" \
+                 --arg actor "${{ github.actor }}" \
+                 --arg created "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '.schedules += [{
+                  "id": $id,
+                  "repo": $repo,
+                  "branch": $branch,
+                  "scheduled_time": $time,
+                  "created_by": $actor,
+                  "created_at": $created,
+                  "status": "pending"
+                }]' "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  ✅ Deployment Scheduled"
+              echo "═══════════════════════════════════════════════════════"
+              echo "  ID:         $SCHEDULE_ID"
+              echo "  Repository: $REPO"
+              echo "  Branch:     $BRANCH"
+              echo "  Time:       $SCHEDULED_TIME"
+              echo "  Created by: ${{ github.actor }}"
+              echo ""
+              echo "  To cancel: Run this workflow with action=cancel"
+              echo "             and schedule_id=$SCHEDULE_ID"
+              echo "═══════════════════════════════════════════════════════"
+              echo "updated=true" >> $GITHUB_OUTPUT
+              ;;
+
+            cancel)
+              if [ -z "$SCHEDULE_ID" ]; then
+                echo "::error::schedule_id is required for cancellation"
+                exit 1
+              fi
+
+              # Check if schedule exists
+              EXISTS=$(jq -r --arg id "$SCHEDULE_ID" '.schedules[] | select(.id == $id) | .id' "$SCHEDULES_FILE")
+              if [ -z "$EXISTS" ]; then
+                echo "::error::Schedule $SCHEDULE_ID not found"
+                exit 1
+              fi
+
+              # Remove from schedules
+              jq --arg id "$SCHEDULE_ID" '.schedules = [.schedules[] | select(.id != $id)]' \
+                "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  ✅ Schedule Cancelled: $SCHEDULE_ID"
+              echo "═══════════════════════════════════════════════════════"
+              echo "updated=true" >> $GITHUB_OUTPUT
+              ;;
+
+            list)
+              echo ""
+              echo "═══════════════════════════════════════════════════════"
+              echo "  Scheduled Deployments"
+              echo "═══════════════════════════════════════════════════════"
+
+              COUNT=$(jq '.schedules | length' "$SCHEDULES_FILE")
+              if [ "$COUNT" -eq 0 ]; then
+                echo "  No scheduled deployments"
+              else
+                jq -r '.schedules[] | "  \(.id) | \(.repo) | \(.branch) | \(.scheduled_time) | \(.status)"' "$SCHEDULES_FILE"
+              fi
+              echo "═══════════════════════════════════════════════════════"
+              echo "updated=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Commit schedule changes
+        if: steps.manage.outputs.updated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$SCHEDULES_FILE"
+          git commit -m "Update scheduled deploys [${{ github.event.inputs.action }}]
+
+          Action: ${{ github.event.inputs.action }}
+          Actor: ${{ github.actor }}
+
+          🤖 Generated by Schedule Deploy workflow" || echo "No changes to commit"
+          git push
+
+      - name: Notify Slack
+        if: steps.manage.outputs.updated == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ github.event.inputs.action }}" == "schedule" ]; then
+            TITLE="📅 Deployment Scheduled"
+            COLOR="good"
+            FIELDS="[
+              {\"title\": \"Repository\", \"value\": \"${{ github.event.inputs.repo }}\", \"short\": true},
+              {\"title\": \"Branch\", \"value\": \"${{ github.event.inputs.branch }}\", \"short\": true},
+              {\"title\": \"Scheduled Time\", \"value\": \"${{ github.event.inputs.scheduled_time }}\", \"short\": true},
+              {\"title\": \"Scheduled By\", \"value\": \"${{ github.actor }}\", \"short\": true}
+            ]"
+          else
+            TITLE="🗑️ Scheduled Deploy Cancelled"
+            COLOR="#808080"
+            FIELDS="[
+              {\"title\": \"Schedule ID\", \"value\": \"${{ github.event.inputs.schedule_id }}\", \"short\": true},
+              {\"title\": \"Cancelled By\", \"value\": \"${{ github.actor }}\", \"short\": true}
+            ]"
+          fi
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$TITLE\",
+                \"fields\": $FIELDS,
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" \
+            "$SLACK_WEBHOOK_URL" || true
+
+      - name: Notify Discord
+        if: steps.manage.outputs.updated == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ github.event.inputs.action }}" == "schedule" ]; then
+            TITLE="📅 Deployment Scheduled"
+            COLOR=3066993
+            FIELDS="[
+              {\"name\": \"Repository\", \"value\": \"${{ github.event.inputs.repo }}\", \"inline\": true},
+              {\"name\": \"Branch\", \"value\": \"${{ github.event.inputs.branch }}\", \"inline\": true},
+              {\"name\": \"Scheduled Time\", \"value\": \"${{ github.event.inputs.scheduled_time }}\", \"inline\": false}
+            ]"
+          else
+            TITLE="🗑️ Scheduled Deploy Cancelled"
+            COLOR=8421504
+            FIELDS="[
+              {\"name\": \"Schedule ID\", \"value\": \"${{ github.event.inputs.schedule_id }}\", \"inline\": true}
+            ]"
+          fi
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": $FIELDS,
+                \"footer\": {\"text\": \"Scheduled by ${{ github.actor }}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Execute Scheduled Deploys - Check and run due deployments
+  # ═══════════════════════════════════════════════════════════════════════════
+  execute-scheduled:
+    name: Execute Scheduled Deploys
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check and execute due deployments
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          if [ ! -f "$SCHEDULES_FILE" ]; then
+            echo "No schedules file found"
+            exit 0
+          fi
+
+          NOW_EPOCH=$(date +%s)
+          # 15 minute window (schedule runs every 15 minutes)
+          WINDOW=900
+
+          echo "Checking for due deployments..."
+          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+
+          # Process each pending schedule
+          UPDATED=false
+          jq -c '.schedules[] | select(.status == "pending")' "$SCHEDULES_FILE" | while read -r schedule; do
+            SCHEDULE_ID=$(echo "$schedule" | jq -r '.id')
+            REPO=$(echo "$schedule" | jq -r '.repo')
+            BRANCH=$(echo "$schedule" | jq -r '.branch')
+            SCHEDULED_TIME=$(echo "$schedule" | jq -r '.scheduled_time')
+            CREATED_BY=$(echo "$schedule" | jq -r '.created_by')
+
+            SCHEDULED_EPOCH=$(date -d "$SCHEDULED_TIME" +%s 2>/dev/null || echo "0")
+            TIME_DIFF=$((SCHEDULED_EPOCH - NOW_EPOCH))
+
+            # If scheduled time is within the window (past or within next 15 min)
+            if [ "$TIME_DIFF" -le "$WINDOW" ] && [ "$TIME_DIFF" -gt -3600 ]; then
+              echo "═══════════════════════════════════════════════════════"
+              echo "  Executing scheduled deployment: $SCHEDULE_ID"
+              echo "  Repository: $REPO"
+              echo "  Branch: $BRANCH"
+              echo "  Scheduled by: $CREATED_BY"
+              echo "═══════════════════════════════════════════════════════"
+
+              # Update status to running
+              jq --arg id "$SCHEDULE_ID" \
+                 '(.schedules[] | select(.id == $id)).status = "running"' \
+                 "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+
+              # Trigger the deployment workflow in the target repo
+              if gh workflow run deploy.yml --repo "$REPO" --ref "$BRANCH" 2>/dev/null; then
+                echo "✅ Deployment triggered successfully"
+
+                # Update status to completed
+                jq --arg id "$SCHEDULE_ID" \
+                   --arg completed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                   '(.schedules[] | select(.id == $id)) |= . + {"status": "completed", "completed_at": $completed}' \
+                   "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+              else
+                echo "❌ Failed to trigger deployment"
+
+                # Update status to failed
+                jq --arg id "$SCHEDULE_ID" \
+                   --arg failed "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                   '(.schedules[] | select(.id == $id)) |= . + {"status": "failed", "failed_at": $failed}' \
+                   "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+              fi
+
+              UPDATED=true
+              echo ""
+            fi
+          done
+
+          # Cleanup old completed/failed schedules (older than 7 days)
+          CUTOFF=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          jq --arg cutoff "$CUTOFF" \
+             '.schedules = [.schedules[] | select(.status == "pending" or (.completed_at // .failed_at // "9999") > $cutoff)]' \
+             "$SCHEDULES_FILE" > tmp.json && mv tmp.json "$SCHEDULES_FILE"
+
+      - name: Commit status updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$SCHEDULES_FILE" 2>/dev/null || true
+          git diff --staged --quiet || {
+            git commit -m "Update scheduled deploy statuses
+
+          🤖 Generated by Schedule Deploy scheduler"
+            git push
+          }
+
+      - name: Notify on execution
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          # Check if any deployments were triggered
+          COMPLETED=$(jq -r '.schedules[] | select(.status == "completed") | select(.completed_at > (now - 900 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | .repo' "$SCHEDULES_FILE" 2>/dev/null | head -1)
+
+          if [ -n "$COMPLETED" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{
+                \"attachments\": [{
+                  \"color\": \"good\",
+                  \"title\": \"⏰ Scheduled Deployment Executed\",
+                  \"fields\": [
+                    {\"title\": \"Repository\", \"value\": \"$COMPLETED\", \"short\": true}
+                  ],
+                  \"footer\": \"Scheduled deployment triggered automatically\"
+                }]
+              }" \
+              "$SLACK_WEBHOOK_URL" || true
+          fi

@@ -1,0 +1,281 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# audit-log.yml - Deployment Audit Log
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# REUSABLE WORKFLOW - Called by deploy.yml and preview.yml to log deployments.
+#
+# Maintains a comprehensive audit log of all deployment activities:
+#   - Who deployed what, when, and to which environment
+#   - Success/failure status
+#   - Commit information
+#   - Duration metrics
+#
+# Log is stored on gh-pages branch as audit-log.json for easy access.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Audit Log
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        description: 'Action type (deploy, preview, rollback, cleanup, lock, unlock)'
+        required: true
+        type: string
+      app_name:
+        description: 'Application name'
+        required: true
+        type: string
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: string
+      status:
+        description: 'Deployment status (success, failure, cancelled)'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Commit SHA'
+        required: false
+        type: string
+      commit_message:
+        description: 'Commit message'
+        required: false
+        type: string
+      duration:
+        description: 'Deployment duration'
+        required: false
+        type: string
+      url:
+        description: 'Application URL'
+        required: false
+        type: string
+      metadata:
+        description: 'Additional metadata (JSON string)'
+        required: false
+        type: string
+    secrets:
+      GH_ORG_TOKEN:
+        required: false
+
+  # Also allow manual log entries
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action type'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - preview
+          - rollback
+          - cleanup
+          - lock
+          - unlock
+          - manual
+      app_name:
+        description: 'Application name'
+        required: true
+        type: string
+      environment:
+        description: 'Environment'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+          - preview
+      status:
+        description: 'Status'
+        required: true
+        type: choice
+        options:
+          - success
+          - failure
+          - cancelled
+      note:
+        description: 'Note or comment'
+        required: false
+        type: string
+
+jobs:
+  log-entry:
+    name: Write Audit Log
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GH_ORG_TOKEN || github.token }}
+
+      - name: Create audit log entry
+        env:
+          ACTION: ${{ inputs.action || github.event.inputs.action }}
+          APP_NAME: ${{ inputs.app_name || github.event.inputs.app_name }}
+          ENVIRONMENT: ${{ inputs.environment || github.event.inputs.environment }}
+          STATUS: ${{ inputs.status || github.event.inputs.status }}
+          COMMIT_SHA: ${{ inputs.commit_sha || github.sha }}
+          COMMIT_MESSAGE: ${{ inputs.commit_message || '' }}
+          DURATION: ${{ inputs.duration || '' }}
+          URL: ${{ inputs.url || '' }}
+          METADATA: ${{ inputs.metadata || '{}' }}
+          NOTE: ${{ github.event.inputs.note || '' }}
+          ACTOR: ${{ github.actor }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          AUDIT_FILE="audit-log.json"
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Initialize audit log if it doesn't exist
+          if [ ! -f "$AUDIT_FILE" ]; then
+            echo '{"entries":[],"stats":{"total_deploys":0,"successful":0,"failed":0}}' > "$AUDIT_FILE"
+          fi
+
+          # Create entry ID
+          ENTRY_ID="audit-$(date +%s)-$(echo $RANDOM | md5sum | head -c 6)"
+
+          # Build the entry
+          ENTRY=$(jq -n \
+            --arg id "$ENTRY_ID" \
+            --arg timestamp "$TIMESTAMP" \
+            --arg action "$ACTION" \
+            --arg app "$APP_NAME" \
+            --arg env "$ENVIRONMENT" \
+            --arg status "$STATUS" \
+            --arg actor "$ACTOR" \
+            --arg repo "$REPO" \
+            --arg sha "${COMMIT_SHA:0:7}" \
+            --arg sha_full "$COMMIT_SHA" \
+            --arg message "$COMMIT_MESSAGE" \
+            --arg duration "$DURATION" \
+            --arg url "$URL" \
+            --arg note "$NOTE" \
+            --arg run_id "$RUN_ID" \
+            --arg run_url "$RUN_URL" \
+            --argjson metadata "$METADATA" \
+            '{
+              id: $id,
+              timestamp: $timestamp,
+              action: $action,
+              app_name: $app,
+              environment: $env,
+              status: $status,
+              actor: $actor,
+              repository: $repo,
+              commit: {
+                sha: $sha,
+                sha_full: $sha_full,
+                message: $message
+              },
+              duration: $duration,
+              url: $url,
+              note: $note,
+              workflow: {
+                run_id: $run_id,
+                run_url: $run_url
+              },
+              metadata: $metadata
+            }')
+
+          # Add entry to log (prepend for newest first)
+          jq --argjson entry "$ENTRY" '.entries = [$entry] + .entries' "$AUDIT_FILE" > tmp.json
+
+          # Update stats
+          if [ "$ACTION" == "deploy" ] || [ "$ACTION" == "preview" ]; then
+            jq '.stats.total_deploys += 1' tmp.json > tmp2.json && mv tmp2.json tmp.json
+            if [ "$STATUS" == "success" ]; then
+              jq '.stats.successful += 1' tmp.json > tmp2.json && mv tmp2.json tmp.json
+            else
+              jq '.stats.failed += 1' tmp.json > tmp2.json && mv tmp2.json tmp.json
+            fi
+          fi
+
+          # Keep only last 1000 entries to prevent file from growing too large
+          jq '.entries = .entries[:1000]' tmp.json > "$AUDIT_FILE"
+          rm -f tmp.json tmp2.json
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  📝 Audit Log Entry Created"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  ID:          $ENTRY_ID"
+          echo "  Timestamp:   $TIMESTAMP"
+          echo "  Action:      $ACTION"
+          echo "  App:         $APP_NAME"
+          echo "  Environment: $ENVIRONMENT"
+          echo "  Status:      $STATUS"
+          echo "  Actor:       $ACTOR"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Generate audit report
+        run: |
+          # Generate a human-readable audit report (last 100 entries)
+          AUDIT_FILE="audit-log.json"
+          REPORT_FILE="audit-report.md"
+
+          cat > "$REPORT_FILE" << 'EOF'
+          # Deployment Audit Report
+
+          Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          ## Statistics
+
+          EOF
+
+          # Add stats
+          TOTAL=$(jq '.stats.total_deploys // 0' "$AUDIT_FILE")
+          SUCCESS=$(jq '.stats.successful // 0' "$AUDIT_FILE")
+          FAILED=$(jq '.stats.failed // 0' "$AUDIT_FILE")
+
+          if [ "$TOTAL" -gt 0 ]; then
+            SUCCESS_RATE=$(echo "scale=1; $SUCCESS * 100 / $TOTAL" | bc)
+          else
+            SUCCESS_RATE="N/A"
+          fi
+
+          cat >> "$REPORT_FILE" << EOF
+          | Metric | Value |
+          |--------|-------|
+          | Total Deployments | $TOTAL |
+          | Successful | $SUCCESS |
+          | Failed | $FAILED |
+          | Success Rate | ${SUCCESS_RATE}% |
+
+          ## Recent Activity (Last 50)
+
+          | Time | Action | App | Environment | Status | Actor |
+          |------|--------|-----|-------------|--------|-------|
+          EOF
+
+          # Add recent entries
+          jq -r '.entries[:50][] | "| \(.timestamp) | \(.action) | \(.app_name) | \(.environment) | \(.status) | \(.actor) |"' \
+            "$AUDIT_FILE" >> "$REPORT_FILE" 2>/dev/null || echo "| No entries yet | | | | | |" >> "$REPORT_FILE"
+
+          cat >> "$REPORT_FILE" << 'EOF'
+
+          ---
+
+          *Full audit log available in [audit-log.json](audit-log.json)*
+          EOF
+
+      - name: Commit audit log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add audit-log.json audit-report.md
+          git diff --staged --quiet || {
+            git commit -m "Update audit log: ${{ inputs.action || github.event.inputs.action }} ${{ inputs.app_name || github.event.inputs.app_name }}
+
+          Action: ${{ inputs.action || github.event.inputs.action }}
+          App: ${{ inputs.app_name || github.event.inputs.app_name }}
+          Status: ${{ inputs.status || github.event.inputs.status }}
+
+          🤖 Generated by Audit Log workflow"
+            git push
+          }

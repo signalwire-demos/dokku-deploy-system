@@ -10,6 +10,9 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Database Backups](#database-backups)
 - [Deploy Dashboard](#deploy-dashboard)
 - [Enhanced Notifications](#enhanced-notifications)
+- [Commit Status Checks](#commit-status-checks)
+- [Scheduled Deployments](#scheduled-deployments)
+- [Audit Log](#audit-log)
 
 ---
 
@@ -392,3 +395,156 @@ ssh dokku config:unset myapp DEPLOY_LOCKED DEPLOY_LOCK_REASON DEPLOY_LOCK_BY DEP
 2. Verify GitHub Pages is enabled
 3. Check workflow permissions
 4. Look for update-dashboard job errors in workflow logs
+
+---
+
+## Commit Status Checks
+
+Real-time deployment status on commits and PRs.
+
+### How It Works
+
+When a deployment starts:
+1. **Pending status** is set on the commit
+2. Deployment proceeds through all steps
+3. **Success status** is set with link to deployed app
+4. Or **Failure status** is set with link to workflow logs
+
+### Status Contexts
+
+Different contexts for different environments:
+- `deploy/production` - Production deployments
+- `deploy/staging` - Staging deployments
+- `deploy/development` - Development deployments
+- `preview/deploy` - Preview environment deployments
+
+### Viewing Status
+
+Commit status appears:
+- On the commit in GitHub UI
+- On pull requests that include the commit
+- In branch protection rules (can require passing status)
+
+### PR Comments
+
+When code from a merged PR is deployed, a comment is automatically added:
+
+> ## 🚀 Deployed to production
+>
+> | Status | URL |
+> |--------|-----|
+> | ✅ Deployed | https://myapp.domain.com |
+>
+> **Commit:** `abc1234`
+> **Duration:** 2m 34s
+> **Environment:** production
+
+---
+
+## Scheduled Deployments
+
+Schedule deployments for specific times - useful for:
+- Off-hours deployments (weekends, nights)
+- Coordinated releases across teams
+- Change window compliance
+
+### Scheduling a Deployment
+
+1. Go to [Actions → Schedule Deploy](../../actions/workflows/schedule-deploy.yml)
+2. Click "Run workflow"
+3. Enter:
+   - **Action**: `schedule`
+   - **Repository**: e.g., `signalwire-demos/my-app`
+   - **Branch**: e.g., `main`
+   - **Scheduled Time**: ISO 8601 format (e.g., `2025-12-15T03:00:00Z`)
+
+### Managing Schedules
+
+**List all scheduled deploys:**
+- Action: `list`
+
+**Cancel a scheduled deploy:**
+- Action: `cancel`
+- Schedule ID: The ID shown when scheduling
+
+### How It Works
+
+1. Schedules are stored in `scheduled-deploys.json` in the main branch
+2. A scheduler job runs every 15 minutes
+3. When a scheduled time arrives, the deployment is triggered
+4. Completed schedules are automatically cleaned up after 7 days
+
+### Notifications
+
+Slack/Discord notifications are sent when:
+- A deployment is scheduled
+- A scheduled deployment is cancelled
+- A scheduled deployment is executed
+
+---
+
+## Audit Log
+
+Comprehensive deployment history for compliance and debugging.
+
+### What's Logged
+
+Every deployment action is recorded:
+- **Deploys**: Production, staging, development
+- **Previews**: Deploy and cleanup
+- **Rollbacks**: Version changes
+- **Locks**: Lock and unlock operations
+
+### Log Location
+
+Logs are stored on the `gh-pages` branch:
+- `audit-log.json` - Machine-readable JSON
+- `audit-report.md` - Human-readable markdown
+
+Access at: `https://signalwire-demos.github.io/dokku-deploy-system/audit-log.json`
+
+### Log Entry Format
+
+```json
+{
+  "id": "audit-1702345678-abc123",
+  "timestamp": "2025-12-11T15:00:00Z",
+  "action": "deploy",
+  "app_name": "myapp",
+  "environment": "production",
+  "status": "success",
+  "actor": "username",
+  "repository": "signalwire-demos/myapp",
+  "commit": {
+    "sha": "abc1234",
+    "message": "Fix login bug"
+  },
+  "duration": "2m 34s",
+  "url": "https://myapp.domain.com",
+  "workflow": {
+    "run_id": "12345678",
+    "run_url": "https://github.com/..."
+  }
+}
+```
+
+### Statistics
+
+The audit log tracks:
+- Total deployments
+- Successful deployments
+- Failed deployments
+- Success rate percentage
+
+### Manual Log Entry
+
+For compliance or tracking external events:
+1. Go to [Actions → Audit Log](../../actions/workflows/audit-log.yml)
+2. Click "Run workflow"
+3. Fill in the event details
+
+### Retention
+
+- Last 1000 entries are kept
+- Older entries are automatically removed
+- For longer retention, download and archive the JSON file

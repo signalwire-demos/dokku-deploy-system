@@ -237,6 +237,25 @@ jobs:
       HEAD_REF: ${{ needs.setup.outputs.head_ref }}
 
     steps:
+      - name: Set pending commit status
+        uses: actions/github-script@v7
+        env:
+          TARGET_REPO: ${{ needs.setup.outputs.repo }}
+          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
+        with:
+          github-token: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          script: |
+            const [owner, repo] = process.env.TARGET_REPO.split('/');
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: process.env.HEAD_SHA,
+              state: 'pending',
+              context: 'preview/deploy',
+              description: 'Preview deployment in progress...',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
       - name: Create preview environment if needed
         env:
           GH_TOKEN: ${{ github.token }}
@@ -598,6 +617,47 @@ jobs:
               });
             }
 
+      - name: Set success commit status
+        uses: actions/github-script@v7
+        env:
+          TARGET_REPO: ${{ env.TARGET_REPO }}
+          HEAD_SHA: ${{ env.HEAD_SHA }}
+          APP_NAME: ${{ env.APP_NAME }}
+        with:
+          github-token: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          script: |
+            const [owner, repo] = process.env.TARGET_REPO.split('/');
+            const domain = `${process.env.APP_NAME}.${{ secrets.BASE_DOMAIN }}`;
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: process.env.HEAD_SHA,
+              state: 'success',
+              context: 'preview/deploy',
+              description: `Preview deployed to https://${domain}`,
+              target_url: `https://${domain}`
+            });
+
+      - name: Set failure commit status
+        if: failure()
+        uses: actions/github-script@v7
+        env:
+          TARGET_REPO: ${{ env.TARGET_REPO }}
+          HEAD_SHA: ${{ env.HEAD_SHA }}
+        with:
+          github-token: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          script: |
+            const [owner, repo] = process.env.TARGET_REPO.split('/');
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha: process.env.HEAD_SHA,
+              state: 'failure',
+              context: 'preview/deploy',
+              description: 'Preview deployment failed',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
   # ═══════════════════════════════════════════════════════════════════════════
   # Cleanup Preview
   # ═══════════════════════════════════════════════════════════════════════════
@@ -844,3 +904,34 @@ jobs:
               }]
             }" \
             "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Audit Log - Record preview deployment in audit log
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-log-deploy:
+    name: Audit Log (Deploy)
+    needs: [setup, deploy-preview]
+    if: always() && (needs.deploy-preview.result == 'success' || needs.deploy-preview.result == 'failure')
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: preview
+      app_name: ${{ needs.setup.outputs.app_name }}
+      environment: preview
+      status: ${{ needs.deploy-preview.result }}
+      commit_sha: ${{ needs.setup.outputs.head_sha }}
+      url: https://${{ needs.setup.outputs.app_name }}.${{ secrets.BASE_DOMAIN }}
+      metadata: '{"pr_number": "${{ needs.setup.outputs.pr_number }}", "pr_author": "${{ needs.setup.outputs.pr_author }}", "repo": "${{ needs.setup.outputs.repo }}"}'
+    secrets: inherit
+
+  audit-log-cleanup:
+    name: Audit Log (Cleanup)
+    needs: [setup, cleanup-preview]
+    if: always() && needs.cleanup-preview.result == 'success'
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: cleanup
+      app_name: ${{ needs.setup.outputs.app_name }}
+      environment: preview
+      status: success
+      metadata: '{"pr_number": "${{ needs.setup.outputs.pr_number }}", "repo": "${{ needs.setup.outputs.repo }}"}'
+    secrets: inherit

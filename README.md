@@ -17,6 +17,10 @@ A complete GitHub + Dokku auto-deployment system with preview environments, auto
 - **Release tasks** - Run migrations/commands after deploy
 - **Database backups** - Scheduled daily backups with retention policy
 - **Deploy dashboard** - GitHub Pages dashboard showing all app status
+- **Commit status checks** - Real-time deployment status on commits and PRs
+- **Scheduled deployments** - Schedule deploys for specific times (off-hours, change windows)
+- **Audit log** - Comprehensive deployment history with searchable logs
+- **PR notifications** - Automatic comments on PRs when code is deployed
 
 ## Directory Structure
 
@@ -30,7 +34,9 @@ dokku-deploy-system/
 │   ├── rollback.yml        # Manual rollback workflow
 │   ├── lock.yml            # Deploy lock management
 │   ├── backup.yml          # Manual database backup
-│   └── update-dashboard.yml # Dashboard update (called by deploy/cleanup)
+│   ├── update-dashboard.yml # Dashboard update (called by deploy/cleanup)
+│   ├── schedule-deploy.yml # Scheduled deployment management
+│   └── audit-log.yml       # Deployment audit logging
 ├── server-setup/           # Server installation scripts
 │   ├── 01-server-init.sh
 │   ├── 02-dokku-install.sh
@@ -233,6 +239,51 @@ release:
 ```
 
 Tasks run after git push, before health check. If any task fails, the deployment fails.
+
+## Scheduled Deployments
+
+Schedule deployments for specific times - useful for off-hours deploys, coordinated releases, or change window compliance.
+
+```
+Actions → Schedule Deploy → Run workflow
+```
+Options:
+- `action`: `schedule`, `cancel`, or `list`
+- `repo`: Repository to deploy (e.g., `signalwire-demos/my-app`)
+- `branch`: Branch to deploy (`main`, `staging`, etc.)
+- `scheduled_time`: ISO 8601 time (e.g., `2025-12-15T03:00:00Z`)
+- `schedule_id`: ID to cancel (for cancel action)
+
+The scheduler runs every 15 minutes and triggers deployments when their scheduled time arrives.
+
+## Audit Log
+
+Comprehensive deployment history stored on gh-pages branch:
+
+- **audit-log.json**: Machine-readable log of all deployments
+- **audit-report.md**: Human-readable summary with statistics
+
+Access the audit log at: `https://signalwire-demos.github.io/dokku-deploy-system/audit-log.json`
+
+Logged events include:
+- Deployments (success/failure)
+- Preview environments (deploy/cleanup)
+- Rollbacks
+- Lock/unlock operations
+
+## Commit Status Checks
+
+Deployments automatically update commit status on GitHub:
+
+- **Pending**: Shows while deployment is in progress
+- **Success**: Links directly to the deployed app URL
+- **Failure**: Links to the workflow run for debugging
+
+Status contexts:
+- `deploy/production` - Production deployments
+- `deploy/staging` - Staging deployments
+- `deploy/development` - Development deployments
+- `preview/deploy` - Preview environment deployments
 
 ## Database Backups
 

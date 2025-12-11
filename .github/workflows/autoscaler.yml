@@ -1,0 +1,476 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# autoscaler.yml - Resource Auto-Scaling Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Automatically scale app resources based on metrics or schedules.
+#
+# Configuration in .dokku/config.yml:
+#   scaling:
+#     production:
+#       min_instances: 2
+#       max_instances: 10
+#       metrics:
+#         cpu:
+#           scale_up_threshold: 80
+#           scale_down_threshold: 50
+#       schedule:
+#         - cron: "0 9 * * 1-5"
+#           instances: 5
+#         - cron: "0 18 * * 1-5"
+#           instances: 2
+#
+# Runs:
+#   - Every 5 minutes to check metrics
+#   - Manually via workflow_dispatch
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Autoscaler
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'Specific app to scale (leave empty for all)'
+        required: false
+        type: string
+      action:
+        description: 'Action to perform'
+        type: choice
+        options:
+          - check      # Check metrics and scale if needed
+          - status     # Show current scaling status
+          - scale-up   # Force scale up by 1
+          - scale-down # Force scale down by 1
+          - set        # Set specific instance count
+        default: 'check'
+      instances:
+        description: 'Instance count (for "set" action)'
+        required: false
+        type: string
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Discover - Find apps with scaling config
+  # ═══════════════════════════════════════════════════════════════════════════
+  discover:
+    name: Discover Scalable Apps
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.apps.outputs.apps }}
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Get app list
+        id: apps
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          # If specific app provided, use that
+          if [ -n "${{ inputs.app_name }}" ]; then
+            echo 'apps=["${{ inputs.app_name }}"]' >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get all production apps (non-preview, non-canary)
+          ALL_APPS=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} apps:list 2>/dev/null | tail -n +2)
+
+          SCALABLE_APPS="["
+          FIRST=true
+
+          for APP in $ALL_APPS; do
+            # Skip preview and canary apps
+            [[ "$APP" == *"-pr-"* ]] && continue
+            [[ "$APP" == *"-canary"* ]] && continue
+            [[ "$APP" == *"-dev"* ]] && continue
+            [[ "$APP" == *"-staging"* ]] && continue
+
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              SCALABLE_APPS="$SCALABLE_APPS,"
+            fi
+            SCALABLE_APPS="$SCALABLE_APPS\"$APP\""
+          done
+
+          SCALABLE_APPS="$SCALABLE_APPS]"
+
+          echo "apps=$SCALABLE_APPS" >> $GITHUB_OUTPUT
+          echo "Found apps: $SCALABLE_APPS"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Scale - Check metrics and scale apps
+  # ═══════════════════════════════════════════════════════════════════════════
+  scale:
+    name: Scale ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    needs: discover
+    if: needs.discover.outputs.apps != '[]'
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.discover.outputs.apps) }}
+      fail-fast: false
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Get scaling config
+        id: config
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          APP="${{ matrix.app }}"
+
+          # Try to find repo for this app
+          REPO="signalwire-demos/$APP"
+
+          # Download config if exists
+          CONFIG=$(gh api repos/$REPO/contents/.dokku/config.yml --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+
+          if [ -n "$CONFIG" ]; then
+            # Parse scaling config
+            MIN=$(echo "$CONFIG" | yq e '.scaling.production.min_instances // 1' -)
+            MAX=$(echo "$CONFIG" | yq e '.scaling.production.max_instances // 5' -)
+            CPU_UP=$(echo "$CONFIG" | yq e '.scaling.production.metrics.cpu.scale_up_threshold // 80' -)
+            CPU_DOWN=$(echo "$CONFIG" | yq e '.scaling.production.metrics.cpu.scale_down_threshold // 50' -)
+            COOLDOWN_UP=$(echo "$CONFIG" | yq e '.scaling.production.cooldown.scale_up // "3m"' - | sed 's/m//')
+            COOLDOWN_DOWN=$(echo "$CONFIG" | yq e '.scaling.production.cooldown.scale_down // "10m"' - | sed 's/m//')
+
+            echo "has_config=true" >> $GITHUB_OUTPUT
+          else
+            # Default values
+            MIN=1
+            MAX=3
+            CPU_UP=80
+            CPU_DOWN=50
+            COOLDOWN_UP=3
+            COOLDOWN_DOWN=10
+            echo "has_config=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "min=$MIN" >> $GITHUB_OUTPUT
+          echo "max=$MAX" >> $GITHUB_OUTPUT
+          echo "cpu_up=$CPU_UP" >> $GITHUB_OUTPUT
+          echo "cpu_down=$CPU_DOWN" >> $GITHUB_OUTPUT
+          echo "cooldown_up=$COOLDOWN_UP" >> $GITHUB_OUTPUT
+          echo "cooldown_down=$COOLDOWN_DOWN" >> $GITHUB_OUTPUT
+
+          echo "Scaling config for $APP:"
+          echo "  Min: $MIN, Max: $MAX"
+          echo "  CPU up: $CPU_UP%, down: $CPU_DOWN%"
+
+      - name: Get current state
+        id: current
+        run: |
+          APP="${{ matrix.app }}"
+
+          # Get current instance count
+          SCALE_INFO=$(ssh dokku ps:scale $APP 2>/dev/null || echo "web: 1")
+          CURRENT=$(echo "$SCALE_INFO" | grep -E "^web:" | awk '{print $2}' || echo "1")
+
+          # Get last scaling action timestamp
+          LAST_SCALE=$(ssh dokku config:get $APP LAST_SCALE_TIME 2>/dev/null || echo "0")
+          LAST_ACTION=$(ssh dokku config:get $APP LAST_SCALE_ACTION 2>/dev/null || echo "none")
+
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "last_scale=$LAST_SCALE" >> $GITHUB_OUTPUT
+          echo "last_action=$LAST_ACTION" >> $GITHUB_OUTPUT
+
+          echo "Current state for $APP:"
+          echo "  Instances: $CURRENT"
+          echo "  Last action: $LAST_ACTION at $LAST_SCALE"
+
+      - name: Show status
+        if: inputs.action == 'status'
+        run: |
+          APP="${{ matrix.app }}"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Scaling Status: $APP"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Current instances: ${{ steps.current.outputs.current }}"
+          echo "  Min/Max: ${{ steps.config.outputs.min }}/${{ steps.config.outputs.max }}"
+          echo "  CPU thresholds: ↑${{ steps.config.outputs.cpu_up }}% / ↓${{ steps.config.outputs.cpu_down }}%"
+          echo "  Last action: ${{ steps.current.outputs.last_action }}"
+          echo "  Config: ${{ steps.config.outputs.has_config }}"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Force scale up
+        if: inputs.action == 'scale-up'
+        run: |
+          APP="${{ matrix.app }}"
+          CURRENT=${{ steps.current.outputs.current }}
+          MAX=${{ steps.config.outputs.max }}
+          NEW=$((CURRENT + 1))
+
+          if [ "$NEW" -gt "$MAX" ]; then
+            echo "::warning::Cannot scale up: already at max ($MAX)"
+            exit 0
+          fi
+
+          echo "Scaling $APP up: $CURRENT → $NEW"
+          ssh dokku ps:scale $APP web=$NEW
+
+          ssh dokku config:set --no-restart $APP \
+            LAST_SCALE_TIME=$(date +%s) \
+            LAST_SCALE_ACTION=scale-up-manual
+
+          echo "✅ Scaled up to $NEW instances"
+
+      - name: Force scale down
+        if: inputs.action == 'scale-down'
+        run: |
+          APP="${{ matrix.app }}"
+          CURRENT=${{ steps.current.outputs.current }}
+          MIN=${{ steps.config.outputs.min }}
+          NEW=$((CURRENT - 1))
+
+          if [ "$NEW" -lt "$MIN" ]; then
+            echo "::warning::Cannot scale down: already at min ($MIN)"
+            exit 0
+          fi
+
+          echo "Scaling $APP down: $CURRENT → $NEW"
+          ssh dokku ps:scale $APP web=$NEW
+
+          ssh dokku config:set --no-restart $APP \
+            LAST_SCALE_TIME=$(date +%s) \
+            LAST_SCALE_ACTION=scale-down-manual
+
+          echo "✅ Scaled down to $NEW instances"
+
+      - name: Set instances
+        if: inputs.action == 'set' && inputs.instances != ''
+        run: |
+          APP="${{ matrix.app }}"
+          CURRENT=${{ steps.current.outputs.current }}
+          MIN=${{ steps.config.outputs.min }}
+          MAX=${{ steps.config.outputs.max }}
+          NEW=${{ inputs.instances }}
+
+          if [ "$NEW" -lt "$MIN" ] || [ "$NEW" -gt "$MAX" ]; then
+            echo "::error::Instance count must be between $MIN and $MAX"
+            exit 1
+          fi
+
+          echo "Setting $APP instances: $CURRENT → $NEW"
+          ssh dokku ps:scale $APP web=$NEW
+
+          ssh dokku config:set --no-restart $APP \
+            LAST_SCALE_TIME=$(date +%s) \
+            LAST_SCALE_ACTION=set-manual
+
+          echo "✅ Set to $NEW instances"
+
+      - name: Check metrics and scale
+        if: inputs.action == 'check' || inputs.action == ''
+        run: |
+          APP="${{ matrix.app }}"
+          CURRENT=${{ steps.current.outputs.current }}
+          MIN=${{ steps.config.outputs.min }}
+          MAX=${{ steps.config.outputs.max }}
+          CPU_UP=${{ steps.config.outputs.cpu_up }}
+          CPU_DOWN=${{ steps.config.outputs.cpu_down }}
+          COOLDOWN_UP=${{ steps.config.outputs.cooldown_up }}
+          COOLDOWN_DOWN=${{ steps.config.outputs.cooldown_down }}
+          LAST_SCALE=${{ steps.current.outputs.last_scale }}
+          LAST_ACTION=${{ steps.current.outputs.last_action }}
+
+          NOW=$(date +%s)
+
+          # Get CPU usage from container stats
+          # Note: This requires docker stats access; simplified version uses ps:report
+          CPU_RAW=$(ssh dokku ps:report $APP 2>/dev/null | grep -i cpu || echo "0%")
+          CPU=$(echo "$CPU_RAW" | grep -oE '[0-9]+' | head -1 || echo "0")
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Checking $APP"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Current: $CURRENT instances"
+          echo "  CPU: ${CPU}%"
+          echo "  Thresholds: ↑${CPU_UP}% / ↓${CPU_DOWN}%"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Check cooldown
+          if [ -n "$LAST_SCALE" ] && [ "$LAST_SCALE" != "0" ]; then
+            ELAPSED=$((NOW - LAST_SCALE))
+            ELAPSED_MIN=$((ELAPSED / 60))
+
+            if [ "$LAST_ACTION" == *"up"* ]; then
+              COOLDOWN=$((COOLDOWN_UP * 60))
+            else
+              COOLDOWN=$((COOLDOWN_DOWN * 60))
+            fi
+
+            if [ "$ELAPSED" -lt "$COOLDOWN" ]; then
+              REMAINING=$(((COOLDOWN - ELAPSED) / 60))
+              echo "In cooldown period. ${REMAINING}m remaining."
+              exit 0
+            fi
+          fi
+
+          # Determine scaling action
+          ACTION="none"
+          NEW=$CURRENT
+
+          if [ "$CPU" -gt "$CPU_UP" ] && [ "$CURRENT" -lt "$MAX" ]; then
+            ACTION="scale-up"
+            NEW=$((CURRENT + 1))
+            echo "CPU ${CPU}% > ${CPU_UP}% threshold"
+            echo "Scaling up: $CURRENT → $NEW"
+          elif [ "$CPU" -lt "$CPU_DOWN" ] && [ "$CURRENT" -gt "$MIN" ]; then
+            ACTION="scale-down"
+            NEW=$((CURRENT - 1))
+            echo "CPU ${CPU}% < ${CPU_DOWN}% threshold"
+            echo "Scaling down: $CURRENT → $NEW"
+          else
+            echo "No scaling needed. CPU within thresholds."
+          fi
+
+          # Apply scaling
+          if [ "$ACTION" != "none" ]; then
+            ssh dokku ps:scale $APP web=$NEW
+
+            ssh dokku config:set --no-restart $APP \
+              LAST_SCALE_TIME=$NOW \
+              LAST_SCALE_ACTION=$ACTION
+
+            echo "✅ Scaled to $NEW instances"
+
+            # Report to summary
+            echo "### $APP" >> $GITHUB_STEP_SUMMARY
+            echo "- Action: $ACTION" >> $GITHUB_STEP_SUMMARY
+            echo "- Instances: $CURRENT → $NEW" >> $GITHUB_STEP_SUMMARY
+            echo "- CPU: ${CPU}%" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Schedule - Check scheduled scaling rules
+  # ═══════════════════════════════════════════════════════════════════════════
+  scheduled-scale:
+    name: Check Scheduled Scaling
+    runs-on: ubuntu-latest
+    needs: discover
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Check scheduled rules
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          CURRENT_HOUR=$(date +%H)
+          CURRENT_MIN=$(date +%M)
+          CURRENT_DOW=$(date +%u)  # 1=Monday, 7=Sunday
+
+          echo "Current time: $CURRENT_HOUR:$CURRENT_MIN (day $CURRENT_DOW)"
+
+          APPS='${{ needs.discover.outputs.apps }}'
+
+          for APP in $(echo "$APPS" | jq -r '.[]'); do
+            REPO="signalwire-demos/$APP"
+
+            # Get config
+            CONFIG=$(gh api repos/$REPO/contents/.dokku/config.yml --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+
+            if [ -z "$CONFIG" ]; then
+              continue
+            fi
+
+            # Check scheduled rules
+            SCHEDULES=$(echo "$CONFIG" | yq e '.scaling.production.schedule // []' - -o=json)
+            SCHEDULE_COUNT=$(echo "$SCHEDULES" | jq 'length')
+
+            if [ "$SCHEDULE_COUNT" -eq 0 ]; then
+              continue
+            fi
+
+            echo ""
+            echo "Checking schedules for $APP..."
+
+            for i in $(seq 0 $((SCHEDULE_COUNT - 1))); do
+              CRON=$(echo "$SCHEDULES" | jq -r ".[$i].cron")
+              TARGET=$(echo "$SCHEDULES" | jq -r ".[$i].instances")
+
+              # Parse cron (simplified: minute hour * * dow)
+              CRON_MIN=$(echo "$CRON" | awk '{print $1}')
+              CRON_HOUR=$(echo "$CRON" | awk '{print $2}')
+              CRON_DOW=$(echo "$CRON" | awk '{print $5}')
+
+              # Check if schedule matches (simplified)
+              if [ "$CRON_HOUR" == "$CURRENT_HOUR" ] && [ "$CRON_MIN" -le "$CURRENT_MIN" ] && [ "$CRON_MIN" -ge "$((CURRENT_MIN - 5))" ]; then
+                # Check day of week
+                if [[ "$CRON_DOW" == "*" ]] || [[ "$CRON_DOW" == *"$CURRENT_DOW"* ]]; then
+                  echo "Schedule match: $CRON → $TARGET instances"
+
+                  # Get current
+                  CURRENT=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} ps:scale $APP 2>/dev/null | grep -E "^web:" | awk '{print $2}' || echo "1")
+
+                  if [ "$CURRENT" != "$TARGET" ]; then
+                    echo "Scaling $APP: $CURRENT → $TARGET"
+                    ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} ps:scale $APP web=$TARGET
+                    ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} config:set --no-restart $APP \
+                      LAST_SCALE_TIME=$(date +%s) \
+                      LAST_SCALE_ACTION=scheduled
+                    echo "✅ Scheduled scaling applied"
+                  else
+                    echo "Already at target ($TARGET)"
+                  fi
+                fi
+              fi
+            done
+          done
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Summary
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [discover, scale]
+    if: always() && github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Autoscaler Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | ${{ inputs.action || 'check' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Apps** | ${{ needs.discover.outputs.apps }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Result** | ${{ needs.scale.result }} |" >> $GITHUB_STEP_SUMMARY

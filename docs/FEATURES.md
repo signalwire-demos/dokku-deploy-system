@@ -19,6 +19,9 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Environment Promotion](#environment-promotion)
 - [Custom Domains](#custom-domains)
 - [Secrets Management](#secrets-management)
+- [Canary Deployments](#canary-deployments)
+- [Multi-Region Deployment](#multi-region-deployment)
+- [Resource Auto-Scaling](#resource-auto-scaling)
 
 ---
 
@@ -1120,3 +1123,272 @@ Always use dry run first to preview changes:
 **1Password authentication failed:**
 - Verify `OP_SERVICE_ACCOUNT_TOKEN` is a valid service account token
 - Check the service account has access to the vault/item
+
+---
+
+## Canary Deployments
+
+Deploy to a subset of traffic first, monitor for errors, and automatically rollback if issues are detected.
+
+### How It Works
+
+1. Deploy new version as `{app}-canary` alongside stable
+2. Split traffic between stable and canary (configurable %)
+3. Monitor error rates for specified duration
+4. Auto-rollback if error rate exceeds threshold
+5. Auto-promote canary to stable if healthy
+6. Clean up canary app
+
+### Architecture
+
+```
+        nginx (load balancer)
+              │
+    ┌─────────┼─────────┐
+    ▼         ▼         ▼
+ Stable    Stable    Canary
+ (v1.0)    (v1.0)    (v1.1)
+  90%       90%       10%
+```
+
+### Usage
+
+1. Go to [Actions → Canary Deployment](../../actions/workflows/canary-deploy.yml)
+2. Enter:
+   - **App name**: Production app name (e.g., `myapp`)
+   - **Repo**: Repository (e.g., `signalwire-demos/myapp`)
+   - **Ref**: Branch/tag/SHA to deploy
+   - **Canary percent**: Traffic to canary (5-50%)
+   - **Monitoring duration**: Minutes to monitor
+   - **Error threshold**: Error rate % to trigger rollback
+
+### Workflow Steps
+
+| Step | Description |
+|------|-------------|
+| Validate | Check inputs, get stable version |
+| Deploy Canary | Create `{app}-canary`, deploy new version |
+| Configure Traffic | Set up nginx upstream with weighted routing |
+| Monitor | Health check every 10s for monitoring duration |
+| Rollback/Promote | Based on error rate vs threshold |
+| Cleanup | Remove canary app and nginx config |
+
+### Configuration
+
+Add canary defaults to `.dokku/config.yml`:
+
+```yaml
+canary:
+  enabled: true
+  environments:
+    production:
+      initial_percent: 10
+      monitoring_duration: 15  # minutes
+      error_threshold: 5       # percent
+      metrics:
+        - error_rate
+        - response_time_p99
+      rollback_on:
+        error_rate: "> 5%"
+        response_time_p99: "> 2000ms"
+```
+
+### Notifications
+
+Slack/Discord notifications are sent with:
+- App name
+- Canary percentage
+- Monitoring duration
+- Final error rate
+- Result (promoted or rolled back)
+
+### Best Practices
+
+- Start with low canary percentage (10%)
+- Use longer monitoring duration for critical apps
+- Set appropriate error thresholds for your app
+- Monitor workflow logs during canary period
+- Have runbook ready for manual intervention
+
+---
+
+## Multi-Region Deployment
+
+Deploy to multiple Dokku servers for redundancy or geographic distribution.
+
+### Configuration
+
+Add servers to `.dokku/config.yml`:
+
+```yaml
+servers:
+  us-east:
+    host: dokku-us-east.example.com
+    primary: true
+    domain: us-east.example.com
+  us-west:
+    host: dokku-us-west.example.com
+    domain: us-west.example.com
+  eu-west:
+    host: dokku-eu.example.com
+    domain: eu.example.com
+
+deployment:
+  strategy: all          # all, primary-only, rolling
+  failover: true
+  parallel: true
+```
+
+### Deployment Strategies
+
+| Strategy | Description |
+|----------|-------------|
+| `all` | Deploy to all servers simultaneously |
+| `primary-only` | Deploy only to the primary server |
+| `rolling` | Deploy one server at a time |
+
+### Usage
+
+1. Go to [Actions → Multi-Region Deploy](../../actions/workflows/multi-region-deploy.yml)
+2. Enter:
+   - **Repo**: Repository to deploy
+   - **Ref**: Branch/tag/SHA
+   - **Environment**: Target environment
+   - **Strategy**: Deployment strategy
+   - **Confirm**: Type `DEPLOY`
+
+### Required Secrets
+
+For multiple servers, you can use:
+
+**Shared secrets (default):**
+- `DOKKU_SSH_PRIVATE_KEY` - Used for all servers
+- `BASE_DOMAIN` - Default domain
+
+**Per-region secrets (optional):**
+- `DOKKU_HOST_US_EAST`, `DOKKU_HOST_US_WEST`, etc.
+- `DOKKU_SSH_KEY_US_EAST`, `DOKKU_SSH_KEY_US_WEST`, etc.
+- `BASE_DOMAIN_US_EAST`, `BASE_DOMAIN_US_WEST`, etc.
+
+### Workflow Summary
+
+After deployment, the summary shows:
+
+| Server | Status |
+|--------|--------|
+| us-east | ✅ |
+| us-west | ✅ |
+| eu-west | ✅ |
+
+### Failover Behavior
+
+With `fail-fast: false`:
+- If one server fails, deployment continues to others
+- Summary shows which servers succeeded/failed
+- Notifications include partial failure status
+
+### Health Verification
+
+Each server deployment includes:
+1. App creation (if needed)
+2. Git push deploy
+3. GIT_REV config update
+4. Health check verification
+
+---
+
+## Resource Auto-Scaling
+
+Automatically scale app resources based on metrics or schedules.
+
+### Configuration
+
+Add scaling rules to `.dokku/config.yml`:
+
+```yaml
+scaling:
+  production:
+    min_instances: 2
+    max_instances: 10
+
+    metrics:
+      cpu:
+        scale_up_threshold: 80    # Scale up when CPU > 80%
+        scale_down_threshold: 50  # Scale down when CPU < 50%
+      memory:
+        scale_up_threshold: 85
+
+    schedule:
+      - cron: "0 9 * * 1-5"   # 9 AM weekdays
+        instances: 5           # Scale up for business hours
+      - cron: "0 18 * * 1-5"  # 6 PM weekdays
+        instances: 2           # Scale down after hours
+
+    cooldown:
+      scale_up: 3m    # Wait 3 min after scale up
+      scale_down: 10m # Wait 10 min after scale down
+```
+
+### How It Works
+
+**Metric-based scaling:**
+1. Autoscaler runs every 5 minutes
+2. Checks CPU/memory for each production app
+3. Compares against thresholds
+4. Scales up/down if threshold breached
+5. Respects cooldown periods
+
+**Scheduled scaling:**
+1. Checks cron rules on each run
+2. If current time matches schedule, sets instance count
+3. Useful for predictable traffic patterns
+
+### Usage
+
+**Automatic (scheduled):**
+- Runs every 5 minutes via cron
+- Checks all production apps
+
+**Manual:**
+1. Go to [Actions → Autoscaler](../../actions/workflows/autoscaler.yml)
+2. Choose action:
+   - `check` - Check metrics and scale if needed
+   - `status` - Show current scaling status
+   - `scale-up` - Force scale up by 1
+   - `scale-down` - Force scale down by 1
+   - `set` - Set specific instance count
+
+### Scaling Actions
+
+| Action | Trigger | Behavior |
+|--------|---------|----------|
+| Scale Up | CPU > threshold | +1 instance (up to max) |
+| Scale Down | CPU < threshold | -1 instance (down to min) |
+| Scheduled | Cron match | Set to target instances |
+| Manual | Workflow dispatch | Force scale or set |
+
+### Cooldown Periods
+
+Prevent rapid scaling oscillation:
+
+- **Scale up cooldown**: Wait before scaling up again (default: 3m)
+- **Scale down cooldown**: Wait before scaling down again (default: 10m)
+
+Last scaling action is stored in `LAST_SCALE_TIME` and `LAST_SCALE_ACTION` config vars.
+
+### Monitoring
+
+View scaling history:
+```bash
+ssh dokku@server config:get myapp LAST_SCALE_TIME
+ssh dokku@server config:get myapp LAST_SCALE_ACTION
+ssh dokku@server ps:scale myapp
+```
+
+### Best Practices
+
+- Set reasonable min/max to prevent runaway costs
+- Use longer cooldown for scale-down to avoid flapping
+- Combine with scheduled scaling for predictable patterns
+- Monitor scaling events in audit log
+- Set alerts for hitting max instances

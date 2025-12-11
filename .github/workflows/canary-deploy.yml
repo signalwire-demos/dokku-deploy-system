@@ -1,0 +1,623 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# canary-deploy.yml - Canary Deployment Workflow
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Deploy to a subset of traffic first, monitor for errors, and automatically
+# rollback if issues are detected.
+#
+# How it works:
+#   1. Deploy new version as {app}-canary alongside stable
+#   2. Split traffic between stable and canary (configurable %)
+#   3. Monitor error rates for specified duration
+#   4. Auto-rollback if error rate exceeds threshold
+#   5. Auto-promote canary to stable if healthy
+#   6. Clean up canary app
+#
+# Usage:
+#   1. Go to Actions → Canary Deployment → Run workflow
+#   2. Enter app name and configure parameters
+#   3. Monitor the workflow for health status
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Canary Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App to deploy (production app name)'
+        required: true
+        type: string
+      repo:
+        description: 'Repository (e.g., signalwire-demos/myapp)'
+        required: true
+        type: string
+      ref:
+        description: 'Branch/tag/SHA to deploy'
+        required: true
+        default: 'main'
+        type: string
+      canary_percent:
+        description: 'Percentage of traffic to canary (5-50)'
+        required: true
+        default: '10'
+        type: string
+      monitoring_duration:
+        description: 'Minutes to monitor before full rollout'
+        required: true
+        default: '15'
+        type: string
+      error_threshold:
+        description: 'Error rate % to trigger rollback'
+        required: true
+        default: '5'
+        type: string
+
+env:
+  APP_NAME: ${{ inputs.app_name }}
+  CANARY_APP: ${{ inputs.app_name }}-canary
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Validate - Check inputs and current state
+  # ═══════════════════════════════════════════════════════════════════════════
+  validate:
+    name: Validate Canary Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      stable_sha: ${{ steps.stable.outputs.sha }}
+      canary_sha: ${{ steps.canary.outputs.sha }}
+
+    steps:
+      - name: Validate canary percentage
+        run: |
+          PERCENT="${{ inputs.canary_percent }}"
+          if [ "$PERCENT" -lt 5 ] || [ "$PERCENT" -gt 50 ]; then
+            echo "::error::Canary percentage must be between 5 and 50"
+            exit 1
+          fi
+          echo "Canary will receive ${PERCENT}% of traffic"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Check stable app exists
+        id: stable
+        run: |
+          if ! ssh dokku apps:exists ${{ env.APP_NAME }} 2>/dev/null; then
+            echo "::error::Stable app '${{ env.APP_NAME }}' does not exist"
+            exit 1
+          fi
+
+          STABLE_SHA=$(ssh dokku config:get ${{ env.APP_NAME }} GIT_REV 2>/dev/null || echo "unknown")
+          echo "sha=$STABLE_SHA" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Canary Deployment Configuration"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Stable app: ${{ env.APP_NAME }}"
+          echo "  Stable version: ${STABLE_SHA:0:7}"
+          echo "  Canary traffic: ${{ inputs.canary_percent }}%"
+          echo "  Monitoring: ${{ inputs.monitoring_duration }} minutes"
+          echo "  Error threshold: ${{ inputs.error_threshold }}%"
+          echo "═══════════════════════════════════════════════════════"
+
+      - name: Get canary version
+        id: canary
+        env:
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          # Get the SHA for the ref being deployed
+          CANARY_SHA=$(gh api repos/${{ inputs.repo }}/commits/${{ inputs.ref }} --jq '.sha')
+          echo "sha=$CANARY_SHA" >> $GITHUB_OUTPUT
+          echo "Canary version: ${CANARY_SHA:0:7}"
+
+          if [ "$CANARY_SHA" == "${{ steps.stable.outputs.sha }}" ]; then
+            echo "::warning::Canary version is the same as stable version"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Deploy Canary - Create and deploy canary app
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-canary:
+    name: Deploy Canary
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout canary version
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku
+            HostName ${{ secrets.DOKKU_HOST }}
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Create canary app
+        run: |
+          echo "Creating canary app: ${{ env.CANARY_APP }}"
+
+          # Create app if not exists
+          if ! ssh dokku apps:exists ${{ env.CANARY_APP }} 2>/dev/null; then
+            ssh dokku apps:create ${{ env.CANARY_APP }}
+          fi
+
+          # Copy config from stable app (except certain vars)
+          echo "Copying configuration from stable app..."
+          CONFIG=$(ssh dokku config:export ${{ env.APP_NAME }} --format shell 2>/dev/null || echo "")
+
+          if [ -n "$CONFIG" ]; then
+            # Filter out app-specific vars
+            FILTERED_CONFIG=$(echo "$CONFIG" | grep -v "^GIT_REV=" | grep -v "^CANARY=" || echo "")
+            if [ -n "$FILTERED_CONFIG" ]; then
+              echo "$FILTERED_CONFIG" | while read -r line; do
+                if [ -n "$line" ]; then
+                  ssh dokku config:set --no-restart ${{ env.CANARY_APP }} "$line" 2>/dev/null || true
+                fi
+              done
+            fi
+          fi
+
+          # Mark as canary
+          ssh dokku config:set --no-restart ${{ env.CANARY_APP }} \
+            CANARY=true \
+            CANARY_OF=${{ env.APP_NAME }} \
+            GIT_REV=${{ needs.validate.outputs.canary_sha }}
+
+      - name: Deploy canary
+        run: |
+          echo "Deploying canary version..."
+
+          git remote add canary dokku@${{ secrets.DOKKU_HOST }}:${{ env.CANARY_APP }} 2>/dev/null || \
+          git remote set-url canary dokku@${{ secrets.DOKKU_HOST }}:${{ env.CANARY_APP }}
+
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push canary HEAD:refs/heads/main --force
+
+      - name: Verify canary health
+        run: |
+          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Waiting for canary to start..."
+          sleep 20
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://$CANARY_DOMAIN/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Canary is healthy (HTTP $HTTP_STATUS)"
+          else
+            echo "::error::Canary failed health check (HTTP $HTTP_STATUS)"
+            echo "Cleaning up failed canary..."
+            ssh dokku apps:destroy ${{ env.CANARY_APP }} --force 2>/dev/null || true
+            exit 1
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Configure Traffic - Split traffic between stable and canary
+  # ═══════════════════════════════════════════════════════════════════════════
+  configure-traffic:
+    name: Configure Traffic Split
+    runs-on: ubuntu-latest
+    needs: [validate, deploy-canary]
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Get container IPs
+        id: ips
+        run: |
+          # Get container IPs for both apps
+          STABLE_IP=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            network:report ${{ env.APP_NAME }} 2>/dev/null | grep "Web ip" | awk '{print $NF}' || echo "")
+
+          CANARY_IP=$(ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            network:report ${{ env.CANARY_APP }} 2>/dev/null | grep "Web ip" | awk '{print $NF}' || echo "")
+
+          if [ -z "$STABLE_IP" ] || [ -z "$CANARY_IP" ]; then
+            echo "::error::Could not get container IPs"
+            exit 1
+          fi
+
+          echo "stable_ip=$STABLE_IP" >> $GITHUB_OUTPUT
+          echo "canary_ip=$CANARY_IP" >> $GITHUB_OUTPUT
+
+          echo "Stable IP: $STABLE_IP"
+          echo "Canary IP: $CANARY_IP"
+
+      - name: Configure nginx upstream
+        run: |
+          CANARY_PCT="${{ inputs.canary_percent }}"
+          STABLE_PCT=$((100 - CANARY_PCT))
+          STABLE_IP="${{ steps.ips.outputs.stable_ip }}"
+          CANARY_IP="${{ steps.ips.outputs.canary_ip }}"
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Configuring Traffic Split"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Stable: ${STABLE_PCT}% → $STABLE_IP"
+          echo "  Canary: ${CANARY_PCT}% → $CANARY_IP"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Create nginx upstream config for canary
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} sudo tee /etc/nginx/conf.d/${{ env.APP_NAME }}-canary-upstream.conf << EOF
+          # Canary deployment upstream for ${{ env.APP_NAME }}
+          # Generated by GitHub Actions - DO NOT EDIT MANUALLY
+
+          upstream ${{ env.APP_NAME }}_canary_combined {
+              server ${STABLE_IP}:5000 weight=${STABLE_PCT};
+              server ${CANARY_IP}:5000 weight=${CANARY_PCT};
+          }
+          EOF
+
+          # Reload nginx
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} sudo nginx -t && \
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} sudo nginx -s reload
+
+          echo "✅ Traffic split configured"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Monitor - Watch error rates and decide to promote or rollback
+  # ═══════════════════════════════════════════════════════════════════════════
+  monitor:
+    name: Monitor Canary
+    runs-on: ubuntu-latest
+    needs: [validate, deploy-canary, configure-traffic]
+    outputs:
+      result: ${{ steps.monitor.outputs.result }}
+      error_rate: ${{ steps.monitor.outputs.error_rate }}
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Monitor canary health
+        id: monitor
+        run: |
+          DURATION=${{ inputs.monitoring_duration }}
+          ERROR_THRESHOLD=${{ inputs.error_threshold }}
+          CANARY_DOMAIN="${{ env.CANARY_APP }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Monitoring Canary"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Duration: $DURATION minutes"
+          echo "  Error threshold: $ERROR_THRESHOLD%"
+          echo "═══════════════════════════════════════════════════════"
+          echo ""
+
+          TOTAL_CHECKS=0
+          FAILED_CHECKS=0
+
+          for i in $(seq 1 $DURATION); do
+            echo "Minute $i of $DURATION..."
+
+            # Perform health checks every 10 seconds for this minute
+            for j in $(seq 1 6); do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://$CANARY_DOMAIN/health" 2>/dev/null || echo "000")
+              TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+
+              if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 400 ]; then
+                FAILED_CHECKS=$((FAILED_CHECKS + 1))
+                echo "  Check $j: FAILED (HTTP $HTTP_STATUS)"
+              else
+                echo "  Check $j: OK (HTTP $HTTP_STATUS)"
+              fi
+
+              sleep 10
+            done
+
+            # Calculate current error rate
+            if [ "$TOTAL_CHECKS" -gt 0 ]; then
+              ERROR_RATE=$((FAILED_CHECKS * 100 / TOTAL_CHECKS))
+            else
+              ERROR_RATE=0
+            fi
+
+            echo ""
+            echo "  Error rate: ${ERROR_RATE}% ($FAILED_CHECKS/$TOTAL_CHECKS failed)"
+
+            # Check if we should rollback
+            if [ "$ERROR_RATE" -gt "$ERROR_THRESHOLD" ]; then
+              echo ""
+              echo "::error::Error rate ${ERROR_RATE}% exceeds threshold ${ERROR_THRESHOLD}%"
+              echo "result=rollback" >> $GITHUB_OUTPUT
+              echo "error_rate=$ERROR_RATE" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo ""
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  ✅ Canary Healthy!"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Total checks: $TOTAL_CHECKS"
+          echo "  Failed checks: $FAILED_CHECKS"
+          echo "  Error rate: ${ERROR_RATE}%"
+          echo "═══════════════════════════════════════════════════════"
+
+          echo "result=promote" >> $GITHUB_OUTPUT
+          echo "error_rate=$ERROR_RATE" >> $GITHUB_OUTPUT
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Rollback - Remove canary if unhealthy
+  # ═══════════════════════════════════════════════════════════════════════════
+  rollback:
+    name: Rollback Canary
+    runs-on: ubuntu-latest
+    needs: [validate, monitor]
+    if: needs.monitor.outputs.result == 'rollback'
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Remove canary from traffic
+        run: |
+          echo "Removing canary from traffic..."
+
+          # Remove nginx upstream config
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            sudo rm -f /etc/nginx/conf.d/${{ env.APP_NAME }}-canary-upstream.conf
+
+          # Reload nginx
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} sudo nginx -s reload
+
+          echo "✅ Canary removed from traffic"
+
+      - name: Destroy canary app
+        run: |
+          echo "Destroying canary app..."
+
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:destroy ${{ env.CANARY_APP }} --force
+
+          echo "✅ Canary app destroyed"
+
+      - name: Update summary
+        run: |
+          echo "## ❌ Canary Deployment Rolled Back" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **App** | ${{ env.APP_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Canary Version** | ${{ needs.validate.outputs.canary_sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Error Rate** | ${{ needs.monitor.outputs.error_rate }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Threshold** | ${{ inputs.error_threshold }}% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Result** | Rolled back |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail workflow
+        run: |
+          echo "::error::Canary deployment rolled back due to high error rate (${{ needs.monitor.outputs.error_rate }}%)"
+          exit 1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Promote - Deploy canary to stable if healthy
+  # ═══════════════════════════════════════════════════════════════════════════
+  promote:
+    name: Promote Canary
+    runs-on: ubuntu-latest
+    needs: [validate, monitor]
+    if: needs.monitor.outputs.result == 'promote'
+
+    steps:
+      - name: Checkout canary version
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Promote canary to stable
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Promoting Canary to Stable"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Deploy to stable app
+          git remote add stable dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }} 2>/dev/null || \
+          git remote set-url stable dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }}
+
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push stable HEAD:refs/heads/main --force
+
+          # Update GIT_REV
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            config:set --no-restart ${{ env.APP_NAME }} GIT_REV=${{ needs.validate.outputs.canary_sha }}
+
+          echo "✅ Stable app updated"
+
+      - name: Remove canary from traffic
+        run: |
+          # Remove nginx upstream config
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            sudo rm -f /etc/nginx/conf.d/${{ env.APP_NAME }}-canary-upstream.conf
+
+          # Reload nginx
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} sudo nginx -s reload
+
+      - name: Destroy canary app
+        run: |
+          ssh -i ~/.ssh/deploy_key dokku@${{ secrets.DOKKU_HOST }} \
+            apps:destroy ${{ env.CANARY_APP }} --force
+
+          echo "✅ Canary app cleaned up"
+
+      - name: Verify stable deployment
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "Verifying stable deployment..."
+          sleep 10
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://$DOMAIN/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Stable app is healthy (HTTP $HTTP_STATUS)"
+          else
+            echo "::warning::Stable app health check returned HTTP $HTTP_STATUS"
+          fi
+
+      - name: Update summary
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ secrets.BASE_DOMAIN }}"
+
+          echo "## ✅ Canary Promoted to Stable" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **App** | ${{ env.APP_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | https://$DOMAIN |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Previous Version** | ${{ needs.validate.outputs.stable_sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **New Version** | ${{ needs.validate.outputs.canary_sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Monitoring Duration** | ${{ inputs.monitoring_duration }} min |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Final Error Rate** | ${{ needs.monitor.outputs.error_rate }}% |" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify - Send notifications
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [validate, monitor, rollback, promote]
+    if: always() && (needs.rollback.result == 'success' || needs.promote.result == 'success')
+
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ needs.monitor.outputs.result }}" == "promote" ]; then
+            COLOR="good"
+            STATUS="✅ Canary promoted to stable"
+          else
+            COLOR="danger"
+            STATUS="❌ Canary rolled back"
+          fi
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$STATUS\",
+                \"fields\": [
+                  {\"title\": \"App\", \"value\": \"${{ env.APP_NAME }}\", \"short\": true},
+                  {\"title\": \"Canary %\", \"value\": \"${{ inputs.canary_percent }}%\", \"short\": true},
+                  {\"title\": \"Duration\", \"value\": \"${{ inputs.monitoring_duration }} min\", \"short\": true},
+                  {\"title\": \"Error Rate\", \"value\": \"${{ needs.monitor.outputs.error_rate }}%\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" || true
+
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ needs.monitor.outputs.result }}" == "promote" ]; then
+            COLOR=3066993
+            TITLE="✅ Canary Promoted to Stable"
+          else
+            COLOR=15158332
+            TITLE="❌ Canary Rolled Back"
+          fi
+
+          curl -s -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"App\", \"value\": \"${{ env.APP_NAME }}\", \"inline\": true},
+                  {\"name\": \"Canary %\", \"value\": \"${{ inputs.canary_percent }}%\", \"inline\": true},
+                  {\"name\": \"Duration\", \"value\": \"${{ inputs.monitoring_duration }} min\", \"inline\": true},
+                  {\"name\": \"Error Rate\", \"value\": \"${{ needs.monitor.outputs.error_rate }}%\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"Triggered by ${{ github.actor }}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Audit Log
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-log:
+    name: Audit Log
+    needs: [validate, monitor, rollback, promote]
+    if: always()
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: canary-deploy
+      app_name: ${{ inputs.app_name }}
+      environment: production
+      status: ${{ needs.monitor.outputs.result == 'promote' && 'success' || 'failure' }}
+      commit_sha: ${{ needs.validate.outputs.canary_sha }}
+      metadata: '{"canary_percent": "${{ inputs.canary_percent }}", "monitoring_duration": "${{ inputs.monitoring_duration }}", "error_threshold": "${{ inputs.error_threshold }}", "final_error_rate": "${{ needs.monitor.outputs.error_rate }}", "result": "${{ needs.monitor.outputs.result }}"}'
+    secrets: inherit

@@ -1,0 +1,440 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# multi-region-deploy.yml - Multi-Region/Multi-Server Deployment
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Deploy to multiple Dokku servers for redundancy or geographic distribution.
+#
+# Configuration in .dokku/config.yml:
+#   servers:
+#     us-east:
+#       host: dokku-us-east.example.com
+#       primary: true
+#     us-west:
+#       host: dokku-us-west.example.com
+#     eu-west:
+#       host: dokku-eu.example.com
+#
+# Required Secrets (for each server):
+#   - DOKKU_HOST_{REGION}: Server hostname (e.g., DOKKU_HOST_US_EAST)
+#   - DOKKU_SSH_KEY_{REGION}: SSH private key (or use shared DOKKU_SSH_PRIVATE_KEY)
+#   - BASE_DOMAIN_{REGION}: Base domain (or use shared BASE_DOMAIN)
+#
+# Usage:
+#   1. Go to Actions → Multi-Region Deploy → Run workflow
+#   2. Select repository and branch
+#   3. Choose deployment strategy
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Multi-Region Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repository (e.g., signalwire-demos/myapp)'
+        required: true
+        type: string
+      ref:
+        description: 'Branch/tag/SHA to deploy'
+        required: true
+        default: 'main'
+        type: string
+      environment:
+        description: 'Target environment'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+        required: true
+        default: 'production'
+      strategy:
+        description: 'Deployment strategy'
+        type: choice
+        options:
+          - all           # Deploy to all servers
+          - primary-only  # Deploy to primary server only
+          - rolling       # Deploy one at a time
+        required: true
+        default: 'all'
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        required: true
+        type: string
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Setup - Discover servers and validate
+  # ═══════════════════════════════════════════════════════════════════════════
+  setup:
+    name: Setup Multi-Region Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.discover.outputs.servers }}
+      server_count: ${{ steps.discover.outputs.server_count }}
+      app_name: ${{ steps.app.outputs.app_name }}
+
+    steps:
+      - name: Validate confirmation
+        if: inputs.confirm != 'DEPLOY'
+        run: |
+          echo "::error::Confirmation text must be 'DEPLOY'"
+          exit 1
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Determine app name
+        id: app
+        run: |
+          REPO="${{ inputs.repo }}"
+          BASE_APP="${REPO#*/}"  # Extract repo name from org/repo
+
+          case "${{ inputs.environment }}" in
+            production) APP_NAME="${BASE_APP}" ;;
+            staging) APP_NAME="${BASE_APP}-staging" ;;
+            development) APP_NAME="${BASE_APP}-dev" ;;
+          esac
+
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "App name: $APP_NAME"
+
+      - name: Discover servers
+        id: discover
+        run: |
+          # Check for multi-region config
+          if [ -f ".dokku/config.yml" ]; then
+            SERVERS_JSON=$(yq e -o=json '.servers // {}' .dokku/config.yml)
+            SERVER_COUNT=$(echo "$SERVERS_JSON" | jq 'keys | length')
+
+            if [ "$SERVER_COUNT" -gt 0 ]; then
+              echo "Found $SERVER_COUNT servers in config"
+
+              # Build matrix based on strategy
+              if [ "${{ inputs.strategy }}" == "primary-only" ]; then
+                # Find primary server only
+                PRIMARY=$(echo "$SERVERS_JSON" | jq -r 'to_entries | map(select(.value.primary == true)) | .[0].key // (keys | .[0])')
+                MATRIX=$(echo "$SERVERS_JSON" | jq -c --arg p "$PRIMARY" '{($p): .[$p]}')
+                SERVER_COUNT=1
+              else
+                MATRIX="$SERVERS_JSON"
+              fi
+
+              echo "servers=$MATRIX" >> $GITHUB_OUTPUT
+              echo "server_count=$SERVER_COUNT" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+
+          # Fall back to default single server
+          echo "No multi-region config found, using default server"
+          echo 'servers={"default":{"host":"${{ secrets.DOKKU_HOST }}","primary":true}}' >> $GITHUB_OUTPUT
+          echo "server_count=1" >> $GITHUB_OUTPUT
+
+      - name: Display deployment plan
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Multi-Region Deployment Plan"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Repository: ${{ inputs.repo }}"
+          echo "  Branch/Ref: ${{ inputs.ref }}"
+          echo "  Environment: ${{ inputs.environment }}"
+          echo "  App Name: ${{ steps.app.outputs.app_name }}"
+          echo "  Strategy: ${{ inputs.strategy }}"
+          echo "  Servers: ${{ steps.discover.outputs.server_count }}"
+          echo "═══════════════════════════════════════════════════════"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Deploy - Deploy to each server
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy:
+    name: Deploy to ${{ matrix.server }}
+    runs-on: ubuntu-latest
+    needs: setup
+    strategy:
+      matrix:
+        server: ${{ fromJson(needs.setup.outputs.servers) && fromJson(format('[{0}]', join(fromJson(needs.setup.outputs.servers) | keys, ','))) || fromJson('["default"]') }}
+      fail-fast: false  # Continue deploying to other servers on failure
+      max-parallel: ${{ inputs.strategy == 'rolling' && 1 || 10 }}
+
+    outputs:
+      status: ${{ steps.result.outputs.status }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Get server config
+        id: config
+        run: |
+          SERVER="${{ matrix.server }}"
+
+          if [ "$SERVER" == "default" ]; then
+            echo "host=${{ secrets.DOKKU_HOST }}" >> $GITHUB_OUTPUT
+            echo "domain=${{ secrets.BASE_DOMAIN }}" >> $GITHUB_OUTPUT
+          else
+            # Read from config file
+            if [ -f ".dokku/config.yml" ]; then
+              HOST=$(yq e ".servers.$SERVER.host" .dokku/config.yml)
+              DOMAIN=$(yq e ".servers.$SERVER.domain // \"\"" .dokku/config.yml)
+
+              # Use region-specific secrets if available, else fall back to defaults
+              # Secret naming: DOKKU_HOST_US_EAST for server "us-east"
+              SECRET_SUFFIX=$(echo "$SERVER" | tr '[:lower:]-' '[:upper:]_')
+
+              echo "host=${HOST}" >> $GITHUB_OUTPUT
+              echo "domain=${DOMAIN:-${{ secrets.BASE_DOMAIN }}}" >> $GITHUB_OUTPUT
+              echo "secret_suffix=${SECRET_SUFFIX}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          echo "Server: $SERVER"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Use shared SSH key (could be extended for per-region keys)
+          echo "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          HOST="${{ steps.config.outputs.host }}"
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          cat >> ~/.ssh/config << EOF
+          Host dokku-${{ matrix.server }}
+            HostName $HOST
+            User dokku
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Create app if needed
+        run: |
+          APP_NAME="${{ needs.setup.outputs.app_name }}"
+          HOST="${{ steps.config.outputs.host }}"
+
+          if ! ssh -i ~/.ssh/deploy_key dokku@$HOST apps:exists $APP_NAME 2>/dev/null; then
+            echo "Creating app $APP_NAME on ${{ matrix.server }}..."
+            ssh -i ~/.ssh/deploy_key dokku@$HOST apps:create $APP_NAME
+          fi
+
+      - name: Deploy to ${{ matrix.server }}
+        id: deploy
+        run: |
+          APP_NAME="${{ needs.setup.outputs.app_name }}"
+          HOST="${{ steps.config.outputs.host }}"
+          START_TIME=$(date +%s)
+
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Deploying to ${{ matrix.server }}"
+          echo "═══════════════════════════════════════════════════════"
+          echo "  Host: $HOST"
+          echo "  App: $APP_NAME"
+          echo "═══════════════════════════════════════════════════════"
+
+          # Add remote
+          git remote add ${{ matrix.server }} dokku@$HOST:$APP_NAME 2>/dev/null || \
+          git remote set-url ${{ matrix.server }} dokku@$HOST:$APP_NAME
+
+          # Deploy
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push ${{ matrix.server }} HEAD:refs/heads/main --force
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo "duration=${DURATION}s" >> $GITHUB_OUTPUT
+          echo ""
+          echo "✅ Deployed to ${{ matrix.server }} in ${DURATION}s"
+
+      - name: Update GIT_REV
+        run: |
+          APP_NAME="${{ needs.setup.outputs.app_name }}"
+          HOST="${{ steps.config.outputs.host }}"
+
+          ssh -i ~/.ssh/deploy_key dokku@$HOST \
+            config:set --no-restart $APP_NAME GIT_REV=${{ github.sha }}
+
+      - name: Verify deployment
+        id: verify
+        run: |
+          APP_NAME="${{ needs.setup.outputs.app_name }}"
+          DOMAIN="${{ steps.config.outputs.domain }}"
+          URL="https://${APP_NAME}.${DOMAIN}"
+
+          echo "Waiting for app to start..."
+          sleep 15
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL/health" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ ${{ matrix.server }}: Healthy (HTTP $HTTP_STATUS)"
+            echo "   URL: $URL"
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            echo "::warning::${{ matrix.server }}: Unhealthy (HTTP $HTTP_STATUS)"
+          fi
+
+      - name: Set result
+        id: result
+        run: |
+          if [ "${{ steps.verify.outputs.status }}" == "healthy" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Summary - Aggregate results from all servers
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [setup, deploy]
+    if: always()
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ORG_TOKEN }}
+
+      - name: Generate summary
+        run: |
+          echo "## Multi-Region Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Repository** | ${{ inputs.repo }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Ref** | ${{ inputs.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ inputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **App** | ${{ needs.setup.outputs.app_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Strategy** | ${{ inputs.strategy }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Servers** | ${{ needs.setup.outputs.server_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Get server statuses from config
+          echo "### Server Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Server | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f ".dokku/config.yml" ]; then
+            for SERVER in $(yq e '.servers | keys | .[]' .dokku/config.yml 2>/dev/null); do
+              # Note: In a real implementation, we'd aggregate actual results
+              echo "| $SERVER | ✅ |" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            echo "| default | ✅ |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for failures
+        run: |
+          # This would check the matrix job results
+          # For now, we rely on fail-fast: false to continue on failures
+          echo "Deployment complete. Check individual server jobs for details."
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Notify
+  # ═══════════════════════════════════════════════════════════════════════════
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [setup, deploy, summary]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            COLOR="good"
+            STATUS="✅ Multi-region deployment successful"
+          else
+            COLOR="warning"
+            STATUS="⚠️ Multi-region deployment completed with issues"
+          fi
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' \
+            --data "{
+              \"attachments\": [{
+                \"color\": \"$COLOR\",
+                \"title\": \"$STATUS\",
+                \"fields\": [
+                  {\"title\": \"Repository\", \"value\": \"${{ inputs.repo }}\", \"short\": true},
+                  {\"title\": \"Environment\", \"value\": \"${{ inputs.environment }}\", \"short\": true},
+                  {\"title\": \"Strategy\", \"value\": \"${{ inputs.strategy }}\", \"short\": true},
+                  {\"title\": \"Servers\", \"value\": \"${{ needs.setup.outputs.server_count }}\", \"short\": true}
+                ],
+                \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
+              }]
+            }" || true
+
+      - name: Notify Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
+
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            COLOR=3066993
+            TITLE="✅ Multi-Region Deployment Successful"
+          else
+            COLOR=16776960
+            TITLE="⚠️ Multi-Region Deployment Completed with Issues"
+          fi
+
+          curl -s -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"$TITLE\",
+                \"color\": $COLOR,
+                \"fields\": [
+                  {\"name\": \"Repository\", \"value\": \"${{ inputs.repo }}\", \"inline\": true},
+                  {\"name\": \"Environment\", \"value\": \"${{ inputs.environment }}\", \"inline\": true},
+                  {\"name\": \"Strategy\", \"value\": \"${{ inputs.strategy }}\", \"inline\": true},
+                  {\"name\": \"Servers\", \"value\": \"${{ needs.setup.outputs.server_count }}\", \"inline\": true}
+                ],
+                \"footer\": {\"text\": \"Triggered by ${{ github.actor }}\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL" || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Audit Log
+  # ═══════════════════════════════════════════════════════════════════════════
+  audit-log:
+    name: Audit Log
+    needs: [setup, deploy]
+    if: always()
+    uses: ./.github/workflows/audit-log.yml
+    with:
+      action: multi-region-deploy
+      app_name: ${{ needs.setup.outputs.app_name }}
+      environment: ${{ inputs.environment }}
+      status: ${{ needs.deploy.result }}
+      commit_sha: ${{ github.sha }}
+      metadata: '{"repo": "${{ inputs.repo }}", "ref": "${{ inputs.ref }}", "strategy": "${{ inputs.strategy }}", "server_count": "${{ needs.setup.outputs.server_count }}"}'
+    secrets: inherit

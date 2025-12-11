@@ -639,8 +639,13 @@ jobs:
 
           if [ -n "$SCALE_ARGS" ]; then
             echo "Setting process scale: $SCALE_ARGS"
-            ssh dokku ps:scale ${{ env.APP_NAME }} $SCALE_ARGS || {
-              echo "::warning::Failed to set process scaling"
+            ssh dokku ps:scale ${{ env.APP_NAME }} $SCALE_ARGS 2>&1 || {
+              # Check if it failed due to app.json formation
+              if ssh dokku ps:scale ${{ env.APP_NAME }} 2>&1 | grep -q "app.json"; then
+                echo "ℹ️ Scaling controlled by app.json formation - skipping manual scale"
+              else
+                echo "::warning::Failed to set process scaling"
+              fi
             }
           fi
 

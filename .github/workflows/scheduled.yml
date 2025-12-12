@@ -788,14 +788,16 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   # Docker Cleanup - Prevent disk space issues
   # ═══════════════════════════════════════════════════════════════════════════
+  # Note: Uses dokku's built-in cleanup command. For full docker cleanup
+  # (container/image pruning with retention), add the SSH key to root's
+  # authorized_keys on the server.
+  # ═══════════════════════════════════════════════════════════════════════════
   docker-cleanup:
     name: Docker Cleanup
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || github.event.inputs.task == 'all' || github.event.inputs.task == 'docker-cleanup'
     outputs:
-      space_before: ${{ steps.cleanup.outputs.space_before }}
-      space_after: ${{ steps.cleanup.outputs.space_after }}
-      space_freed: ${{ steps.cleanup.outputs.space_freed }}
+      cleanup_status: ${{ steps.cleanup.outputs.status }}
 
     steps:
       - name: Setup SSH connection
@@ -809,9 +811,9 @@ jobs:
           ssh-keyscan -H ${{ secrets.DOKKU_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
           cat >> ~/.ssh/config << EOF
-          Host dokku-server
+          Host dokku
             HostName ${{ secrets.DOKKU_HOST }}
-            User root
+            User dokku
             IdentityFile ~/.ssh/deploy_key
             StrictHostKeyChecking no
           EOF
@@ -820,82 +822,36 @@ jobs:
       - name: Docker cleanup
         id: cleanup
         env:
-          IMAGE_RETENTION: ${{ github.event.inputs.docker_image_retention_hours || '168' }}
-          CONTAINER_RETENTION: ${{ github.event.inputs.docker_container_retention_hours || '24' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           echo "═══════════════════════════════════════════════════════"
-          echo "  Docker Cleanup"
-          echo "  Image retention: ${IMAGE_RETENTION}h ($(( IMAGE_RETENTION / 24 )) days)"
-          echo "  Container retention: ${CONTAINER_RETENTION}h"
+          echo "  Docker Cleanup (via dokku cleanup)"
           echo "═══════════════════════════════════════════════════════"
           echo ""
 
-          # Get disk space before
-          SPACE_BEFORE=$(ssh dokku-server "df -h /var/lib/docker | tail -1 | awk '{print \$4}'" 2>/dev/null || echo "unknown")
-          echo "space_before=$SPACE_BEFORE" >> $GITHUB_OUTPUT
-          echo "Disk space before cleanup: $SPACE_BEFORE available"
-          echo ""
-
           if [ "$DRY_RUN" == "true" ]; then
-            echo "[DRY RUN] Would run the following cleanup commands:"
-            echo ""
-            echo "  docker container prune -f --filter \"until=${CONTAINER_RETENTION}h\""
-            echo "  docker image prune -a -f --filter \"until=${IMAGE_RETENTION}h\""
-            echo "  docker builder prune -f --filter \"until=${IMAGE_RETENTION}h\""
-            echo "  docker network prune -f"
-            echo "  dokku cleanup"
-            echo ""
-            echo "space_after=$SPACE_BEFORE" >> $GITHUB_OUTPUT
-            echo "space_freed=0" >> $GITHUB_OUTPUT
+            echo "[DRY RUN] Would run: dokku cleanup"
+            echo "status=dry-run" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Run dokku's built-in cleanup first
+          # Run dokku's built-in cleanup
+          # This removes exited containers and dangling images
           echo "Running dokku cleanup..."
-          ssh dokku-server "dokku cleanup" 2>/dev/null || true
-          echo ""
-
-          # Remove stopped containers older than retention period
-          echo "Removing containers stopped for more than ${CONTAINER_RETENTION}h..."
-          ssh dokku-server "docker container prune -f --filter \"until=${CONTAINER_RETENTION}h\"" 2>/dev/null || true
-          echo ""
-
-          # Remove unused images older than retention period
-          echo "Removing unused images older than ${IMAGE_RETENTION}h..."
-          ssh dokku-server "docker image prune -a -f --filter \"until=${IMAGE_RETENTION}h\"" 2>/dev/null || true
-          echo ""
-
-          # Remove build cache older than retention period
-          echo "Removing build cache older than ${IMAGE_RETENTION}h..."
-          ssh dokku-server "docker builder prune -f --filter \"until=${IMAGE_RETENTION}h\"" 2>/dev/null || true
-          echo ""
-
-          # Remove unused networks
-          echo "Removing unused networks..."
-          ssh dokku-server "docker network prune -f" 2>/dev/null || true
-          echo ""
-
-          # Get disk space after
-          SPACE_AFTER=$(ssh dokku-server "df -h /var/lib/docker | tail -1 | awk '{print \$4}'" 2>/dev/null || echo "unknown")
-          echo "space_after=$SPACE_AFTER" >> $GITHUB_OUTPUT
+          if ssh dokku cleanup 2>&1; then
+            echo ""
+            echo "✅ Cleanup completed successfully"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo ""
+            echo "⚠️ Cleanup completed with warnings"
+            echo "status=warning" >> $GITHUB_OUTPUT
+          fi
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
           echo "  Cleanup Complete"
-          echo "  Space before: $SPACE_BEFORE"
-          echo "  Space after:  $SPACE_AFTER"
           echo "═══════════════════════════════════════════════════════"
-
-          # Calculate freed space (rough estimate)
-          # This is tricky with human-readable units, so we just report before/after
-          echo "space_freed=see_logs" >> $GITHUB_OUTPUT
-
-      - name: Show Docker disk usage
-        run: |
-          echo ""
-          echo "Current Docker disk usage:"
-          ssh dokku-server "docker system df" 2>/dev/null || true
 
       - name: Notify Slack - Docker Cleanup Results
         if: always()
@@ -904,8 +860,7 @@ jobs:
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && exit 0
 
-          SPACE_BEFORE="${{ steps.cleanup.outputs.space_before }}"
-          SPACE_AFTER="${{ steps.cleanup.outputs.space_after }}"
+          STATUS="${{ steps.cleanup.outputs.status }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
 
           if [ "${{ job.status }}" == "success" ]; then
@@ -925,10 +880,6 @@ jobs:
               \"attachments\": [{
                 \"color\": \"$COLOR\",
                 \"title\": \"$TITLE\",
-                \"fields\": [
-                  {\"title\": \"Space Before\", \"value\": \"$SPACE_BEFORE\", \"short\": true},
-                  {\"title\": \"Space After\", \"value\": \"$SPACE_AFTER\", \"short\": true}
-                ],
                 \"footer\": \"<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow>\"
               }]
             }" \
@@ -941,8 +892,7 @@ jobs:
         run: |
           [ -z "$DISCORD_WEBHOOK_URL" ] && exit 0
 
-          SPACE_BEFORE="${{ steps.cleanup.outputs.space_before }}"
-          SPACE_AFTER="${{ steps.cleanup.outputs.space_after }}"
+          STATUS="${{ steps.cleanup.outputs.status }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
 
           if [ "${{ job.status }}" == "success" ]; then
@@ -962,10 +912,6 @@ jobs:
               \"embeds\": [{
                 \"title\": \"$TITLE\",
                 \"color\": $COLOR,
-                \"fields\": [
-                  {\"name\": \"Space Before\", \"value\": \"$SPACE_BEFORE\", \"inline\": true},
-                  {\"name\": \"Space After\", \"value\": \"$SPACE_AFTER\", \"inline\": true}
-                ],
                 \"footer\": {\"text\": \"Scheduled Maintenance\"},
                 \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
               }]

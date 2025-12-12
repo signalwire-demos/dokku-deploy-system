@@ -1,0 +1,256 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# validate.yml - CI Validation for dokku-deploy-system
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Validates all workflows, scripts, and configuration files.
+# Runs on PRs to catch issues before merge.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/**'
+      - 'server-setup/**'
+      - 'cli/**'
+      - 'template-repo/**'
+      - '*.yml'
+      - '*.yaml'
+      - '*.sh'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/**'
+      - 'server-setup/**'
+      - 'cli/**'
+      - 'template-repo/**'
+      - '*.yml'
+      - '*.yaml'
+      - '*.sh'
+
+  workflow_dispatch:
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # YAML Validation
+  # ═══════════════════════════════════════════════════════════════════════════
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: |
+          echo "Linting workflow files..."
+          yamllint -c .yamllint.yml .github/workflows/*.yml
+
+          echo ""
+          echo "Linting template files..."
+          yamllint -c .yamllint.yml template-repo/.github/workflows/*.yml 2>/dev/null || true
+          yamllint -c .yamllint.yml template-repo/.dokku/*.yml 2>/dev/null || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GitHub Actions Validation
+  # ═══════════════════════════════════════════════════════════════════════════
+  actionlint:
+    name: Action Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install actionlint
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          sudo mv actionlint /usr/local/bin/
+
+      - name: Lint GitHub Actions workflows
+        run: |
+          echo "Validating workflow syntax..."
+          actionlint -color .github/workflows/*.yml
+
+      - name: Check for common issues
+        run: |
+          echo "Checking for hardcoded secrets..."
+          if grep -r "password\s*=" .github/workflows/ --include="*.yml" | grep -v '\${{' | grep -v 'description'; then
+            echo "::warning::Found potential hardcoded passwords"
+          fi
+
+          echo "Checking for deprecated actions..."
+          if grep -r "actions/checkout@v[12]" .github/workflows/; then
+            echo "::warning::Found deprecated checkout action versions"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Shell Script Validation
+  # ═══════════════════════════════════════════════════════════════════════════
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          echo "Checking scripts/..."
+          shellcheck --severity=warning scripts/*.sh 2>/dev/null || true
+
+          echo ""
+          echo "Checking server-setup/..."
+          shellcheck --severity=warning server-setup/*.sh
+
+          echo ""
+          echo "Checking CLI tool..."
+          shellcheck --severity=warning cli/dokku-cli
+
+      - name: Check script permissions
+        run: |
+          echo "Verifying executable permissions..."
+
+          # Check that shell scripts are executable
+          for script in scripts/*.sh server-setup/*.sh cli/dokku-cli; do
+            if [ -f "$script" ]; then
+              if [ ! -x "$script" ]; then
+                echo "::warning::$script is not executable"
+              fi
+            fi
+          done
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Config Schema Validation
+  # ═══════════════════════════════════════════════════════════════════════════
+  config-validate:
+    name: Config Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Validate template configs
+        run: |
+          echo "Validating template-repo/.dokku/services.yml..."
+          if [ -f template-repo/.dokku/services.yml ]; then
+            yq e '.' template-repo/.dokku/services.yml > /dev/null
+            echo "  ✓ Valid YAML"
+
+            # Check for required structure
+            if ! yq e '.production' template-repo/.dokku/services.yml > /dev/null 2>&1; then
+              echo "::warning::services.yml missing 'production' key"
+            fi
+          fi
+
+          echo ""
+          echo "Validating template-repo/.dokku/config.yml..."
+          if [ -f template-repo/.dokku/config.yml ]; then
+            yq e '.' template-repo/.dokku/config.yml > /dev/null
+            echo "  ✓ Valid YAML"
+          fi
+
+      - name: Check workflow references
+        run: |
+          echo "Checking template workflow references..."
+
+          # Verify reusable workflow references point to main branch
+          for workflow in template-repo/.github/workflows/*.yml; do
+            if [ -f "$workflow" ]; then
+              echo "Checking $workflow..."
+              if grep -q "uses:.*@" "$workflow"; then
+                if ! grep -q "@main" "$workflow"; then
+                  echo "::warning::$workflow uses non-main branch reference"
+                fi
+              fi
+            fi
+          done
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Documentation Checks
+  # ═══════════════════════════════════════════════════════════════════════════
+  docs-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for broken internal links
+        run: |
+          echo "Checking markdown links..."
+
+          # Find all markdown files
+          find . -name "*.md" -not -path "./node_modules/*" | while read file; do
+            # Extract internal links
+            grep -oE '\[.*\]\([^http][^)]+\)' "$file" 2>/dev/null | while read link; do
+              # Extract path from link
+              path=$(echo "$link" | sed 's/.*(\([^)]*\)).*/\1/' | cut -d'#' -f1)
+
+              if [ -n "$path" ] && [ ! -f "$path" ] && [ ! -d "$path" ]; then
+                echo "::warning file=$file::Broken link: $link"
+              fi
+            done
+          done
+
+      - name: Check required docs exist
+        run: |
+          REQUIRED_DOCS="README.md CLAUDE.md docs/FEATURES.md docs/SETUP-GUIDE.md docs/TROUBLESHOOTING.md"
+
+          for doc in $REQUIRED_DOCS; do
+            if [ ! -f "$doc" ]; then
+              echo "::error::Missing required documentation: $doc"
+              exit 1
+            else
+              echo "✓ $doc exists"
+            fi
+          done
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Summary
+  # ═══════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [yaml-lint, actionlint, shellcheck, config-validate, docs-check]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| YAML Lint | ${{ needs.yaml-lint.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Action Lint | ${{ needs.actionlint.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ShellCheck | ${{ needs.shellcheck.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Config Validation | ${{ needs.config-validate.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Documentation | ${{ needs.docs-check.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for failures
+        if: contains(needs.*.result, 'failure')
+        run: |
+          echo "::error::One or more validation checks failed"
+          exit 1

@@ -1,0 +1,61 @@
+# yamllint configuration for dokku-deploy-system
+# Tuned for GitHub Actions workflows
+
+extends: default
+
+rules:
+  # Line length - GitHub Actions can have long lines
+  line-length:
+    max: 200
+    level: warning
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # Indentation - GitHub Actions uses 2 spaces
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Comments - allow inline comments
+  comments:
+    require-starting-space: true
+    ignore-shebangs: true
+    min-spaces-from-content: 1
+
+  # Truthy values - GitHub Actions uses on: as trigger
+  truthy:
+    allowed-values: ['true', 'false', 'on']
+    check-keys: false
+
+  # Braces - allow some flexibility for expressions
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # Document markers (---) - not required for workflows
+  document-start: disable
+  document-end: disable
+
+  # Allow duplicate keys in different contexts (like matrix)
+  key-duplicates: enable
+
+  # Octal values - disable (can conflict with cron expressions)
+  octal-values: disable
+
+# Ignore generated files and templates
+ignore: |
+  dashboard/
+  template-repo/
+  node_modules/

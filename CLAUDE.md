@@ -27,6 +27,27 @@ scheduled.yml ───┘         │
 | **update-dashboard.yml** | Updates gh-pages with app status |
 | **audit-log.yml** | Records deployment audit trail |
 
+#### Workflow Inputs
+
+**deploy.yml** accepts these optional inputs when called:
+```yaml
+uses: signalwire-demos/dokku-deploy-system/.github/workflows/deploy.yml@main
+with:
+  health_check_path: '/health'  # Health check endpoint (default: /health)
+  memory_limit: '512m'          # Memory limit override
+  cpu_limit: '1'                # CPU limit override
+secrets: inherit
+```
+
+**preview.yml** accepts these optional inputs:
+```yaml
+uses: signalwire-demos/dokku-deploy-system/.github/workflows/preview.yml@main
+with:
+  memory_limit: '256m'  # Memory limit for preview apps (default: 256m)
+  cpu_limit: '0.5'      # CPU limit for preview apps (default: 0.5)
+secrets: inherit
+```
+
 ### Standalone Workflows (this repo only)
 
 | Workflow | Purpose | Schedule |
@@ -95,19 +116,36 @@ Bash wrapper for Dokku operations. Config stored in `~/.dokku-cli`.
 
 ## Development
 
-This repo contains no buildable code - it's shell scripts and YAML workflows. To validate changes:
+This repo contains no buildable code - it's shell scripts and YAML workflows.
+
+### Validation
+
+The repo includes automated validation via `.github/workflows/validate.yml` which runs on PRs:
+- **yamllint**: YAML syntax validation
+- **actionlint**: GitHub Actions workflow validation
+- **shellcheck**: Shell script linting
+- **config validation**: Template config file checks
+
+### Local Validation
 
 ```bash
-# Validate YAML syntax
-yamllint .github/workflows/*.yml
+# Install pre-commit hooks (recommended)
+pip install pre-commit
+pre-commit install
 
-# Check shell scripts
+# Run all checks manually
+pre-commit run --all-files
+
+# Or run individual tools
+yamllint -c .yamllint.yml .github/workflows/*.yml
 shellcheck cli/dokku-cli scripts/*.sh server-setup/*.sh
-
-# Test workflow changes by pushing to a branch and triggering manually via Actions tab
 ```
 
-Changes to reusable workflows (`deploy.yml`, `preview.yml`) affect all consuming repos immediately when merged to `main`.
+### Testing Changes
+
+Test workflow changes by pushing to a branch and triggering manually via the Actions tab.
+
+**Important:** Changes to reusable workflows (`deploy.yml`, `preview.yml`) affect all consuming repos immediately when merged to `main`.
 
 ## Common Commands
 
@@ -146,14 +184,54 @@ dokku-cli db myapp list-backups
 | `GH_ORG_TOKEN` | Fine-grained PAT for cross-repo operations (dashboard, cleanup, org membership checks) |
 
 ### Optional Org-Level Secrets
+
+#### Notifications
+| Secret | Purpose |
+|--------|---------|
+| `SLACK_WEBHOOK_URL` | Slack notifications for deploys, alerts |
+| `DISCORD_WEBHOOK_URL` | Discord notifications for deploys, alerts |
+| `DEPLOY_WEBHOOK_URLS` | Custom webhook URLs (comma-separated) for deploy events |
+| `DEPLOY_WEBHOOK_SECRET` | HMAC secret for signing webhook payloads |
+| `DD_API_KEY` | Datadog API key for deploy events and metrics |
+| `PAGERDUTY_ROUTING_KEY` | PagerDuty routing key for failure alerts |
+
+#### AWS (Backups)
 | Secret | Purpose |
 |--------|---------|
 | `AWS_ACCESS_KEY_ID` | S3 backup uploads |
 | `AWS_SECRET_ACCESS_KEY` | S3 backup uploads |
 | `AWS_S3_BUCKET` | S3 bucket name for backups |
 | `AWS_REGION` | AWS region (default: us-east-1) |
-| `SLACK_WEBHOOK_URL` | Slack notifications |
-| `DISCORD_WEBHOOK_URL` | Discord notifications |
+
+#### Preview Environment
+| Secret | Purpose |
+|--------|---------|
+| `PREVIEW_AUTH_USER` | HTTP basic auth username for preview apps |
+| `PREVIEW_AUTH_PASSWORD` | HTTP basic auth password for preview apps |
+
+#### External Vault Integration (sync-secrets.yml)
+| Secret | Purpose |
+|--------|---------|
+| `VAULT_ADDR` | HashiCorp Vault server URL |
+| `VAULT_TOKEN` | Vault token (alternative to AppRole) |
+| `VAULT_ROLE_ID` | Vault AppRole role ID |
+| `VAULT_SECRET_ID` | Vault AppRole secret ID |
+| `OP_SERVICE_ACCOUNT_TOKEN` | 1Password service account token |
+
+#### Log Aggregation (log-drain.yml)
+| Secret | Purpose |
+|--------|---------|
+| `PAPERTRAIL_HOST` | Papertrail syslog host |
+| `PAPERTRAIL_PORT` | Papertrail syslog port |
+| `LOGTAIL_TOKEN` | Logtail/Better Stack source token |
+
+#### Cost Tracking (cost-report.yml)
+| Secret | Purpose |
+|--------|---------|
+| `COST_CPU_RATE` | Cost per CPU-hour (default: 0.01) |
+| `COST_MEM_RATE` | Cost per GB-hour (default: 0.005) |
+| `COST_STORAGE_RATE` | Cost per GB-month (default: 0.10) |
+| `COST_BUDGET_MONTHLY` | Monthly budget for alerts |
 
 ### Required Org-Level Variables
 | Variable | Purpose |
@@ -178,7 +256,7 @@ Created automatically by workflows: `production`, `staging`, `development`, `pre
 - Preview apps can use shared services (`shared: true` in services.yml) to save resources
 - SSL enabled via Let's Encrypt after health check passes (HTTP first, then HTTPS)
 - Scheduled maintenance has safety check: won't delete apps if corresponding GitHub repo still exists
-- Docker cleanup runs daily with configurable retention (default: 7 days for images, 24h for containers)
+- Docker cleanup runs daily using `dokku cleanup` command
 - Resource limits and scaling configured via `.dokku/config.yml` or workflow inputs
 - Security scanning via Trivy - blocks deploys with critical vulnerabilities (configurable)
 

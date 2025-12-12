@@ -7,6 +7,7 @@ This document describes the advanced features available in the Dokku Deploy Syst
 - [Preview Security](#preview-security)
 - [Deploy Locks](#deploy-locks)
 - [Release Tasks](#release-tasks)
+- [Release Rollback](#release-rollback)
 - [Database Backups](#database-backups)
 - [Deploy Dashboard](#deploy-dashboard)
 - [Enhanced Notifications](#enhanced-notifications)
@@ -177,6 +178,77 @@ environments:
 - If any task fails, the deployment fails
 - Task output is visible in workflow logs
 - Each task has a configurable timeout
+
+---
+
+## Release Rollback
+
+Roll back to a previous release version when issues are detected.
+
+### How It Works
+
+Each deployment creates a release (v1, v2, v3...) stored in Dokku config:
+- `RELEASE_VERSION`: Current version number
+- `RELEASE_HISTORY_B64`: Base64-encoded JSON of last 10 releases with commit SHAs
+
+### Usage
+
+#### Via GitHub Actions Workflow
+
+1. Go to [Actions → Rollback](../../actions/workflows/rollback.yml)
+2. Enter:
+   - **App name**: App to rollback (or leave empty to use repo name)
+   - **Environment**: `production`, `staging`, or `development`
+   - **Release**: Version to rollback to (e.g., `v3`) or leave empty for previous
+   - **Confirm**: Type `ROLLBACK` to confirm
+3. Workflow shows release history and performs rollback
+
+#### Via CLI
+
+```bash
+# Show release history
+dokku-cli releases myapp
+
+# Rollback to previous version
+dokku-cli rollback myapp
+
+# Rollback to specific version
+dokku-cli rollback myapp v3
+```
+
+### Rollback Strategies
+
+The workflow uses two strategies depending on availability:
+
+**Docker Image Rollback (Fastest)**
+- If the Docker image for the target release is still in the local cache
+- Uses `dokku tags:deploy` to switch to cached image
+- Completes in seconds
+
+**Git Rebuild Fallback**
+- If Docker image is not cached (e.g., after `docker system prune`)
+- Checks out the target commit SHA from Git
+- Rebuilds the app from source
+- Takes longer but always works
+
+### Pre-Rollback Safety
+
+Before rolling back:
+1. **Database backup** is automatically created (tagged `pre-rollback_{timestamp}`)
+2. **Current state** is recorded in audit log
+3. **Health check** verification after rollback completes
+
+### Troubleshooting
+
+If automatic rollback fails, the workflow displays manual instructions:
+
+```bash
+# Manual rollback via SSH
+ssh dokku@server git:from-image myapp registry.example.com/myapp:v3
+
+# Or rebuild from specific commit
+git push dokku@server:myapp abc1234:main --force
+```
 
 ---
 

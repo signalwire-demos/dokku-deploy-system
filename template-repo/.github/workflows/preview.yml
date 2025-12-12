@@ -12,6 +12,7 @@ jobs:
   preview:
     uses: signalwire-demos/dokku-deploy-system/.github/workflows/preview.yml@main
     secrets: inherit
-    # Optional: customize memory limit for previews
+    # Optional: customize preview resource limits
     # with:
-    #   memory_limit: '256m'
+    #   memory_limit: '256m'  # Memory limit for preview apps (default: 256m)
+    #   cpu_limit: '0.5'      # CPU limit for preview apps (default: 0.5)

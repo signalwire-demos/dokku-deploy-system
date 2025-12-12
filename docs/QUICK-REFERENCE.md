@@ -365,6 +365,40 @@ ssh dokku@server redis:destroy redis-myapp --force
 
 ---
 
+## CLI Command ↔ Workflow Cross-Reference
+
+Many CLI commands have corresponding GitHub Actions workflows. Use CLI for quick operations; use workflows for automation and audit trails.
+
+| CLI Command | GitHub Workflow | Notes |
+|-------------|-----------------|-------|
+| `deploy` | **deploy.yml** | Workflow adds security scan, release tracking, dashboard update |
+| `rollback` | **rollback.yml** | Workflow has pre-rollback backup option |
+| `lock`, `unlock` | **lock.yml** | Workflow can trigger via Actions UI |
+| `destroy` | **cleanup.yml** | Workflow has safety checks, service cleanup |
+| `db backup` | **backup.yml** | Workflow streams to S3, scheduled daily |
+| `ssl enable` | **scheduled.yml** | Workflow handles auto-renewal |
+| `scale` | **autoscaler.yml** | Workflow provides auto-scaling based on metrics |
+| `releases` | — | Reads data set by deploy.yml |
+| `config` | — | deploy.yml syncs from GitHub Environment Variables |
+| `logs` | — | Direct SSH only |
+| `shell`, `run` | — | Direct SSH only |
+| `restart`, `start`, `stop` | — | Direct SSH only |
+| `domains` | — | Use `.dokku/config.yml` custom_domains for automation |
+
+**When to use which:**
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Quick debugging | CLI (`logs`, `shell`, `run`) |
+| Production deploy | Workflow (audit trail, security scan) |
+| Hotfix with rollback | CLI `rollback` (faster) or workflow (backup first) |
+| Block deployments | CLI `lock` (immediate) or workflow (recorded) |
+| Database backup | Workflow (S3 storage, retention) |
+| One-off migration | CLI `run` |
+| Recurring tasks | Workflow (scheduled) |
+
+---
+
 ## Help
 
 - Slack: #deployments

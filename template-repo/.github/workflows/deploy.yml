@@ -18,6 +18,8 @@ jobs:
   deploy:
     uses: signalwire-demos/dokku-deploy-system/.github/workflows/deploy.yml@main
     secrets: inherit
-    # Optional: customize health check path
+    # Optional: customize deployment settings
     # with:
-    #   health_check_path: '/health'
+    #   health_check_path: '/health'  # Health check endpoint (default: /health)
+    #   memory_limit: '512m'          # Memory limit override
+    #   cpu_limit: '1'                # CPU limit override

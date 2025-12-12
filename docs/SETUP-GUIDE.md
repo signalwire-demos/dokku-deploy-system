@@ -16,6 +16,7 @@ Step-by-step instructions for setting up the Dokku deployment system in the `sig
 8. [Set Up DNS](#set-up-dns)
 9. [Test the Setup](#test-the-setup)
 10. [Initialize Your First Project](#initialize-your-first-project)
+11. [Optional: CLI Tool Installation](#optional-cli-tool-installation)
 
 ---
 
@@ -734,13 +735,90 @@ dig +short app.yourdomain.com
 
 ---
 
+## Optional: CLI Tool Installation
+
+The `dokku-cli` tool provides a developer-friendly interface for common Dokku operations.
+
+### Installation
+
+```bash
+# Download the CLI
+curl -o dokku-cli https://raw.githubusercontent.com/signalwire-demos/dokku-deploy-system/main/cli/dokku-cli
+
+# Make executable and move to PATH
+chmod +x dokku-cli
+sudo mv dokku-cli /usr/local/bin/
+
+# Or add to local bin (no sudo)
+mkdir -p ~/.local/bin
+mv dokku-cli ~/.local/bin/
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Configuration
+
+Create `~/.dokku-cli` with your settings:
+
+```bash
+# Required
+DOKKU_HOST="dokku.yourdomain.com"
+SSH_KEY="$HOME/.ssh/dokku_deploy"
+BASE_DOMAIN="yourdomain.com"
+
+# Optional: App aliases for convenience
+ALIAS_API="api-service"
+ALIAS_WEB="web-frontend"
+```
+
+Or run interactive setup:
+
+```bash
+dokku-cli setup
+```
+
+### Shell Completions (Optional)
+
+```bash
+# Bash
+dokku-cli completion bash > ~/.local/share/bash-completion/completions/dokku-cli
+
+# Zsh
+dokku-cli completion zsh > "${fpath[1]}/_dokku-cli"
+
+# Fish
+dokku-cli completion fish > ~/.config/fish/completions/dokku-cli.fish
+```
+
+### Optional Dependency: fzf
+
+For interactive app selection, install `fzf`:
+
+```bash
+# macOS
+brew install fzf
+
+# Ubuntu/Debian
+sudo apt install fzf
+
+# Fedora
+sudo dnf install fzf
+```
+
+### Verify Installation
+
+```bash
+dokku-cli --help
+dokku-cli list
+```
+
+---
+
 ## Next Steps
 
 1. Review [ONBOARDING.md](./ONBOARDING.md) for developer onboarding
 2. Review [QUICK-REFERENCE.md](./QUICK-REFERENCE.md) for daily commands
-3. Set up the CLI: `dokku-cli setup`
-4. Configure Slack notifications
-5. Set up backup automation
+3. Configure Slack notifications (`SLACK_WEBHOOK_URL` secret)
+4. Set up backup automation (add `AWS_*` secrets for S3)
 
 ---
 

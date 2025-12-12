@@ -48,16 +48,6 @@ on:
         required: false
         type: boolean
         default: false
-      docker_image_retention_hours:
-        description: 'Docker image retention (hours, default 168 = 7 days)'
-        required: false
-        type: string
-        default: '168'
-      docker_container_retention_hours:
-        description: 'Docker container retention (hours, default 24)'
-        required: false
-        type: string
-        default: '24'
 
 env:
   GH_ORG: signalwire-demos

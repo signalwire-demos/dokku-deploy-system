@@ -1,0 +1,82 @@
+{
+  "timestamp": "2025-12-14T01:15:14Z",
+  "period": "weekly",
+  "hours": 168,
+  "apps": [
+    {
+      "name": "blackjack",
+      "environment": "production",
+      "resources": {
+        "cpu": 2,
+        "memory_gb": 1,
+        "storage_gb": 0,
+        "instances": 1
+      },
+      "costs": {
+        "cpu": 3.36,
+        "memory": 0.840,
+        "storage": 0,
+        "total": 4.200
+      }
+    },
+    {
+      "name": "cinebot",
+      "environment": "production",
+      "resources": {
+        "cpu": 2,
+        "memory_gb": 1,
+        "storage_gb": 0,
+        "instances": 1
+      },
+      "costs": {
+        "cpu": 3.36,
+        "memory": 0.840,
+        "storage": 0,
+        "total": 4.200
+      }
+    },
+    {
+      "name": "example",
+      "environment": "production",
+      "resources": {
+        "cpu": 2,
+        "memory_gb": 1,
+        "storage_gb": 0,
+        "instances": 1
+      },
+      "costs": {
+        "cpu": 3.36,
+        "memory": 0.840,
+        "storage": 0,
+        "total": 4.200
+      }
+    },
+    {
+      "name": "santa",
+      "environment": "production",
+      "resources": {
+        "cpu": 2,
+        "memory_gb": 1,
+        "storage_gb": 0,
+        "instances": 1
+      },
+      "costs": {
+        "cpu": 3.36,
+        "memory": 0.840,
+        "storage": 0,
+        "total": 4.200
+      }
+    }
+  ],
+  "totals": {
+    "cpu": 8,
+    "memory_gb": 4,
+    "storage_gb": 0,
+    "cost": 16.800
+  },
+  "rates": {
+    "cpu_per_hour": 0.01,
+    "memory_per_gb_hour": 0.005,
+    "storage_per_gb_month": 0.10
+  }
+}

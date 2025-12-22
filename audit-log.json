@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1766437207-bf926b",
+      "timestamp": "2025-12-22T21:00:07Z",
+      "action": "deploy",
+      "app_name": "example",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "d41d71b",
+        "sha_full": "d41d71b9c19dbf3fdb06f8bbbe3916c2f5287eb8",
+        "message": "Fix place holder image"
+      },
+      "duration": "2m 11s",
+      "url": "https://example.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20443761628",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/20443761628"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1766436098-02ec29",
       "timestamp": "2025-12-22T20:41:38Z",
       "action": "deploy",
@@ -117,8 +140,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 5,
-    "successful": 4,
+    "total_deploys": 6,
+    "successful": 5,
     "failed": 1
   }
 }

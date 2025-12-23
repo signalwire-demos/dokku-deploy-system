@@ -1,13 +1,13 @@
 {
   "latest": {
-    "timestamp": "2025-12-23T21:46:54Z",
+    "timestamp": "2025-12-23T22:09:52Z",
     "apps": {
       "blackjack": {
         "url": "https://blackjack.signalwire.io",
         "response_time": {
-          "p50": 79,
-          "p95": 108,
-          "p99": 108
+          "p50": 83,
+          "p95": 248,
+          "p99": 248
         },
         "availability": {
           "success_rate": 100.00,
@@ -24,9 +24,9 @@
       "cinebot": {
         "url": "https://cinebot.signalwire.io",
         "response_time": {
-          "p50": 79,
-          "p95": 88,
-          "p99": 88
+          "p50": 77,
+          "p95": 84,
+          "p99": 84
         },
         "availability": {
           "success_rate": 100.00,
@@ -44,8 +44,8 @@
         "url": "https://example.signalwire.io",
         "response_time": {
           "p50": 78,
-          "p95": 89,
-          "p99": 89
+          "p95": 87,
+          "p99": 87
         },
         "availability": {
           "success_rate": 100.00,
@@ -62,9 +62,9 @@
       "santa": {
         "url": "https://santa.signalwire.io",
         "response_time": {
-          "p50": 81,
-          "p95": 99,
-          "p99": 99
+          "p50": 80,
+          "p95": 90,
+          "p99": 90
         },
         "availability": {
           "success_rate": 100.00,
@@ -81,87 +81,6 @@
     }
   },
   "history": [
-    {
-      "timestamp": "2025-12-22T10:11:50Z",
-      "apps": {
-        "blackjack": {
-          "url": "https://blackjack.signalwire.io",
-          "response_time": {
-            "p50": 110,
-            "p95": 284,
-            "p99": 284
-          },
-          "availability": {
-            "success_rate": 100.00,
-            "error_rate": 0,
-            "requests": 20,
-            "successes": 20,
-            "client_errors": 0,
-            "server_errors": 0
-          },
-          "ssl": {
-            "days_until_expiry": 77
-          }
-        },
-        "cinebot": {
-          "url": "https://cinebot.signalwire.io",
-          "response_time": {
-            "p50": 110,
-            "p95": 134,
-            "p99": 134
-          },
-          "availability": {
-            "success_rate": 100.00,
-            "error_rate": 0,
-            "requests": 20,
-            "successes": 20,
-            "client_errors": 0,
-            "server_errors": 0
-          },
-          "ssl": {
-            "days_until_expiry": 77
-          }
-        },
-        "example": {
-          "url": "https://example.signalwire.io",
-          "response_time": {
-            "p50": 108,
-            "p95": 125,
-            "p99": 125
-          },
-          "availability": {
-            "success_rate": 100.00,
-            "error_rate": 0,
-            "requests": 20,
-            "successes": 20,
-            "client_errors": 0,
-            "server_errors": 0
-          },
-          "ssl": {
-            "days_until_expiry": 78
-          }
-        },
-        "santa": {
-          "url": "https://santa.signalwire.io",
-          "response_time": {
-            "p50": 112,
-            "p95": 126,
-            "p99": 126
-          },
-          "availability": {
-            "success_rate": 100.00,
-            "error_rate": 0,
-            "requests": 20,
-            "successes": 20,
-            "client_errors": 0,
-            "server_errors": 0
-          },
-          "ssl": {
-            "days_until_expiry": 77
-          }
-        }
-      }
-    },
     {
       "timestamp": "2025-12-22T10:38:00Z",
       "apps": {
@@ -7842,6 +7761,87 @@
             "p50": 81,
             "p95": 99,
             "p99": 99
+          },
+          "availability": {
+            "success_rate": 100.00,
+            "error_rate": 0,
+            "requests": 20,
+            "successes": 20,
+            "client_errors": 0,
+            "server_errors": 0
+          },
+          "ssl": {
+            "days_until_expiry": 75
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2025-12-23T22:09:52Z",
+      "apps": {
+        "blackjack": {
+          "url": "https://blackjack.signalwire.io",
+          "response_time": {
+            "p50": 83,
+            "p95": 248,
+            "p99": 248
+          },
+          "availability": {
+            "success_rate": 100.00,
+            "error_rate": 0,
+            "requests": 20,
+            "successes": 20,
+            "client_errors": 0,
+            "server_errors": 0
+          },
+          "ssl": {
+            "days_until_expiry": 75
+          }
+        },
+        "cinebot": {
+          "url": "https://cinebot.signalwire.io",
+          "response_time": {
+            "p50": 77,
+            "p95": 84,
+            "p99": 84
+          },
+          "availability": {
+            "success_rate": 100.00,
+            "error_rate": 0,
+            "requests": 20,
+            "successes": 20,
+            "client_errors": 0,
+            "server_errors": 0
+          },
+          "ssl": {
+            "days_until_expiry": 76
+          }
+        },
+        "example": {
+          "url": "https://example.signalwire.io",
+          "response_time": {
+            "p50": 78,
+            "p95": 87,
+            "p99": 87
+          },
+          "availability": {
+            "success_rate": 100.00,
+            "error_rate": 0,
+            "requests": 20,
+            "successes": 20,
+            "client_errors": 0,
+            "server_errors": 0
+          },
+          "ssl": {
+            "days_until_expiry": 76
+          }
+        },
+        "santa": {
+          "url": "https://santa.signalwire.io",
+          "response_time": {
+            "p50": 80,
+            "p95": 90,
+            "p99": 90
           },
           "availability": {
             "success_rate": 100.00,

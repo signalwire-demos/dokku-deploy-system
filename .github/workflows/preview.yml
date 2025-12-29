@@ -518,7 +518,9 @@ jobs:
           DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
           # Enable SSL - must be done before health check
-          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
+          # Note: letsencrypt:active outputs "true"/"false" - check output, not exit code
+          SSL_STATUS=$(ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null || echo "false")
+          if [ "$SSL_STATUS" = "true" ]; then
             echo "SSL already active"
           else
             echo "Enabling Let's Encrypt SSL..."

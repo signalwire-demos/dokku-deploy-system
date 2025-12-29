@@ -760,13 +760,22 @@ jobs:
           echo "═══════════════════════════════════════════════════════"
 
       - name: Verify deployment
+        id: health_check
         run: |
-          echo "Verifying deployment via HTTP..."
-
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
-          # Use HTTP for health check - SSL will be enabled next
-          HEALTH_URL="http://${{ env.DOMAIN }}${HEALTH_PATH}"
+
+          # Check if SSL is already active (for subsequent deploys)
+          SSL_ACTIVE="false"
+          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
+            SSL_ACTIVE="true"
+            HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
+            echo "SSL active - verifying deployment via HTTPS..."
+          else
+            HEALTH_URL="http://${{ env.DOMAIN }}${HEALTH_PATH}"
+            echo "SSL not yet active - verifying deployment via HTTP..."
+          fi
+          echo "ssl_was_active=$SSL_ACTIVE" >> $GITHUB_OUTPUT
 
           MAX_ATTEMPTS=6
           ATTEMPT=1
@@ -776,7 +785,8 @@ jobs:
             echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
             sleep $WAIT_TIME
 
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+            # Use -L to follow redirects (important when HTTP redirects to HTTPS)
+            HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
 
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_STATUS)"
@@ -827,16 +837,39 @@ jobs:
           fi
 
       - name: Enable SSL
-        timeout-minutes: 2
+        timeout-minutes: 3
         run: |
-          # Skip if SSL already active
-          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
-            echo "SSL already active, skipping"
+          # Skip if SSL was already active before deploy (checked in health_check step)
+          if [ "${{ steps.health_check.outputs.ssl_was_active }}" == "true" ]; then
+            echo "SSL already active, skipping enable step"
           else
             echo "Enabling Let's Encrypt SSL..."
-            timeout 60 ssh dokku letsencrypt:enable ${{ env.APP_NAME }} || {
+            if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
+              echo "✅ SSL enabled successfully"
+
+              # Verify HTTPS actually works
+              echo "Verifying HTTPS..."
+              sleep 3
+              HTTPS_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "https://${{ env.DOMAIN }}/health" --max-time 10 2>/dev/null || echo "000")
+              if [ "$HTTPS_STATUS" -ge 200 ] && [ "$HTTPS_STATUS" -lt 400 ]; then
+                echo "✅ HTTPS verification passed (HTTP $HTTPS_STATUS)"
+              else
+                # Try root endpoint
+                HTTPS_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "https://${{ env.DOMAIN }}/" --max-time 10 2>/dev/null || echo "000")
+                if [ "$HTTPS_STATUS" -ge 200 ] && [ "$HTTPS_STATUS" -lt 400 ]; then
+                  echo "✅ HTTPS verification passed (HTTP $HTTPS_STATUS)"
+                else
+                  echo "::warning::SSL enabled but HTTPS check returned HTTP $HTTPS_STATUS"
+                fi
+              fi
+            else
               echo "::warning::SSL setup timed out or failed - app is running on HTTP"
-            }
+              echo "This may be due to:"
+              echo "  - DNS not propagated yet for ${{ env.DOMAIN }}"
+              echo "  - Let's Encrypt rate limiting"
+              echo "  - Port 80 not accessible for ACME challenge"
+              echo "SSL will be retried on next deploy or during scheduled maintenance"
+            fi
           fi
 
           echo ""

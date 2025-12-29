@@ -1,97 +1,95 @@
-{"last_updated":"2025-12-29T17:58:07Z","apps":[
 {
-  "name": "blackjack",
-  "status": "running",
-  "environment": "production",
-  "url": "https://blackjack.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "e4bb6e3b7c5458e70403eed5109ba773b0f44a6d",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 1539098,
-    "response_time_ms": 670,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
+  "last_updated": "2025-12-29T18:07:44Z",
+  "apps": [
+    {
+      "name": "blackjack",
+      "status": "running",
+      "environment": "production",
+      "url": "https://blackjack.signalwire.io",
+      "last_deploy": "2025-12-29T17:58:07Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "e4bb6e3b7c5458e70403eed5109ba773b0f44a6d",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 1539098,
+        "response_time_ms": 670,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "bobbystable",
+      "status": "running",
+      "environment": "production",
+      "url": "https://bobbystable.signalwire.io",
+      "last_deploy": "2025-12-29T17:58:07Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "377752fdb52644478769f0314dc90caa3e3713a8",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 1420,
+        "response_time_ms": 724,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "cinebot",
+      "status": "running",
+      "environment": "production",
+      "url": "https://cinebot.signalwire.io",
+      "last_deploy": "2025-12-29T17:58:07Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "a83805aaa13ce9510236ce2d57ac136e8b86744f",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 1540540,
+        "response_time_ms": 544,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "example",
+      "status": "running",
+      "environment": "production",
+      "url": "https://example.signalwire.io",
+      "last_deploy": "2025-12-29T17:58:07Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "d41d71b9c19dbf3fdb06f8bbbe3916c2f5287eb8",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 593927,
+        "response_time_ms": 602,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "holyguacamole",
+      "status": "success",
+      "environment": "production",
+      "url": "https://holyguacamole.signalwire.io",
+      "last_deploy": "2025-12-29T18:07:44Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "c4bd950f62f6ebe3e0e5919b8e0cfecee41da33e",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 61,
+        "response_time_ms": 112,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "santa",
+      "status": "running",
+      "environment": "production",
+      "url": "https://santa.signalwire.io",
+      "last_deploy": "2025-12-29T17:58:07Z",
+      "last_deploy_by": "sync",
+      "commit_sha": "ddf54464a64a3914539b19231d4ac0c9f6e17dbc",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 1538891,
+        "response_time_ms": 504,
+        "last_check": "2025-12-29T17:58:07Z"
+      }
+    }
+  ]
 }
-,
-{
-  "name": "bobbystable",
-  "status": "running",
-  "environment": "production",
-  "url": "https://bobbystable.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "377752fdb52644478769f0314dc90caa3e3713a8",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 1420,
-    "response_time_ms": 724,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
-}
-,
-{
-  "name": "cinebot",
-  "status": "running",
-  "environment": "production",
-  "url": "https://cinebot.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "a83805aaa13ce9510236ce2d57ac136e8b86744f",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 1540540,
-    "response_time_ms": 544,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
-}
-,
-{
-  "name": "example",
-  "status": "running",
-  "environment": "production",
-  "url": "https://example.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "d41d71b9c19dbf3fdb06f8bbbe3916c2f5287eb8",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 593927,
-    "response_time_ms": 602,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
-}
-,
-{
-  "name": "holyguacamole",
-  "status": "running",
-  "environment": "production",
-  "url": "https://holyguacamole.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "3c21f78e16afda99fb782951689a6ab25a69cc43",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 61,
-    "response_time_ms": 112,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
-}
-,
-{
-  "name": "santa",
-  "status": "running",
-  "environment": "production",
-  "url": "https://santa.signalwire.io",
-  "last_deploy": "2025-12-29T17:58:07Z",
-  "last_deploy_by": "sync",
-  "commit_sha": "ddf54464a64a3914539b19231d4ac0c9f6e17dbc",
-  "uptime": {
-    "status": "healthy",
-    "uptime_seconds": 1538891,
-    "response_time_ms": 504,
-    "last_check": "2025-12-29T17:58:07Z"
-  }
-}
-]}

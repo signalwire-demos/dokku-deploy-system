@@ -760,7 +760,9 @@ jobs:
           echo "═══════════════════════════════════════════════════════"
 
       - name: Configure custom domains
+        id: custom_domains
         run: |
+          DOMAINS_ADDED="false"
           if [ -f ".dokku/config.yml" ]; then
             # Check for custom_domains in config
             CUSTOM_DOMAINS=$(yq e '.custom_domains[]' .dokku/config.yml 2>/dev/null || echo "")
@@ -779,13 +781,19 @@ jobs:
 
               for DOMAIN in $ALL_DOMAINS; do
                 echo "  Adding domain: $DOMAIN"
-                ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN" 2>/dev/null || \
+                # Check if domain was actually added (not already configured)
+                if ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN" 2>&1 | grep -q "added"; then
+                  DOMAINS_ADDED="true"
+                  echo "  ✓ Added new domain"
+                else
                   echo "  (domain already configured)"
+                fi
               done
 
               echo "═══════════════════════════════════════════════════════"
             fi
           fi
+          echo "domains_added=$DOMAINS_ADDED" >> $GITHUB_OUTPUT
 
       - name: Enable SSL
         timeout-minutes: 3
@@ -793,10 +801,16 @@ jobs:
           # Enable SSL - must be done before health check
           # Note: letsencrypt:active outputs "true"/"false" - check output, not exit code
           SSL_STATUS=$(ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null || echo "false")
-          if [ "$SSL_STATUS" = "true" ]; then
+          DOMAINS_ADDED="${{ steps.custom_domains.outputs.domains_added }}"
+
+          if [ "$SSL_STATUS" = "true" ] && [ "$DOMAINS_ADDED" != "true" ]; then
             echo "SSL already active"
           else
-            echo "Enabling Let's Encrypt SSL..."
+            if [ "$SSL_STATUS" = "true" ] && [ "$DOMAINS_ADDED" = "true" ]; then
+              echo "Re-enabling SSL to get certs for new custom domains..."
+            else
+              echo "Enabling Let's Encrypt SSL..."
+            fi
             if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
               echo "✅ SSL enabled successfully"
             else

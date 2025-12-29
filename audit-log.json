@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767032386-7f0fab",
+      "timestamp": "2025-12-29T18:19:46Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "c4bd950",
+        "sha_full": "c4bd950f62f6ebe3e0e5919b8e0cfecee41da33e",
+        "message": "update to migrate domain over"
+      },
+      "duration": "1m 18s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20579432550",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/20579432550"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767031900-cbca2c",
       "timestamp": "2025-12-29T18:11:40Z",
       "action": "deploy",
@@ -462,8 +485,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 20,
-    "successful": 12,
+    "total_deploys": 21,
+    "successful": 13,
     "failed": 8
   }
 }

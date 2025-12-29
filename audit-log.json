@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767028165-4c932c",
+      "timestamp": "2025-12-29T17:09:25Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "0123efe",
+        "sha_full": "0123efe42df72686c1232a7a832951b640db8e8d",
+        "message": "add Claude markdown file"
+      },
+      "duration": "2m 28s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20578331656",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/20578331656"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767027970-195b6c",
       "timestamp": "2025-12-29T17:06:10Z",
       "action": "deploy",
@@ -278,8 +301,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 12,
-    "successful": 6,
+    "total_deploys": 13,
+    "successful": 7,
     "failed": 6
   }
 }

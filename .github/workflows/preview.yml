@@ -512,27 +512,45 @@ jobs:
           echo ""
           echo "  All release tasks completed!"
 
+      - name: Enable SSL
+        id: ssl
+        timeout-minutes: 2
+        run: |
+          DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
+
+          # Enable SSL BEFORE health check - apps may require HTTPS
+          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
+            echo "SSL already active"
+            echo "ssl_enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "Enabling Let's Encrypt SSL..."
+            if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
+              echo "✅ SSL enabled successfully"
+              echo "ssl_enabled=true" >> $GITHUB_OUTPUT
+            else
+              echo "::warning::SSL setup failed - will health check via HTTP"
+              echo "ssl_enabled=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Verify deployment
         id: verify
         run: |
           DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
-          # Check if SSL is already active (for redeployed previews)
-          SSL_ACTIVE="false"
-          if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
-            SSL_ACTIVE="true"
-            echo "SSL active - verifying preview via HTTPS..."
+          # Use HTTPS if SSL was enabled, otherwise fall back to HTTP
+          if [ "${{ steps.ssl.outputs.ssl_enabled }}" == "true" ]; then
             HEALTH_URL="https://$DOMAIN/health"
+            echo "Verifying preview via HTTPS..."
           else
-            echo "SSL not yet active - verifying preview via HTTP..."
             HEALTH_URL="http://$DOMAIN/health"
+            echo "Verifying preview via HTTP (SSL not available)..."
           fi
-          echo "ssl_was_active=$SSL_ACTIVE" >> $GITHUB_OUTPUT
 
-          sleep 10
+          sleep 5
 
-          # Use -L to follow redirects
-          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
+          # Use -L to follow redirects, -k to allow self-signed certs during transition
+          HTTP_STATUS=$(curl -sLk -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
 
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
             echo "✅ Preview is ready! (HTTP $HTTP_STATUS)"
@@ -540,7 +558,7 @@ jobs:
           else
             # Try root endpoint
             ROOT_URL=$(echo "$HEALTH_URL" | sed 's|/health$|/|')
-            HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$ROOT_URL" --max-time 10 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -sLk -o /dev/null -w "%{http_code}" "$ROOT_URL" --max-time 10 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
               echo "✅ Preview is ready! (HTTP $HTTP_STATUS)"
               echo "status=success" >> $GITHUB_OUTPUT
@@ -551,31 +569,6 @@ jobs:
           fi
 
           echo "url=https://$DOMAIN" >> $GITHUB_OUTPUT
-
-      - name: Enable SSL
-        timeout-minutes: 2
-        run: |
-          # Skip if SSL was already active
-          if [ "${{ steps.verify.outputs.ssl_was_active }}" == "true" ]; then
-            echo "SSL already active, skipping"
-          else
-            echo "Enabling Let's Encrypt SSL..."
-            DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
-            if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
-              echo "✅ SSL enabled successfully"
-
-              # Verify HTTPS works
-              sleep 3
-              HTTPS_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo "000")
-              if [ "$HTTPS_STATUS" -ge 200 ] && [ "$HTTPS_STATUS" -lt 400 ]; then
-                echo "✅ HTTPS verification passed (HTTP $HTTPS_STATUS)"
-              else
-                echo "::warning::SSL enabled but HTTPS returned HTTP $HTTPS_STATUS"
-              fi
-            else
-              echo "::warning::SSL setup failed - preview running on HTTP"
-            fi
-          fi
 
       - name: Add HTTP authentication (optional)
         env:

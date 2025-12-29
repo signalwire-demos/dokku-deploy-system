@@ -513,23 +513,20 @@ jobs:
           echo "  All release tasks completed!"
 
       - name: Enable SSL
-        id: ssl
         timeout-minutes: 2
         run: |
           DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
-          # Enable SSL BEFORE health check - apps may require HTTPS
+          # Enable SSL - must be done before health check
           if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
             echo "SSL already active"
-            echo "ssl_enabled=true" >> $GITHUB_OUTPUT
           else
             echo "Enabling Let's Encrypt SSL..."
             if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
               echo "✅ SSL enabled successfully"
-              echo "ssl_enabled=true" >> $GITHUB_OUTPUT
             else
-              echo "::warning::SSL setup failed - will health check via HTTP"
-              echo "ssl_enabled=false" >> $GITHUB_OUTPUT
+              echo "::error::SSL setup failed for preview"
+              exit 1
             fi
           fi
 
@@ -538,27 +535,20 @@ jobs:
         run: |
           DOMAIN="${{ env.APP_NAME }}.${{ vars.BASE_DOMAIN }}"
 
-          # Use HTTPS if SSL was enabled, otherwise fall back to HTTP
-          if [ "${{ steps.ssl.outputs.ssl_enabled }}" == "true" ]; then
-            HEALTH_URL="https://$DOMAIN/health"
-            echo "Verifying preview via HTTPS..."
-          else
-            HEALTH_URL="http://$DOMAIN/health"
-            echo "Verifying preview via HTTP (SSL not available)..."
-          fi
+          # Always use HTTPS - SSL is now configured
+          HEALTH_URL="https://$DOMAIN/health"
+          echo "Verifying preview via HTTPS..."
 
           sleep 5
 
-          # Use -L to follow redirects, -k to allow self-signed certs during transition
-          HTTP_STATUS=$(curl -sLk -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
+          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
 
           if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
             echo "✅ Preview is ready! (HTTP $HTTP_STATUS)"
             echo "status=success" >> $GITHUB_OUTPUT
           else
             # Try root endpoint
-            ROOT_URL=$(echo "$HEALTH_URL" | sed 's|/health$|/|')
-            HTTP_STATUS=$(curl -sLk -o /dev/null -w "%{http_code}" "$ROOT_URL" --max-time 10 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "https://$DOMAIN/" --max-time 10 2>/dev/null || echo "000")
             if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
               echo "✅ Preview is ready! (HTTP $HTTP_STATUS)"
               echo "status=success" >> $GITHUB_OUTPUT

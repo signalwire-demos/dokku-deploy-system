@@ -788,26 +788,22 @@ jobs:
           fi
 
       - name: Enable SSL
-        id: ssl
         timeout-minutes: 3
         run: |
-          # Enable SSL BEFORE health check - apps may require HTTPS
+          # Enable SSL - must be done before health check
           if ssh dokku letsencrypt:active ${{ env.APP_NAME }} 2>/dev/null; then
             echo "SSL already active"
-            echo "ssl_enabled=true" >> $GITHUB_OUTPUT
           else
             echo "Enabling Let's Encrypt SSL..."
             if timeout 90 ssh dokku letsencrypt:enable ${{ env.APP_NAME }}; then
               echo "✅ SSL enabled successfully"
-              echo "ssl_enabled=true" >> $GITHUB_OUTPUT
             else
-              echo "::warning::SSL setup timed out or failed - will health check via HTTP"
+              echo "::error::SSL setup failed"
               echo "This may be due to:"
               echo "  - DNS not propagated yet for ${{ env.DOMAIN }}"
               echo "  - Let's Encrypt rate limiting"
               echo "  - Port 80 not accessible for ACME challenge"
-              echo "SSL will be retried on next deploy or during scheduled maintenance"
-              echo "ssl_enabled=false" >> $GITHUB_OUTPUT
+              exit 1
             fi
           fi
 
@@ -816,14 +812,9 @@ jobs:
           HEALTH_PATH="${{ inputs.health_check_path }}"
           [ -z "$HEALTH_PATH" ] && HEALTH_PATH="/health"
 
-          # Use HTTPS if SSL was enabled, otherwise fall back to HTTP
-          if [ "${{ steps.ssl.outputs.ssl_enabled }}" == "true" ]; then
-            HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
-            echo "Verifying deployment via HTTPS..."
-          else
-            HEALTH_URL="http://${{ env.DOMAIN }}${HEALTH_PATH}"
-            echo "Verifying deployment via HTTP (SSL not available)..."
-          fi
+          # Always use HTTPS - SSL is now configured
+          HEALTH_URL="https://${{ env.DOMAIN }}${HEALTH_PATH}"
+          echo "Verifying deployment via HTTPS..."
 
           MAX_ATTEMPTS=6
           ATTEMPT=1
@@ -833,8 +824,7 @@ jobs:
             echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS (waiting ${WAIT_TIME}s)..."
             sleep $WAIT_TIME
 
-            # Use -L to follow redirects, -k to allow self-signed certs during transition
-            HTTP_STATUS=$(curl -sLk -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
+            HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$HEALTH_URL" --max-time 10 2>/dev/null || echo "000")
 
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_STATUS)"

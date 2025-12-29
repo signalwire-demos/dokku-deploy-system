@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 7 |
+| Total Deployments | 8 |
 | Successful | 6 |
-| Failed | 1 |
-| Success Rate | 85.7% |
+| Failed | 2 |
+| Success Rate | 75.0% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2025-12-29T16:33:57Z | deploy | bobbystable | production | failure | briankwest |
 | 2025-12-29T16:13:12Z | deploy | bobbystable | production | success | briankwest |
 | 2025-12-22T21:00:07Z | deploy | example | production | success | briankwest |
 | 2025-12-22T20:41:38Z | deploy | example | production | success | briankwest |

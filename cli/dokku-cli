@@ -85,6 +85,33 @@ check_fzf() {
     fi
 }
 
+# Show a menu with fzf, filtering out separator lines
+show_menu() {
+    local header="$1"
+    local options="$2"
+    local prompt="${3:-Select > }"
+
+    echo "$options" | grep -v '^─' | fzf \
+        --header="$header" \
+        --height=80% \
+        --border \
+        --prompt="$prompt" \
+        --no-info
+}
+
+# Confirm before quitting
+confirm_quit() {
+    echo ""
+    read -p "Exit interactive mode? (y/N): " confirm
+    [[ "$confirm" =~ ^[Yy] ]]
+}
+
+# Wait for user to press Enter
+press_enter() {
+    echo ""
+    read -p "Press Enter to continue..."
+}
+
 # Get app info for fzf preview
 get_app_preview() {
     local app="$1"
@@ -1174,17 +1201,16 @@ Lock Deployments
 Unlock Deployments
 Check Lock Status
 ─────────────────
-Database Operations
-SSL Management
-Domain Management
+Database →
+SSL →
+Domains →
 ─────────────────
-⚠️  Destroy App"
+Destroy App
+─────────────────
+← Back to apps
+✕ Quit"
 
-    echo "$actions" | fzf \
-        --header="$app - Select action" \
-        --height=80% \
-        --border \
-        --prompt="Action > "
+    show_menu "$app" "$actions" "Action > "
 }
 
 # Select git branch
@@ -1215,31 +1241,129 @@ select_branch() {
 interactive_db() {
     local app="$1"
 
-    local actions="Connect to Database
+    while true; do
+        local actions="Connect to Database
 View Database Info
 Backup to Local File
 Backup to Server
 Restore from Backup
-List All Backups"
+List All Backups
+─────────────────
+← Back"
 
-    local action=$(echo "$actions" | fzf \
-        --header="$app - Database Operations" \
-        --height=50% \
-        --border \
-        --prompt="DB Action > ")
+        local action=$(show_menu "$app - Database" "$actions" "DB > ")
+        [ -z "$action" ] && return  # ESC pressed
 
-    case "$action" in
-        "Connect to Database")     cmd_db "$app" connect ;;
-        "View Database Info")      cmd_db "$app" info ;;
-        "Backup to Local File")    cmd_db "$app" backup ;;
-        "Backup to Server")        cmd_db "$app" backup-server ;;
-        "Restore from Backup")
-            log_info "Enter backup file path:"
-            read -p "> " backup_file
-            [ -n "$backup_file" ] && cmd_db "$app" restore "$backup_file"
-            ;;
-        "List All Backups")        cmd_db "$app" list-backups ;;
-    esac
+        case "$action" in
+            "← Back") return ;;
+            "Connect to Database")
+                cmd_db "$app" connect
+                ;;
+            "View Database Info")
+                cmd_db "$app" info
+                press_enter
+                ;;
+            "Backup to Local File")
+                cmd_db "$app" backup
+                press_enter
+                ;;
+            "Backup to Server")
+                cmd_db "$app" backup-server
+                press_enter
+                ;;
+            "Restore from Backup")
+                echo ""
+                log_info "Enter backup file path:"
+                read -p "> " backup_file
+                if [ -n "$backup_file" ]; then
+                    cmd_db "$app" restore "$backup_file"
+                    press_enter
+                fi
+                ;;
+            "List All Backups")
+                cmd_db "$app" list-backups
+                press_enter
+                ;;
+        esac
+    done
+}
+
+# SSL operations submenu
+interactive_ssl() {
+    local app="$1"
+
+    while true; do
+        local actions="View SSL Status
+Enable SSL
+Disable SSL
+─────────────────
+← Back"
+
+        local action=$(show_menu "$app - SSL" "$actions" "SSL > ")
+        [ -z "$action" ] && return  # ESC pressed
+
+        case "$action" in
+            "← Back") return ;;
+            "View SSL Status")
+                cmd_ssl "$app" status
+                press_enter
+                ;;
+            "Enable SSL")
+                cmd_ssl "$app" enable
+                press_enter
+                ;;
+            "Disable SSL")
+                cmd_ssl "$app" disable
+                press_enter
+                ;;
+        esac
+    done
+}
+
+# Domain operations submenu
+interactive_domains() {
+    local app="$1"
+
+    while true; do
+        local actions="List Domains
+Add Domain
+Remove Domain
+─────────────────
+← Back"
+
+        local action=$(show_menu "$app - Domains" "$actions" "Domain > ")
+        [ -z "$action" ] && return  # ESC pressed
+
+        case "$action" in
+            "← Back") return ;;
+            "List Domains")
+                cmd_domains "$app"
+                press_enter
+                ;;
+            "Add Domain")
+                echo ""
+                log_info "Enter domain to add:"
+                read -p "> " domain
+                if [ -n "$domain" ]; then
+                    cmd_domains "$app" add "$domain"
+                    press_enter
+                fi
+                ;;
+            "Remove Domain")
+                # Show current domains first
+                echo ""
+                log_info "Current domains:"
+                dokku_ssh domains:report "$app" 2>/dev/null | grep -i vhost || echo "  No custom domains"
+                echo ""
+                log_info "Enter domain to remove:"
+                read -p "> " domain
+                if [ -n "$domain" ]; then
+                    cmd_domains "$app" remove "$domain"
+                    press_enter
+                fi
+                ;;
+        esac
+    done
 }
 
 # Main interactive mode
@@ -1248,121 +1372,115 @@ cmd_interactive() {
 
     log_info "Loading apps..."
 
+    # Outer loop: app selection
     while true; do
-        # Pick an app
         local app=$(cmd_pick)
-        [ -z "$app" ] && break
 
-        # Pick an action
-        local action=$(select_action "$app")
-        [ -z "$action" ] && continue
+        # ESC or empty = exit interactive mode
+        if [ -z "$app" ]; then
+            if confirm_quit; then
+                break
+            fi
+            continue
+        fi
 
-        # Execute action
-        case "$action" in
-            "View Logs")
-                cmd_logs "$app"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            "Follow Logs (live)")
-                log_info "Press Ctrl+C to stop following logs"
-                cmd_logs_follow "$app"
-                ;;
-            "Restart")
-                cmd_restart "$app"
-                sleep 1
-                ;;
-            "View Config")
-                cmd_config "$app"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            "Set Config Variable")
-                echo "Enter KEY=value (or multiple: KEY1=val1 KEY2=val2):"
-                read -p "> " config_input
-                if [ -n "$config_input" ]; then
-                    cmd_config_set "$app" $config_input
-                fi
-                sleep 1
-                ;;
-            "Scale Processes")
-                echo "Current scale:"
-                dokku_ssh ps:scale "$app"
-                echo ""
-                echo "Enter new scale (e.g., web=2 worker=1):"
-                read -p "> " scale_input
-                if [ -n "$scale_input" ]; then
-                    cmd_scale "$app" $scale_input
-                fi
-                sleep 1
-                ;;
-            "Open Shell")
-                cmd_shell "$app"
-                ;;
-            "Deploy (from branch)")
-                local branch=$(select_branch)
-                if [ -n "$branch" ]; then
-                    cmd_deploy "$app" "$branch"
-                    read -p "Press Enter to continue..."
-                fi
-                ;;
-            "Rollback")
-                # cmd_rollback handles prompting if no version specified
-                cmd_rollback "$app"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            "View Releases")
-                cmd_releases "$app"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            "Lock Deployments")
-                echo "Enter lock reason:"
-                read -p "> " reason
-                cmd_lock "$app" "${reason:-Manual lock}"
-                sleep 1
-                ;;
-            "Unlock Deployments")
-                cmd_unlock "$app"
-                sleep 1
-                ;;
-            "Check Lock Status")
-                cmd_lock_status "$app"
-                echo ""
-                read -p "Press Enter to continue..."
-                ;;
-            "Database Operations")
-                interactive_db "$app"
-                read -p "Press Enter to continue..."
-                ;;
-            "SSL Management")
-                cmd_ssl "$app"
-                echo ""
-                echo "Actions: enable, disable"
-                read -p "Action (or Enter to skip): " ssl_action
-                [ -n "$ssl_action" ] && cmd_ssl "$app" "$ssl_action"
-                sleep 1
-                ;;
-            "Domain Management")
-                cmd_domains "$app"
-                echo ""
-                echo "Actions: add <domain>, remove <domain>"
-                read -p "Action (or Enter to skip): " domain_action
-                if [ -n "$domain_action" ]; then
-                    cmd_domains "$app" $domain_action
-                fi
-                sleep 1
-                ;;
-            "⚠️  Destroy App")
-                cmd_destroy "$app"
-                break  # Exit loop if app destroyed
-                ;;
-            ─*)
-                # Separator line, ignore
-                continue
-                ;;
-        esac
+        # Inner loop: stay in app context until Back or Quit
+        while true; do
+            local action=$(select_action "$app")
+
+            # ESC pressed - treat as back to apps
+            [ -z "$action" ] && break
+
+            case "$action" in
+                "← Back to apps")
+                    break  # Back to app selection
+                    ;;
+                "✕ Quit")
+                    if confirm_quit; then
+                        log_info "Exiting interactive mode"
+                        return
+                    fi
+                    ;;
+                "View Logs")
+                    cmd_logs "$app"
+                    press_enter
+                    ;;
+                "Follow Logs (live)")
+                    log_info "Press Ctrl+C to stop following logs"
+                    cmd_logs_follow "$app"
+                    ;;
+                "Restart")
+                    cmd_restart "$app"
+                    ;;
+                "View Config")
+                    cmd_config "$app"
+                    press_enter
+                    ;;
+                "Set Config Variable")
+                    echo ""
+                    echo "Enter KEY=value (or multiple: KEY1=val1 KEY2=val2):"
+                    read -p "> " config_input
+                    if [ -n "$config_input" ]; then
+                        cmd_config_set "$app" $config_input
+                    fi
+                    ;;
+                "Scale Processes")
+                    echo ""
+                    echo "Current scale:"
+                    dokku_ssh ps:scale "$app"
+                    echo ""
+                    echo "Enter new scale (e.g., web=2 worker=1):"
+                    read -p "> " scale_input
+                    if [ -n "$scale_input" ]; then
+                        cmd_scale "$app" $scale_input
+                    fi
+                    ;;
+                "Open Shell")
+                    cmd_shell "$app"
+                    ;;
+                "Deploy (from branch)")
+                    local branch=$(select_branch)
+                    if [ -n "$branch" ]; then
+                        cmd_deploy "$app" "$branch"
+                        press_enter
+                    fi
+                    ;;
+                "Rollback")
+                    cmd_rollback "$app"
+                    press_enter
+                    ;;
+                "View Releases")
+                    cmd_releases "$app"
+                    press_enter
+                    ;;
+                "Lock Deployments")
+                    echo ""
+                    echo "Enter lock reason:"
+                    read -p "> " reason
+                    cmd_lock "$app" "${reason:-Manual lock}"
+                    ;;
+                "Unlock Deployments")
+                    cmd_unlock "$app"
+                    ;;
+                "Check Lock Status")
+                    cmd_lock_status "$app"
+                    press_enter
+                    ;;
+                "Database →")
+                    interactive_db "$app"
+                    ;;
+                "SSL →")
+                    interactive_ssl "$app"
+                    ;;
+                "Domains →")
+                    interactive_domains "$app"
+                    ;;
+                "Destroy App")
+                    cmd_destroy "$app"
+                    break  # Back to app selection after destroy
+                    ;;
+            esac
+        done
     done
 
     log_info "Exiting interactive mode"
@@ -1491,7 +1609,7 @@ while [[ "$1" == -* ]]; do
             exit 0
             ;;
         --version|-v)
-            echo "dokku-cli v2.2.0"
+            echo "dokku-cli v2.3.0"
             exit 0
             ;;
         *)

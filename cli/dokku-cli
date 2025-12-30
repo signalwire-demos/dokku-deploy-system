@@ -1372,11 +1372,16 @@ cmd_interactive() {
 
     log_info "Loading apps..."
 
+    local app=""
+    local action=""
+    local quit_requested=false
+
     # Outer loop: app selection
     while true; do
-        local app=$(cmd_pick)
+        echo ""  # Clear line before fzf
+        app=$(cmd_pick)
 
-        # ESC or empty = exit interactive mode
+        # ESC or empty = confirm exit
         if [ -z "$app" ]; then
             if confirm_quit; then
                 break
@@ -1386,10 +1391,12 @@ cmd_interactive() {
 
         # Inner loop: stay in app context until Back or Quit
         while true; do
-            local action=$(select_action "$app")
+            action=$(select_action "$app")
 
             # ESC pressed - treat as back to apps
-            [ -z "$action" ] && break
+            if [ -z "$action" ]; then
+                break
+            fi
 
             case "$action" in
                 "← Back to apps")
@@ -1397,8 +1404,8 @@ cmd_interactive() {
                     ;;
                 "✕ Quit")
                     if confirm_quit; then
-                        log_info "Exiting interactive mode"
-                        return
+                        quit_requested=true
+                        break
                     fi
                     ;;
                 "View Logs")
@@ -1481,6 +1488,11 @@ cmd_interactive() {
                     ;;
             esac
         done
+
+        # Check if quit was requested from inner loop
+        if [ "$quit_requested" = true ]; then
+            break
+        fi
     done
 
     log_info "Exiting interactive mode"

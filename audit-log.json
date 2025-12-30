@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767121756-0fec77",
+      "timestamp": "2025-12-30T19:09:16Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "b8fdbfb",
+        "sha_full": "b8fdbfb7c2238b13bf11c357ddf1e876220d4f1b",
+        "message": "Update to 1 worker and add app.json"
+      },
+      "duration": "2m 46s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20603871670",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/20603871670"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767121155-617b7e",
       "timestamp": "2025-12-30T18:59:15Z",
       "action": "deploy",
@@ -761,8 +784,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 33,
-    "successful": 22,
+    "total_deploys": 34,
+    "successful": 23,
     "failed": 11
   }
 }

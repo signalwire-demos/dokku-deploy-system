@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767124060-dd7588",
+      "timestamp": "2025-12-30T19:47:40Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "failure",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "5606c61",
+        "sha_full": "5606c61d42d7555c68065c15166e86669c2cc6a2",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604526592",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/20604526592"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767124059-3de385",
       "timestamp": "2025-12-30T19:47:39Z",
       "action": "deploy",
@@ -1014,8 +1037,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 44,
+    "total_deploys": 45,
     "successful": 27,
-    "failed": 17
+    "failed": 18
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767132687-3316db",
+      "timestamp": "2025-12-30T22:11:27Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "9897ba4",
+        "sha_full": "9897ba4822d79fb8c3e010c92616b478010742ba",
+        "message": "Rename find_sip_address to find_resource_address"
+      },
+      "duration": "0m 57s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604457520",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/20604457520"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767124656-6f22ba",
       "timestamp": "2025-12-30T19:57:36Z",
       "action": "deploy",
@@ -1129,8 +1152,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 49,
-    "successful": 31,
+    "total_deploys": 50,
+    "successful": 32,
     "failed": 18
   }
 }

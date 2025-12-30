@@ -91,9 +91,6 @@ show_menu() {
     local options="$2"
     local prompt="${3:-Select > }"
 
-    # Flush any buffered input and clear screen
-    read -t 0.1 -n 10000 discard 2>/dev/null || true
-    clear
     echo "$options" | grep -v '^─' | fzf \
         --header="$header" \
         --height=100% \
@@ -1171,9 +1168,6 @@ fi
 PREVIEW_EOF
     chmod +x "$preview_script"
 
-    # Flush any buffered input and clear screen
-    read -t 0.1 -n 10000 discard 2>/dev/null || true
-    clear
     local selected=$(echo "$apps" | fzf \
         --header="Select an app (ESC to quit)" \
         --preview="$preview_script {}" \
@@ -1257,7 +1251,6 @@ List All Backups
 ← Back"
 
     while true; do
-        echo ""  # Clear terminal state
         action=$(show_menu "$app - Database" "$actions" "DB > ")
 
         # ESC pressed - back to parent
@@ -1310,7 +1303,6 @@ Disable SSL
 ← Back"
 
     while true; do
-        echo ""  # Clear terminal state
         action=$(show_menu "$app - SSL" "$actions" "SSL > ")
 
         # ESC pressed - back to parent
@@ -1347,7 +1339,6 @@ Remove Domain
 ← Back"
 
     while true; do
-        echo ""  # Clear terminal state
         action=$(show_menu "$app - Domains" "$actions" "Domain > ")
 
         # ESC pressed - back to parent
@@ -1399,7 +1390,6 @@ cmd_interactive() {
 
     # Outer loop: app selection
     while true; do
-        echo ""  # Clear line before fzf
         app=$(cmd_pick)
 
         # ESC or empty = confirm exit
@@ -1412,7 +1402,6 @@ cmd_interactive() {
 
         # Inner loop: stay in app context until Back or Quit
         while true; do
-            echo ""  # Clear terminal state
             action=$(select_action "$app")
 
             # ESC pressed - treat as back to apps

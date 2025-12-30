@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 43 |
+| Total Deployments | 44 |
 | Successful | 27 |
-| Failed | 16 |
-| Success Rate | 62.7% |
+| Failed | 17 |
+| Success Rate | 61.3% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2025-12-30T19:47:39Z | deploy | cinebot | production | failure | briankwest |
 | 2025-12-30T19:46:34Z | deploy | bobbystable | production | success | briankwest |
 | 2025-12-30T19:42:50Z | deploy | afterhours | production | failure | briankwest |
 | 2025-12-30T19:42:48Z | deploy | holyguacamole | production | failure | briankwest |

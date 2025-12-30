@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767124059-3de385",
+      "timestamp": "2025-12-30T19:47:39Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "failure",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "58a8c45",
+        "sha_full": "58a8c4575a5e8f0202d5af45531d23218630d4e3",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604527547",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/20604527547"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767123994-7f3ce3",
       "timestamp": "2025-12-30T19:46:34Z",
       "action": "deploy",
@@ -991,8 +1014,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 43,
+    "total_deploys": 44,
     "successful": 27,
-    "failed": 16
+    "failed": 17
   }
 }

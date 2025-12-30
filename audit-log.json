@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767120737-34d808",
+      "timestamp": "2025-12-30T18:52:17Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "aad6942",
+        "sha_full": "aad69423cc9f9d76a8b293beed81d1a7f36ac272",
+        "message": "add OpenGraph propery with logo"
+      },
+      "duration": "2m 46s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20603568845",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/20603568845"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767119598-70fd4b",
       "timestamp": "2025-12-30T18:33:18Z",
       "action": "deploy",
@@ -715,8 +738,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 31,
-    "successful": 20,
+    "total_deploys": 32,
+    "successful": 21,
     "failed": 11
   }
 }

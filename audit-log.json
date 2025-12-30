@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767122982-2d29dd",
+      "timestamp": "2025-12-30T19:29:42Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "3e2b82f",
+        "sha_full": "3e2b82fe70e027f9273dd0c573e150eb48e0663f",
+        "message": "Update to have more steps for consistent flow"
+      },
+      "duration": "2m 2s",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604255150",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/20604255150"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767122548-394f55",
       "timestamp": "2025-12-30T19:22:28Z",
       "action": "deploy",
@@ -830,8 +853,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 36,
-    "successful": 25,
+    "total_deploys": 37,
+    "successful": 26,
     "failed": 11
   }
 }

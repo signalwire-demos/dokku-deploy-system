@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767124358-eb8eb2",
+      "timestamp": "2025-12-30T19:52:38Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "5606c61",
+        "sha_full": "5606c61d42d7555c68065c15166e86669c2cc6a2",
+        "message": "Fix resource address selection when phone numbers are attached"
+      },
+      "duration": "2m 29s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604526592",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/20604526592"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767124272-deb005",
       "timestamp": "2025-12-30T19:51:12Z",
       "action": "deploy",
@@ -1083,8 +1106,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 47,
-    "successful": 29,
+    "total_deploys": 48,
+    "successful": 30,
     "failed": 18
   }
 }

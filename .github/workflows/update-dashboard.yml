@@ -231,6 +231,24 @@ jobs:
           ACTOR="${{ inputs.actor }}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+          # For deploy actions, do a quick health check to populate uptime data
+          UPTIME_STATUS="unknown"
+          RESPONSE_MS=0
+          if [ "$ACTION" == "deploy" ] && [ -n "$URL" ]; then
+            echo "Performing health check on $URL..."
+            RESPONSE=$(curl -sLk -o /dev/null -w "%{http_code} %{time_total}" --max-time 10 "$URL" 2>/dev/null || echo "000 0")
+            HTTP_CODE=$(echo "$RESPONSE" | cut -d' ' -f1)
+            TIME_TOTAL=$(echo "$RESPONSE" | cut -d' ' -f2)
+            RESPONSE_MS=$(echo "$TIME_TOTAL * 1000" | bc 2>/dev/null | cut -d. -f1 || echo "0")
+            [ -z "$RESPONSE_MS" ] && RESPONSE_MS=0
+            echo "Health check result: HTTP $HTTP_CODE, ${RESPONSE_MS}ms"
+            if [ "$HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
+              UPTIME_STATUS="healthy"
+            elif [ "$HTTP_CODE" != "000" ] 2>/dev/null; then
+              UPTIME_STATUS="unhealthy"
+            fi
+          fi
+
           # Update or add app entry
           if [ "$ACTION" == "deploy" ]; then
             # Check if app exists in JSON
@@ -245,13 +263,21 @@ jobs:
                  --arg sha "$COMMIT_SHA" \
                  --arg actor "$ACTOR" \
                  --arg ts "$TIMESTAMP" \
+                 --arg uptime_status "$UPTIME_STATUS" \
+                 --argjson response_ms "$RESPONSE_MS" \
                  '(.apps[] | select(.name == $name)) |= . + {
                    status: $status,
                    environment: $env,
                    url: $url,
                    last_deploy: $ts,
                    last_deploy_by: $actor,
-                   commit_sha: $sha
+                   commit_sha: $sha,
+                   uptime: {
+                     status: $uptime_status,
+                     uptime_seconds: 0,
+                     response_time_ms: $response_ms,
+                     last_check: $ts
+                   }
                  } | .last_updated = $ts' apps.json > tmp.json && mv tmp.json apps.json
             else
               # Add new app
@@ -262,6 +288,8 @@ jobs:
                  --arg sha "$COMMIT_SHA" \
                  --arg actor "$ACTOR" \
                  --arg ts "$TIMESTAMP" \
+                 --arg uptime_status "$UPTIME_STATUS" \
+                 --argjson response_ms "$RESPONSE_MS" \
                  '.apps += [{
                    name: $name,
                    status: $status,
@@ -271,8 +299,9 @@ jobs:
                    last_deploy_by: $actor,
                    commit_sha: $sha,
                    uptime: {
-                     status: "unknown",
-                     response_time_ms: 0,
+                     status: $uptime_status,
+                     uptime_seconds: 0,
+                     response_time_ms: $response_ms,
                      last_check: $ts
                    }
                  }] | .last_updated = $ts' apps.json > tmp.json && mv tmp.json apps.json

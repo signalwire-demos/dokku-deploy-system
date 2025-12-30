@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767123540-6038ec",
+      "timestamp": "2025-12-30T19:39:00Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "cancelled",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "a4c6fc2",
+        "sha_full": "a4c6fc2f7fa767ed184dda36059af92843bbe2d1",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604434146",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/20604434146"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767123528-3bd43e",
       "timestamp": "2025-12-30T19:38:48Z",
       "action": "deploy",
@@ -876,8 +899,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 38,
+    "total_deploys": 39,
     "successful": 26,
-    "failed": 12
+    "failed": 13
   }
 }

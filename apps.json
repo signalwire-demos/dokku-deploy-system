@@ -1,5 +1,5 @@
 {
-  "last_updated": "2025-12-30T19:09:16Z",
+  "last_updated": "2025-12-30T19:15:45Z",
   "apps": [
     {
       "name": "blackjack",
@@ -101,6 +101,20 @@
         "uptime_seconds": 1538891,
         "response_time_ms": 504,
         "last_check": "2025-12-29T17:58:07Z"
+      }
+    },
+    {
+      "name": "afterhours",
+      "status": "success",
+      "environment": "production",
+      "url": "https://afterhours.signalwire.io",
+      "last_deploy": "2025-12-30T19:15:45Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "67c1a86f9986d02d2d4a0aa005e7b3a5c83c6d15",
+      "uptime": {
+        "status": "unknown",
+        "response_time_ms": 0,
+        "last_check": "2025-12-30T19:15:45Z"
       }
     }
   ]

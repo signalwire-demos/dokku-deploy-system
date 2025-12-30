@@ -1240,9 +1240,8 @@ select_branch() {
 # Database operations submenu
 interactive_db() {
     local app="$1"
-
-    while true; do
-        local actions="Connect to Database
+    local action=""
+    local actions="Connect to Database
 View Database Info
 Backup to Local File
 Backup to Server
@@ -1251,8 +1250,14 @@ List All Backups
 ─────────────────
 ← Back"
 
-        local action=$(show_menu "$app - Database" "$actions" "DB > ")
-        [ -z "$action" ] && return  # ESC pressed
+    while true; do
+        echo ""  # Clear terminal state
+        action=$(show_menu "$app - Database" "$actions" "DB > ")
+
+        # ESC pressed - back to parent
+        if [ -z "$action" ]; then
+            return
+        fi
 
         case "$action" in
             "← Back") return ;;
@@ -1291,16 +1296,21 @@ List All Backups
 # SSL operations submenu
 interactive_ssl() {
     local app="$1"
-
-    while true; do
-        local actions="View SSL Status
+    local action=""
+    local actions="View SSL Status
 Enable SSL
 Disable SSL
 ─────────────────
 ← Back"
 
-        local action=$(show_menu "$app - SSL" "$actions" "SSL > ")
-        [ -z "$action" ] && return  # ESC pressed
+    while true; do
+        echo ""  # Clear terminal state
+        action=$(show_menu "$app - SSL" "$actions" "SSL > ")
+
+        # ESC pressed - back to parent
+        if [ -z "$action" ]; then
+            return
+        fi
 
         case "$action" in
             "← Back") return ;;
@@ -1323,16 +1333,21 @@ Disable SSL
 # Domain operations submenu
 interactive_domains() {
     local app="$1"
-
-    while true; do
-        local actions="List Domains
+    local action=""
+    local actions="List Domains
 Add Domain
 Remove Domain
 ─────────────────
 ← Back"
 
-        local action=$(show_menu "$app - Domains" "$actions" "Domain > ")
-        [ -z "$action" ] && return  # ESC pressed
+    while true; do
+        echo ""  # Clear terminal state
+        action=$(show_menu "$app - Domains" "$actions" "Domain > ")
+
+        # ESC pressed - back to parent
+        if [ -z "$action" ]; then
+            return
+        fi
 
         case "$action" in
             "← Back") return ;;
@@ -1391,6 +1406,7 @@ cmd_interactive() {
 
         # Inner loop: stay in app context until Back or Quit
         while true; do
+            echo ""  # Clear terminal state
             action=$(select_action "$app")
 
             # ESC pressed - treat as back to apps

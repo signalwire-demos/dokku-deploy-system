@@ -91,6 +91,8 @@ show_menu() {
     local options="$2"
     local prompt="${3:-Select > }"
 
+    # Flush any buffered input and clear screen
+    read -t 0.1 -n 10000 discard 2>/dev/null || true
     clear
     echo "$options" | grep -v '^─' | fzf \
         --header="$header" \
@@ -1169,6 +1171,8 @@ fi
 PREVIEW_EOF
     chmod +x "$preview_script"
 
+    # Flush any buffered input and clear screen
+    read -t 0.1 -n 10000 discard 2>/dev/null || true
     clear
     local selected=$(echo "$apps" | fzf \
         --header="Select an app (ESC to quit)" \

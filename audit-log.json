@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767119598-70fd4b",
+      "timestamp": "2025-12-30T18:33:18Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "50d223b",
+        "sha_full": "50d223b9657433c0218b660d046abccedbb2c69e",
+        "message": "Add domains and migrate to new demos system"
+      },
+      "duration": "1m 9s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20603082545",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/20603082545"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767119090-a8bdd0",
       "timestamp": "2025-12-30T18:24:50Z",
       "action": "deploy",
@@ -692,8 +715,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 30,
-    "successful": 19,
+    "total_deploys": 31,
+    "successful": 20,
     "failed": 11
   }
 }

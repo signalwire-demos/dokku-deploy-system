@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767118333-cc95b4",
+      "timestamp": "2025-12-30T18:12:13Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "eb167f0",
+        "sha_full": "eb167f0a5281b63590bf9ff2736f1da25862fdc3",
+        "message": "Say reservation numbers better"
+      },
+      "duration": "2m 4s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20602890894",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/20602890894"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767117983-93fb17",
       "timestamp": "2025-12-30T18:06:23Z",
       "action": "deploy",
@@ -600,8 +623,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 26,
-    "successful": 17,
+    "total_deploys": 27,
+    "successful": 18,
     "failed": 9
   }
 }

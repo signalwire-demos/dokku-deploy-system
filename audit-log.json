@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767124153-ebb765",
+      "timestamp": "2025-12-30T19:49:13Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "3cf7f8b",
+        "sha_full": "3cf7f8bced57df3d498fb76e0de6f8c5676566d5",
+        "message": "Fix video file paths and placeholder image"
+      },
+      "duration": "2m 14s",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604577468",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/20604577468"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767124060-dd7588",
       "timestamp": "2025-12-30T19:47:40Z",
       "action": "deploy",
@@ -1037,8 +1060,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 45,
-    "successful": 27,
+    "total_deploys": 46,
+    "successful": 28,
     "failed": 18
   }
 }

@@ -1,12 +1,29 @@
 {
-  "last_updated": "2025-12-30T22:11:27Z",
+  "last_updated": "2025-12-31T02:10:17Z",
   "apps": [
+    {
+      "name": "afterhours",
+      "base_app": "afterhours",
+      "environment": "production",
+      "repo": "signalwire-demos/afterhours",
+      "status": "running",
+      "url": "https://afterhours.signalwire.io",
+      "last_deploy": "2025-12-30T19:49:13Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "3cf7f8bced57df3d498fb76e0de6f8c5676566d5",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 408,
+        "last_check": "2025-12-30T19:49:13Z"
+      }
+    },
     {
       "name": "blackjack",
       "base_app": "blackjack",
       "environment": "production",
       "repo": "signalwire-demos/blackjack",
-      "status": "success",
+      "status": "running",
       "url": "https://blackjack.signalwire.io",
       "last_deploy": "2025-12-30T19:52:38Z",
       "last_deploy_by": "briankwest",
@@ -23,7 +40,7 @@
       "base_app": "bobbystable",
       "environment": "production",
       "repo": "signalwire-demos/bobbystable",
-      "status": "success",
+      "status": "running",
       "url": "https://bobbystable.signalwire.io",
       "last_deploy": "2025-12-30T22:11:27Z",
       "last_deploy_by": "briankwest",
@@ -40,7 +57,7 @@
       "base_app": "cinebot",
       "environment": "production",
       "repo": "signalwire-demos/cinebot",
-      "status": "failure",
+      "status": "running",
       "url": "https://cinebot.signalwire.io",
       "last_deploy": "2025-12-30T19:47:39Z",
       "last_deploy_by": "briankwest",
@@ -57,7 +74,7 @@
       "base_app": "example",
       "environment": "production",
       "repo": "signalwire-demos/example",
-      "status": "success",
+      "status": "running",
       "url": "https://example.signalwire.io",
       "last_deploy": "2025-12-30T19:57:36Z",
       "last_deploy_by": "briankwest",
@@ -74,7 +91,7 @@
       "base_app": "holyguacamole",
       "environment": "production",
       "repo": "signalwire-demos/holyguacamole",
-      "status": "failure",
+      "status": "running",
       "url": "https://holyguacamole.signalwire.io",
       "last_deploy": "2025-12-30T19:42:49Z",
       "last_deploy_by": "briankwest",
@@ -91,7 +108,7 @@
       "base_app": "santa",
       "environment": "production",
       "repo": "signalwire-demos/santa",
-      "status": "success",
+      "status": "running",
       "url": "https://santa.signalwire.io",
       "last_deploy": "2025-12-30T19:51:11Z",
       "last_deploy_by": "briankwest",
@@ -101,21 +118,6 @@
         "uptime_seconds": 0,
         "response_time_ms": 528,
         "last_check": "2025-12-30T19:51:11Z"
-      }
-    },
-    {
-      "name": "afterhours",
-      "status": "success",
-      "environment": "production",
-      "url": "https://afterhours.signalwire.io",
-      "last_deploy": "2025-12-30T19:49:13Z",
-      "last_deploy_by": "briankwest",
-      "commit_sha": "3cf7f8bced57df3d498fb76e0de6f8c5676566d5",
-      "uptime": {
-        "status": "healthy",
-        "uptime_seconds": 0,
-        "response_time_ms": 408,
-        "last_check": "2025-12-30T19:49:13Z"
       }
     }
   ]

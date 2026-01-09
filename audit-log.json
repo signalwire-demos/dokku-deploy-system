@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1767997493-9a57a3",
+      "timestamp": "2026-01-09T22:24:53Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "d37a318",
+        "sha_full": "d37a3185933c2e959b6b049405b1051a60e4d809",
+        "message": "Rename find_sip_address to find_resource_address"
+      },
+      "duration": "2m 40s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "20604453395",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/20604453395"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1767725188-ea542a",
       "timestamp": "2026-01-06T18:46:28Z",
       "action": "deploy",
@@ -1175,8 +1198,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 51,
-    "successful": 33,
+    "total_deploys": 52,
+    "successful": 34,
     "failed": 18
   }
 }

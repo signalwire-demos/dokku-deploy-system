@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770050058-9db5f5",
+      "timestamp": "2026-02-02T16:34:18Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "1742bed",
+        "sha_full": "1742bed29c043e023e313e52c77121ae1a3c3508",
+        "message": "fix place bet logic for oss"
+      },
+      "duration": "2m 6s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21598496621",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/21598496621"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770047941-46236b",
       "timestamp": "2026-02-02T15:59:01Z",
       "action": "deploy",
@@ -1290,8 +1313,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 56,
-    "successful": 38,
+    "total_deploys": 57,
+    "successful": 39,
     "failed": 18
   }
 }

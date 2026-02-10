@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770733928-83af71",
+      "timestamp": "2026-02-10T14:32:08Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "b0459f5",
+        "sha_full": "b0459f5bcf17aeda89e69fe8b7b4f38713975974",
+        "message": "Restrict agent to taxi booking only, reject off-topic questions"
+      },
+      "duration": "2m 3s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21868916602",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21868916602"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770732452-fcf816",
       "timestamp": "2026-02-10T14:07:32Z",
       "action": "deploy",
@@ -1474,8 +1497,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 64,
-    "successful": 46,
+    "total_deploys": 65,
+    "successful": 47,
     "failed": 18
   }
 }

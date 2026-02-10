@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770736618-cc7746",
+      "timestamp": "2026-02-10T15:16:58Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "9b51ae6",
+        "sha_full": "9b51ae66c3da9886b2ba3dc848b5ab9b87ee4afd",
+        "message": "Fix top_p/temperature: use set_prompt_llm_params instead of set_param"
+      },
+      "duration": "1m 54s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21870581284",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21870581284"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770733928-83af71",
       "timestamp": "2026-02-10T14:32:08Z",
       "action": "deploy",
@@ -1497,8 +1520,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 65,
-    "successful": 47,
+    "total_deploys": 66,
+    "successful": 48,
     "failed": 18
   }
 }

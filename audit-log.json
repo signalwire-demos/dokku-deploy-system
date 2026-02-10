@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770766035-76a3a4",
+      "timestamp": "2026-02-10T23:27:15Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "63ba1b4",
+        "sha_full": "63ba1b4005c27400319d744fcce7ac37c8b00f00",
+        "message": "Harden greeting step, remove register_customer for known callers"
+      },
+      "duration": "1m 51s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21886334327",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21886334327"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770751721-cae82c",
       "timestamp": "2026-02-10T19:28:41Z",
       "action": "deploy",
@@ -1635,8 +1658,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 71,
-    "successful": 51,
+    "total_deploys": 72,
+    "successful": 52,
     "failed": 20
   }
 }

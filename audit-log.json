@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770739635-25e2bb",
+      "timestamp": "2026-02-10T16:07:15Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "96d0c2d",
+        "sha_full": "96d0c2dd3131908b440ba7a01b59c23c5086f685",
+        "message": "Use google_maps SDK skill instead of local GoogleMapsClient"
+      },
+      "duration": "2m 4s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21872240571",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21872240571"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770739301-c19715",
       "timestamp": "2026-02-10T16:01:41Z",
       "action": "deploy",
@@ -1566,8 +1589,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 68,
-    "successful": 48,
+    "total_deploys": 69,
+    "successful": 49,
     "failed": 20
   }
 }

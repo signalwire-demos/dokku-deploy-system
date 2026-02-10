@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770730429-b9d4fa",
+      "timestamp": "2026-02-10T13:33:49Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "9d11077",
+        "sha_full": "9d11077dfc0491e36db098c94bfa3824380fa90b",
+        "message": "Fix default AI model name: remove @groq.ai suffix"
+      },
+      "duration": "2m 4s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21866895116",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21866895116"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770728363-336270",
       "timestamp": "2026-02-10T12:59:23Z",
       "action": "deploy",
@@ -1405,8 +1428,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 61,
-    "successful": 43,
+    "total_deploys": 62,
+    "successful": 44,
     "failed": 18
   }
 }

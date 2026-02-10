@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770728363-336270",
+      "timestamp": "2026-02-10T12:59:23Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "8d02ed1",
+        "sha_full": "8d02ed11a1a6b866b62d1b0f048241ca69744a5e",
+        "message": "Tighten prompts for weaker model: brevity, tool discipline, step isolation"
+      },
+      "duration": "1m 57s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21865779184",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21865779184"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770727007-8254dd",
       "timestamp": "2026-02-10T12:36:47Z",
       "action": "deploy",
@@ -1382,8 +1405,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 60,
-    "successful": 42,
+    "total_deploys": 61,
+    "successful": 43,
     "failed": 18
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770726476-455008",
+      "timestamp": "2026-02-10T12:27:56Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "99c361b",
+        "sha_full": "99c361b84ed0cf356184dcaf840b7d687917fa95",
+        "message": "Add Dokku deployment configuration and GitHub Actions workflows"
+      },
+      "duration": "2m 24s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21864763710",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21864763710"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770661769-aee5bc",
       "timestamp": "2026-02-09T18:29:29Z",
       "action": "deploy",
@@ -1336,8 +1359,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 58,
-    "successful": 40,
+    "total_deploys": 59,
+    "successful": 41,
     "failed": 18
   }
 }

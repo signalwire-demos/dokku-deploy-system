@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770751721-cae82c",
+      "timestamp": "2026-02-10T19:28:41Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "90fa9dc",
+        "sha_full": "90fa9dc1be87b4626b477ebafa97ca90b5b328cc",
+        "message": "Fix register_customer: wait for name, handle DB failures gracefully"
+      },
+      "duration": "1m 55s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21879277283",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21879277283"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770741317-06c217",
       "timestamp": "2026-02-10T16:35:17Z",
       "action": "deploy",
@@ -1612,8 +1635,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 70,
-    "successful": 50,
+    "total_deploys": 71,
+    "successful": 51,
     "failed": 20
   }
 }

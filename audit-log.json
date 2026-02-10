@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770732452-fcf816",
+      "timestamp": "2026-02-10T14:07:32Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "b6c8e84",
+        "sha_full": "b6c8e8438161628a6c940efe21c9bf499eb34890",
+        "message": "Fix SMS: use send_sms() helper to wrap in SWML document"
+      },
+      "duration": "1m 52s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21868052338",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21868052338"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770731664-61ac0c",
       "timestamp": "2026-02-10T13:54:24Z",
       "action": "deploy",
@@ -1451,8 +1474,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 63,
-    "successful": 45,
+    "total_deploys": 64,
+    "successful": 46,
     "failed": 18
   }
 }

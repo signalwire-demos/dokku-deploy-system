@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-10T07:15:50Z",
+  "last_updated": "2026-02-10T12:27:56Z",
   "apps": [
     {
       "name": "afterhours",
@@ -118,6 +118,21 @@
         "uptime_seconds": 0,
         "response_time_ms": 528,
         "last_check": "2025-12-30T19:51:11Z"
+      }
+    },
+    {
+      "name": "cabby",
+      "status": "success",
+      "environment": "production",
+      "url": "https://cabby.signalwire.io",
+      "last_deploy": "2026-02-10T12:27:56Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "99c361b84ed0cf356184dcaf840b7d687917fa95",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 249,
+        "last_check": "2026-02-10T12:27:56Z"
       }
     }
   ]

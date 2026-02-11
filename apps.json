@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-11T07:12:32Z",
+  "last_updated": "2026-02-11T12:25:03Z",
   "apps": [
     {
       "name": "afterhours",
@@ -135,6 +135,21 @@
         "uptime_seconds": 0,
         "response_time_ms": 528,
         "last_check": "2025-12-30T19:51:11Z"
+      }
+    },
+    {
+      "name": "goair",
+      "status": "success",
+      "environment": "production",
+      "url": "https://goair.signalwire.io",
+      "last_deploy": "2026-02-11T12:25:03Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "91b07302892af0f7c6ca380d0155a0531c491b97",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 201,
+        "last_check": "2026-02-11T12:25:03Z"
       }
     }
   ]

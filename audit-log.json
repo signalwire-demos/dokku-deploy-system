@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770812794-f3385a",
+      "timestamp": "2026-02-11T12:26:34Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "91b0730",
+        "sha_full": "91b07302892af0f7c6ca380d0155a0531c491b97",
+        "message": "Add deployment config and tune agent params"
+      },
+      "duration": "0m 25s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21904850486",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21904850486"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770812700-e0c0bc",
       "timestamp": "2026-02-11T12:25:00Z",
       "action": "deploy",
@@ -1727,8 +1750,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 75,
-    "successful": 54,
+    "total_deploys": 76,
+    "successful": 55,
     "failed": 21
   }
 }

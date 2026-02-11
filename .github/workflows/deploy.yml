@@ -563,25 +563,38 @@ jobs:
       - name: Set environment variables
         env:
           ALL_VARS: ${{ toJSON(vars) }}
+          GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
         run: |
           echo "Setting environment variables..."
 
-          # Start with required vars
-          CONFIG_VARS="APP_ENV=${{ env.ENVIRONMENT }} APP_NAME=${{ env.APP_NAME }} APP_URL=https://${{ env.DOMAIN }} AGENT_NAME=${{ env.APP_NAME }} GIT_REV=${{ github.sha }}"
+          # toJSON(vars) includes org/repo-level variables but in reusable workflows
+          # the caller's environment-level variables are not included. Fetch them
+          # explicitly from the GitHub API and merge with the vars context.
+          ENV_VARS=$(gh api "repos/${{ github.repository }}/environments/${{ env.ENVIRONMENT }}/variables" \
+            --jq '[.variables[] | {(.name): .value}] | add // {}' 2>/dev/null || echo "{}")
 
-          # Loop through all environment variables from GitHub environment
-          for key in $(echo "$ALL_VARS" | jq -r 'keys[]'); do
-            value=$(echo "$ALL_VARS" | jq -r --arg k "$key" '.[$k]')
-            [ -n "$value" ] && CONFIG_VARS="$CONFIG_VARS $key=$value"
-          done
+          # Merge: org/repo vars from toJSON(vars), then overlay environment vars
+          MERGED=$(printf '%s\n%s' "$ALL_VARS" "$ENV_VARS" | jq -s '.[0] * .[1]')
 
-          # Clear existing config and set fresh values to ensure changes are applied
+          # Clear existing config to ensure a clean slate
           ssh dokku config:clear --no-restart ${{ env.APP_NAME }} 2>/dev/null || true
 
-          # Suppress Dokku output to prevent env var values from appearing in logs
-          ssh dokku config:set --no-restart ${{ env.APP_NAME }} $CONFIG_VARS > /dev/null 2>&1
+          # Start with required system vars
+          CONFIG_VARS="APP_ENV=${{ env.ENVIRONMENT }} APP_NAME=${{ env.APP_NAME }} APP_URL=https://${{ env.DOMAIN }} AGENT_NAME=${{ env.APP_NAME }} GIT_REV=${{ github.sha }}"
 
-          echo "Environment variables set ($(echo "$ALL_VARS" | jq 'keys | length') vars from environment + 5 system vars)"
+          # Add all merged variables
+          VARCOUNT=0
+          for key in $(echo "$MERGED" | jq -r 'keys[]'); do
+            value=$(echo "$MERGED" | jq -r --arg k "$key" '.[$k]')
+            if [ -n "$value" ]; then
+              CONFIG_VARS="$CONFIG_VARS $key=$value"
+              VARCOUNT=$((VARCOUNT + 1))
+            fi
+          done
+
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} $CONFIG_VARS > /dev/null
+
+          echo "Environment variables set ($VARCOUNT vars + 5 system vars)"
 
       - name: Configure domains
         run: |

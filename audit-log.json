@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770824609-aed242",
+      "timestamp": "2026-02-11T15:43:29Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "0b869bb",
+        "sha_full": "0b869bb8a7e9b729ad61310d3a93d459894eb736",
+        "message": "Switch to official Amadeus Python SDK and fix booking API"
+      },
+      "duration": "1m 59s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21911755014",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21911755014"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770818646-c30455",
       "timestamp": "2026-02-11T14:04:06Z",
       "action": "deploy",
@@ -2233,8 +2256,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 97,
-    "successful": 73,
+    "total_deploys": 98,
+    "successful": 74,
     "failed": 24
   }
 }

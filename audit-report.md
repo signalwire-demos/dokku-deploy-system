@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 92 |
-| Successful | 68 |
+| Total Deployments | 93 |
+| Successful | 69 |
 | Failed | 24 |
-| Success Rate | 73.9% |
+| Success Rate | 74.1% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-02-11T13:59:30Z | deploy | blackjack | production | success | briankwest |
 | 2026-02-11T13:55:42Z | deploy | goair | production | success | briankwest |
 | 2026-02-11T13:53:48Z | deploy | cabby | production | success | briankwest |
 | 2026-02-11T13:53:33Z | deploy | holyguacamole | production | failure | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2025-12-30T19:49:13Z | deploy | afterhours | production | success | briankwest |
 | 2025-12-30T19:47:40Z | deploy | blackjack | production | failure | briankwest |
 | 2025-12-30T19:47:39Z | deploy | cinebot | production | failure | briankwest |
-| 2025-12-30T19:46:34Z | deploy | bobbystable | production | success | briankwest |
 
 ---
 

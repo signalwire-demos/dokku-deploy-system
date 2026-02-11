@@ -115,7 +115,7 @@ jobs:
             DEPLOY_LOCKED=true \
             DEPLOY_LOCK_REASON="${{ inputs.reason }}" \
             DEPLOY_LOCK_BY="${{ github.actor }}" \
-            DEPLOY_LOCK_AT="$TIMESTAMP"
+            DEPLOY_LOCK_AT="$TIMESTAMP" > /dev/null 2>&1
 
           echo ""
           echo "═══════════════════════════════════════════════════════"

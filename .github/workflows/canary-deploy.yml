@@ -183,7 +183,7 @@ jobs:
             if [ -n "$FILTERED_CONFIG" ]; then
               echo "$FILTERED_CONFIG" | while read -r line; do
                 if [ -n "$line" ]; then
-                  ssh dokku config:set --no-restart ${{ env.CANARY_APP }} "$line" 2>/dev/null || true
+                  ssh dokku config:set --no-restart ${{ env.CANARY_APP }} "$line" > /dev/null 2>&1 || true
                 fi
               done
             fi
@@ -193,7 +193,7 @@ jobs:
           ssh dokku config:set --no-restart ${{ env.CANARY_APP }} \
             CANARY=true \
             CANARY_OF=${{ env.APP_NAME }} \
-            GIT_REV=${{ needs.validate.outputs.canary_sha }}
+            GIT_REV=${{ needs.validate.outputs.canary_sha }} > /dev/null 2>&1
 
       - name: Deploy canary
         run: |

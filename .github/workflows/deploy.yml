@@ -566,6 +566,19 @@ jobs:
         run: |
           echo "Setting environment variables..."
 
+          # Mask sensitive-looking variable values to prevent log leakage.
+          # GitHub only auto-masks Secrets, not Variables. Since this workflow reads
+          # env vars from GitHub Variables (toJSON(vars)) for config:set, we must
+          # manually mask values that look sensitive. Consider moving truly secret
+          # values to GitHub Secrets and passing them explicitly instead.
+          SENSITIVE_PATTERNS="KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API_KEY|PRIVATE|AUTH|CLIENT_ID|CLIENT_SECRET"
+          for key in $(echo "$ALL_VARS" | jq -r 'keys[]'); do
+            value=$(echo "$ALL_VARS" | jq -r --arg k "$key" '.[$k]')
+            if echo "$key" | grep -qiE "$SENSITIVE_PATTERNS"; then
+              echo "::add-mask::$value"
+            fi
+          done
+
           # Start with required vars
           CONFIG_VARS="APP_ENV=${{ env.ENVIRONMENT }} APP_NAME=${{ env.APP_NAME }} APP_URL=https://${{ env.DOMAIN }} AGENT_NAME=${{ env.APP_NAME }} GIT_REV=${{ github.sha }}"
 
@@ -577,7 +590,11 @@ jobs:
 
           # Clear existing config and set fresh values to ensure changes are applied
           ssh dokku config:clear --no-restart ${{ env.APP_NAME }} 2>/dev/null || true
-          ssh dokku config:set --no-restart ${{ env.APP_NAME }} $CONFIG_VARS
+
+          # Suppress Dokku output to prevent env var values from appearing in logs
+          ssh dokku config:set --no-restart ${{ env.APP_NAME }} $CONFIG_VARS > /dev/null 2>&1
+
+          echo "Environment variables set ($(echo "$ALL_VARS" | jq 'keys | length') vars from environment + 5 system vars)"
 
       - name: Configure domains
         run: |
@@ -663,7 +680,7 @@ jobs:
             WEB_CONCURRENCY=$((MEM_MB / 128))
             [ "$WEB_CONCURRENCY" -lt 1 ] && WEB_CONCURRENCY=1
             [ "$WEB_CONCURRENCY" -gt 8 ] && WEB_CONCURRENCY=8
-            ssh dokku config:set --no-restart ${{ env.APP_NAME }} WEB_CONCURRENCY=$WEB_CONCURRENCY || true
+            ssh dokku config:set --no-restart ${{ env.APP_NAME }} WEB_CONCURRENCY=$WEB_CONCURRENCY > /dev/null 2>&1 || true
             echo "Set WEB_CONCURRENCY=$WEB_CONCURRENCY (based on ${MEMORY} memory)"
           fi
 
@@ -908,8 +925,8 @@ jobs:
         run: |
           echo "Recording release..."
 
-          # Get current release number and increment
-          CURRENT_RELEASE=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_VERSION 2>/dev/null || echo "0")
+          # Get current release number and increment (suppress config:get output)
+          CURRENT_RELEASE=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_VERSION 2>/dev/null) || CURRENT_RELEASE="0"
           NEW_RELEASE=$((CURRENT_RELEASE + 1))
 
           # Get commit message (escape quotes for JSON)
@@ -926,8 +943,8 @@ jobs:
             --arg env "${{ env.ENVIRONMENT }}" \
             '{version: ($v|tonumber), sha: $sha, short: $short, timestamp: $ts, actor: $actor, message: $msg, environment: $env}')
 
-          # Get existing release history (or empty array)
-          RELEASE_HISTORY=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_HISTORY 2>/dev/null || echo "[]")
+          # Get existing release history (suppress output to avoid leaking data)
+          RELEASE_HISTORY=$(ssh dokku config:get ${{ env.APP_NAME }} RELEASE_HISTORY 2>/dev/null) || RELEASE_HISTORY="[]"
 
           # Validate JSON, reset if corrupted
           if ! echo "$RELEASE_HISTORY" | jq . >/dev/null 2>&1; then
@@ -940,16 +957,17 @@ jobs:
           # Store release info (use base64 to handle special chars in JSON)
           HISTORY_B64=$(echo "$NEW_HISTORY" | base64 -w0)
 
+          # Suppress config:set output to prevent leaking values in logs
           ssh dokku config:set --no-restart ${{ env.APP_NAME }} \
             RELEASE_VERSION="$NEW_RELEASE" \
             RELEASE_SHA="${{ github.sha }}" \
             RELEASE_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             RELEASE_ACTOR="${{ github.actor }}" \
-            RELEASE_HISTORY_B64="$HISTORY_B64"
+            RELEASE_HISTORY_B64="$HISTORY_B64" > /dev/null 2>&1
 
           echo ""
           echo "═══════════════════════════════════════════════════════"
-          echo "  📦 Release v$NEW_RELEASE created"
+          echo "  Release v$NEW_RELEASE created"
           echo "  Commit: ${GITHUB_SHA:0:7}"
           echo "  Actor: ${{ github.actor }}"
           echo "═══════════════════════════════════════════════════════"

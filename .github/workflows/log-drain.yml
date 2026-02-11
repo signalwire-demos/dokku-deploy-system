@@ -169,7 +169,7 @@ jobs:
               ssh dokku config:set --no-restart $APP \
                 DD_API_KEY=${{ secrets.DD_API_KEY }} \
                 DD_LOGS_ENABLED=true \
-                DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true 2>/dev/null || true
+                DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true > /dev/null 2>&1 || true
             fi
 
             echo "  ✅ Drain added to $APP"

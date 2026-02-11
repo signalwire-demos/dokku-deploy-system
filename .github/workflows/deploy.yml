@@ -576,6 +576,12 @@ jobs:
           # Merge: org/repo vars from toJSON(vars), then overlay environment vars
           MERGED=$(printf '%s\n%s' "$ALL_VARS" "$ENV_VARS" | jq -s '.[0] * .[1]')
 
+          # Mask all environment-level variable values so GitHub redacts them
+          # from any log output. Variables (unlike Secrets) aren't auto-masked.
+          for val in $(echo "$ENV_VARS" | jq -r 'values[]' 2>/dev/null); do
+            echo "::add-mask::$val"
+          done
+
           # Clear existing config to ensure a clean slate
           ssh dokku config:clear --no-restart ${{ env.APP_NAME }} 2>/dev/null || true
 

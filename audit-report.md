@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 88 |
-| Successful | 65 |
+| Total Deployments | 89 |
+| Successful | 66 |
 | Failed | 23 |
-| Success Rate | 73.8% |
+| Success Rate | 74.1% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-02-11T13:49:07Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-02-11T13:46:39Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-02-11T13:41:57Z | deploy | holyguacamole | production | cancelled | briankwest |
 | 2026-02-11T13:38:37Z | deploy | holyguacamole | production | success | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2025-12-30T19:42:50Z | deploy | afterhours | production | failure | briankwest |
 | 2025-12-30T19:42:48Z | deploy | holyguacamole | production | failure | briankwest |
 | 2025-12-30T19:39:16Z | deploy | bobbystable | production | cancelled | briankwest |
-| 2025-12-30T19:39:00Z | deploy | afterhours | production | cancelled | briankwest |
 
 ---
 

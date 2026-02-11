@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770828826-ff9469",
+      "timestamp": "2026-02-11T16:53:46Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "df1c9ad",
+        "sha_full": "df1c9adc16e1242915b5f9fe7984469eee150fb0",
+        "message": "Update README diagrams and docs to reflect current codebase"
+      },
+      "duration": "1m 53s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21914341628",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21914341628"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770827427-138b15",
       "timestamp": "2026-02-11T16:30:27Z",
       "action": "deploy",
@@ -2302,8 +2325,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 100,
-    "successful": 76,
+    "total_deploys": 101,
+    "successful": 77,
     "failed": 24
   }
 }

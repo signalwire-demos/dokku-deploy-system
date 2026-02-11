@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 96 |
-| Successful | 72 |
+| Total Deployments | 97 |
+| Successful | 73 |
 | Failed | 24 |
-| Success Rate | 75.0% |
+| Success Rate | 75.2% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-02-11T14:04:06Z | deploy | bobbystable | production | success | briankwest |
 | 2026-02-11T14:03:33Z | deploy | afterhours | production | success | briankwest |
 | 2026-02-11T14:01:31Z | deploy | example | production | success | briankwest |
 | 2026-02-11T14:00:50Z | deploy | santa | production | success | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2025-12-30T22:11:27Z | deploy | bobbystable | production | success | briankwest |
 | 2025-12-30T19:57:36Z | deploy | example | production | success | briankwest |
 | 2025-12-30T19:52:38Z | deploy | blackjack | production | success | briankwest |
-| 2025-12-30T19:51:12Z | deploy | santa | production | success | briankwest |
 
 ---
 

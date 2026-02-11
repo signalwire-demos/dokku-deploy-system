@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770813256-32c27c",
+      "timestamp": "2026-02-11T12:34:16Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "0164e00",
+        "sha_full": "0164e00f10a64b33fff1ce68d75b043063062ed5",
+        "message": "Use SDK get_context/get_step API to remove register_customer for known callers"
+      },
+      "duration": "0m 24s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21905202829",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/21905202829"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770812794-f3385a",
       "timestamp": "2026-02-11T12:26:34Z",
       "action": "deploy",
@@ -1750,8 +1773,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 76,
-    "successful": 55,
+    "total_deploys": 77,
+    "successful": 56,
     "failed": 21
   }
 }

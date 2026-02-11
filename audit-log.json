@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770818491-170de2",
+      "timestamp": "2026-02-11T14:01:31Z",
+      "action": "deploy",
+      "app_name": "example",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "0698a04",
+        "sha_full": "0698a04f4fcbae7c98263b5bd68fd0f9ed4628e8",
+        "message": "Fix resource address selection when phone numbers are attached"
+      },
+      "duration": "0m 34s",
+      "url": "https://example.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21908037899",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/21908037899"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770818450-0c7fbb",
       "timestamp": "2026-02-11T14:00:50Z",
       "action": "deploy",
@@ -2164,8 +2187,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 94,
-    "successful": 70,
+    "total_deploys": 95,
+    "successful": 71,
     "failed": 24
   }
 }

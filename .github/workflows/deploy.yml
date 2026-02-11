@@ -562,24 +562,28 @@ jobs:
 
       - name: Set environment variables
         env:
-          ALL_VARS: ${{ toJSON(vars) }}
           GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
         run: |
           echo "Setting environment variables..."
 
-          # toJSON(vars) includes org/repo-level variables but in reusable workflows
-          # the caller's environment-level variables are not included. Fetch them
-          # explicitly from the GitHub API and merge with the vars context.
+          # Load org/repo-level vars via heredoc instead of env: block
+          # to prevent values from being logged in the step header
+          ALL_VARS=$(cat <<'GHVARSEOF'
+          ${{ toJSON(vars) }}
+          GHVARSEOF
+          )
+
+          # Fetch environment-level variables from GitHub API (not included
+          # in toJSON(vars) for reusable workflows)
           ENV_VARS=$(gh api "repos/${{ github.repository }}/environments/${{ env.ENVIRONMENT }}/variables" \
             --jq '[.variables[] | {(.name): .value}] | add // {}' 2>/dev/null || echo "{}")
 
-          # Merge: org/repo vars from toJSON(vars), then overlay environment vars
+          # Merge: org/repo vars, then overlay environment vars (more specific wins)
           MERGED=$(printf '%s\n%s' "$ALL_VARS" "$ENV_VARS" | jq -s '.[0] * .[1]')
 
-          # Mask all environment-level variable values so GitHub redacts them
-          # from any log output. Variables (unlike Secrets) aren't auto-masked.
-          for val in $(echo "$ENV_VARS" | jq -r 'values[]' 2>/dev/null); do
-            echo "::add-mask::$val"
+          # Mask all variable values so GitHub redacts them from any log output
+          echo "$MERGED" | jq -r 'values[]' 2>/dev/null | while IFS= read -r val; do
+            [ ${#val} -gt 4 ] && echo "::add-mask::$val"
           done
 
           # Clear existing config to ensure a clean slate

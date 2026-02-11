@@ -566,19 +566,6 @@ jobs:
         run: |
           echo "Setting environment variables..."
 
-          # Mask sensitive-looking variable values to prevent log leakage.
-          # GitHub only auto-masks Secrets, not Variables. Since this workflow reads
-          # env vars from GitHub Variables (toJSON(vars)) for config:set, we must
-          # manually mask values that look sensitive. Consider moving truly secret
-          # values to GitHub Secrets and passing them explicitly instead.
-          SENSITIVE_PATTERNS="KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|API_KEY|PRIVATE|AUTH|CLIENT_ID|CLIENT_SECRET"
-          for key in $(echo "$ALL_VARS" | jq -r 'keys[]'); do
-            value=$(echo "$ALL_VARS" | jq -r --arg k "$key" '.[$k]')
-            if echo "$key" | grep -qiE "$SENSITIVE_PATTERNS"; then
-              echo "::add-mask::$value"
-            fi
-          done
-
           # Start with required vars
           CONFIG_VARS="APP_ENV=${{ env.ENVIRONMENT }} APP_NAME=${{ env.APP_NAME }} APP_URL=https://${{ env.DOMAIN }} AGENT_NAME=${{ env.APP_NAME }} GIT_REV=${{ github.sha }}"
 

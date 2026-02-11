@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770817117-af5ea0",
+      "timestamp": "2026-02-11T13:38:37Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "38c8329",
+        "sha_full": "38c83296796678be0828fde17e22501745388eff",
+        "message": "Fix Var for post prompt"
+      },
+      "duration": "0m 51s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21907265850",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/21907265850"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770816792-a4c761",
       "timestamp": "2026-02-11T13:33:12Z",
       "action": "deploy",
@@ -1957,8 +1980,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 85,
-    "successful": 63,
+    "total_deploys": 86,
+    "successful": 64,
     "failed": 22
   }
 }

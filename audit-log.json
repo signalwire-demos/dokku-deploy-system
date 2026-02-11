@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770825375-6cf38a",
+      "timestamp": "2026-02-11T15:56:15Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "da26d70",
+        "sha_full": "da26d701e2761e74237a738776d1dfc68f0169f8",
+        "message": "Remove unused amadeus_client.py"
+      },
+      "duration": "1m 57s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21912232334",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21912232334"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770824609-aed242",
       "timestamp": "2026-02-11T15:43:29Z",
       "action": "deploy",
@@ -2256,8 +2279,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 98,
-    "successful": 74,
+    "total_deploys": 99,
+    "successful": 75,
     "failed": 24
   }
 }

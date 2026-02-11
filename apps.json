@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-11T13:07:23Z",
+  "last_updated": "2026-02-11T13:26:54Z",
   "apps": [
     {
       "name": "afterhours",
@@ -57,7 +57,7 @@
       "base_app": "cabby",
       "environment": "production",
       "repo": null,
-      "status": "success",
+      "status": "running",
       "url": "https://cabby.signalwire.io",
       "last_deploy": "2026-02-11T12:34:16Z",
       "last_deploy_by": "briankwest",
@@ -104,6 +104,23 @@
       }
     },
     {
+      "name": "goair",
+      "base_app": "goair",
+      "environment": "production",
+      "repo": null,
+      "status": "running",
+      "url": "https://goair.signalwire.io",
+      "last_deploy": "2026-02-11T13:07:23Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "91b07302892af0f7c6ca380d0155a0531c491b97",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 404,
+        "last_check": "2026-02-11T13:07:23Z"
+      }
+    },
+    {
       "name": "holyguacamole",
       "base_app": "holyguacamole",
       "environment": "production",
@@ -135,21 +152,6 @@
         "uptime_seconds": 0,
         "response_time_ms": 528,
         "last_check": "2025-12-30T19:51:11Z"
-      }
-    },
-    {
-      "name": "goair",
-      "status": "success",
-      "environment": "production",
-      "url": "https://goair.signalwire.io",
-      "last_deploy": "2026-02-11T13:07:23Z",
-      "last_deploy_by": "briankwest",
-      "commit_sha": "91b07302892af0f7c6ca380d0155a0531c491b97",
-      "uptime": {
-        "status": "healthy",
-        "uptime_seconds": 0,
-        "response_time_ms": 404,
-        "last_check": "2026-02-11T13:07:23Z"
       }
     }
   ]

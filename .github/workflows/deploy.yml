@@ -560,6 +560,12 @@ jobs:
             echo "No services manifest found"
           fi
 
+      - name: Mask variable values
+        run: |
+          echo '${{ toJSON(vars) }}' | jq -r 'values[]' 2>/dev/null | while IFS= read -r val; do
+            [ ${#val} -gt 4 ] && echo "::add-mask::$val"
+          done
+
       - name: Set environment variables
         env:
           GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
@@ -567,8 +573,6 @@ jobs:
         run: |
           echo "Setting environment variables..."
 
-          # Load org/repo-level vars from env (passed via env: block
-          # so GitHub Actions masks the values in log output)
           ALL_VARS="$_GH_VARS_JSON"
 
           # Fetch environment-level variables from GitHub API (not included
@@ -578,11 +582,6 @@ jobs:
 
           # Merge: org/repo vars, then overlay environment vars (more specific wins)
           MERGED=$(printf '%s\n%s' "$ALL_VARS" "$ENV_VARS" | jq -s '.[0] * .[1]')
-
-          # Mask all variable values so GitHub redacts them from any log output
-          echo "$MERGED" | jq -r 'values[]' 2>/dev/null | while IFS= read -r val; do
-            [ ${#val} -gt 4 ] && echo "::add-mask::$val"
-          done
 
           # Clear existing config to ensure a clean slate
           ssh dokku config:clear --no-restart ${{ env.APP_NAME }} 2>/dev/null || true

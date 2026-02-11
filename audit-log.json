@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770827427-138b15",
+      "timestamp": "2026-02-11T16:30:27Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "60cc0af",
+        "sha_full": "60cc0af4d5cd373308b20208668dccdbbb9360af",
+        "message": "Streamline Voyager flow, tighten prompts, and clean up debug logging"
+      },
+      "duration": "2m 0s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21913488552",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21913488552"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770825375-6cf38a",
       "timestamp": "2026-02-11T15:56:15Z",
       "action": "deploy",
@@ -2279,8 +2302,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 99,
-    "successful": 75,
+    "total_deploys": 100,
+    "successful": 76,
     "failed": 24
   }
 }

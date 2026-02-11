@@ -563,15 +563,13 @@ jobs:
       - name: Set environment variables
         env:
           GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
+          _GH_VARS_JSON: ${{ toJSON(vars) }}
         run: |
           echo "Setting environment variables..."
 
-          # Load org/repo-level vars via heredoc instead of env: block
-          # to prevent values from being logged in the step header
-          ALL_VARS=$(cat <<'GHVARSEOF'
-          ${{ toJSON(vars) }}
-          GHVARSEOF
-          )
+          # Load org/repo-level vars from env (passed via env: block
+          # so GitHub Actions masks the values in log output)
+          ALL_VARS="$_GH_VARS_JSON"
 
           # Fetch environment-level variables from GitHub API (not included
           # in toJSON(vars) for reusable workflows)

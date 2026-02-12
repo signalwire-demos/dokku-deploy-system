@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770926132-681df6",
+      "timestamp": "2026-02-12T19:55:32Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "476d933",
+        "sha_full": "476d933e4b0c45457a1060047c1dfb9fe2bd639f",
+        "message": "Validate booking dates and update .env.example defaults"
+      },
+      "duration": "1m 50s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21961950901",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21961950901"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770925564-f852c9",
       "timestamp": "2026-02-12T19:46:04Z",
       "action": "deploy",
@@ -2509,8 +2532,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 109,
-    "successful": 84,
+    "total_deploys": 110,
+    "successful": 85,
     "failed": 25
   }
 }

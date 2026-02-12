@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770923195-7541bb",
+      "timestamp": "2026-02-12T19:06:35Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "9b5b7ca",
+        "sha_full": "9b5b7cae0c8768e2d9ff49bffc5b2f553db202bb",
+        "message": "Fix 8 state flow bugs: crash, premature transitions, and missing guards"
+      },
+      "duration": "2m 1s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21960355383",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21960355383"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770921097-8ab3b2",
       "timestamp": "2026-02-12T18:31:37Z",
       "action": "deploy",
@@ -2463,8 +2486,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 107,
-    "successful": 82,
+    "total_deploys": 108,
+    "successful": 83,
     "failed": 25
   }
 }

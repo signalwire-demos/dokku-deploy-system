@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770916792-b32f66",
+      "timestamp": "2026-02-12T17:19:52Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "4db2777",
+        "sha_full": "4db277791c57eaf694505a6bf25dcd8181b015b3",
+        "message": "Add mock flight API, update docs, and remove Amadeus dependency"
+      },
+      "duration": "2m 12s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21956800567",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21956800567"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770916612-5e691e",
       "timestamp": "2026-02-12T17:16:52Z",
       "action": "deploy",
@@ -2348,8 +2371,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 102,
-    "successful": 77,
+    "total_deploys": 103,
+    "successful": 78,
     "failed": 25
   }
 }

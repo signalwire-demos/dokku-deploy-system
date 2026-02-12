@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770921097-8ab3b2",
+      "timestamp": "2026-02-12T18:31:37Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "fbc2a7b",
+        "sha_full": "fbc2a7b0c0eaeff86fb2d6270a0de0b870e6d24e",
+        "message": "Fix home airport not pre-setting origin for new callers after profile setup"
+      },
+      "duration": "1m 57s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21959187350",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21959187350"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770917445-08c7f0",
       "timestamp": "2026-02-12T17:30:45Z",
       "action": "deploy",
@@ -2440,8 +2463,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 106,
-    "successful": 81,
+    "total_deploys": 107,
+    "successful": 82,
     "failed": 25
   }
 }

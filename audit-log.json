@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770917445-08c7f0",
+      "timestamp": "2026-02-12T17:30:45Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "de348b4",
+        "sha_full": "de348b43a4963307fe44baf47ddda38d8ee13fcb",
+        "message": "Mask passenger names and emails on dashboard for privacy"
+      },
+      "duration": "1m 49s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21957184130",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21957184130"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770917262-4a1af7",
       "timestamp": "2026-02-12T17:27:42Z",
       "action": "deploy",
@@ -2417,8 +2440,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 105,
-    "successful": 80,
+    "total_deploys": 106,
+    "successful": 81,
     "failed": 25
   }
 }

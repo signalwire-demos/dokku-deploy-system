@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770917262-4a1af7",
+      "timestamp": "2026-02-12T17:27:42Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "31536ed",
+        "sha_full": "31536edd08eff9a04bb6a880ac2832885fa0ed2e",
+        "message": "Limit bookings to 8 passengers max, direct larger parties to travel agent"
+      },
+      "duration": "1m 55s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21957079224",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21957079224"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770917050-6be7de",
       "timestamp": "2026-02-12T17:24:10Z",
       "action": "deploy",
@@ -2394,8 +2417,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 104,
-    "successful": 79,
+    "total_deploys": 105,
+    "successful": 80,
     "failed": 25
   }
 }

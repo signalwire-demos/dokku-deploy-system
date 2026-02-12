@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770925564-f852c9",
+      "timestamp": "2026-02-12T19:46:04Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "e183665",
+        "sha_full": "e183665beb83fdec1b9bdc9d68baa0de28ce5673",
+        "message": "Add info_gatherer flow tests and update test harness for new API"
+      },
+      "duration": "2m 2s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21961645098",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21961645098"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770923195-7541bb",
       "timestamp": "2026-02-12T19:06:35Z",
       "action": "deploy",
@@ -2486,8 +2509,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 108,
-    "successful": 83,
+    "total_deploys": 109,
+    "successful": 84,
     "failed": 25
   }
 }

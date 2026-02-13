@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770994429-410bb6",
+      "timestamp": "2026-02-13T14:53:49Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "fff31ea",
+        "sha_full": "fff31ea3bb0ee798d6f2bef1ab9c4585f0f7189f",
+        "message": "Improve prompts from call log review: fix echo, confirmation, transitions"
+      },
+      "duration": "1m 59s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21991195898",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21991195898"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770992892-21dfab",
       "timestamp": "2026-02-13T14:28:12Z",
       "action": "deploy",
@@ -2624,8 +2647,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 114,
-    "successful": 89,
+    "total_deploys": 115,
+    "successful": 90,
     "failed": 25
   }
 }

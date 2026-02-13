@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770997359-fac11f",
+      "timestamp": "2026-02-13T15:42:39Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "d0d11d9",
+        "sha_full": "d0d11d9356e2650fe2cd437f7d1fc92a0c5beefb",
+        "message": "Optimize prompts for gpt-oss-20b: add guardrails for smaller models"
+      },
+      "duration": "2m 3s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21992818286",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21992818286"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770994429-410bb6",
       "timestamp": "2026-02-13T14:53:49Z",
       "action": "deploy",
@@ -2647,8 +2670,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 115,
-    "successful": 90,
+    "total_deploys": 116,
+    "successful": 91,
     "failed": 25
   }
 }

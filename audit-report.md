@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 113 |
-| Successful | 88 |
+| Total Deployments | 114 |
+| Successful | 89 |
 | Failed | 25 |
-| Success Rate | 77.8% |
+| Success Rate | 78.0% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-02-13T14:28:12Z | deploy | cabby | production | success | briankwest |
 | 2026-02-13T14:01:40Z | deploy | goair | production | success | briankwest |
 | 2026-02-13T13:31:23Z | deploy | goair | production | success | briankwest |
 | 2026-02-12T20:19:57Z | deploy | goair | production | success | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-10T15:59:16Z | deploy | cabby | production | skipped | briankwest |
 | 2026-02-10T15:16:58Z | deploy | cabby | production | success | briankwest |
 | 2026-02-10T14:32:08Z | deploy | cabby | production | success | briankwest |
-| 2026-02-10T14:07:32Z | deploy | cabby | production | success | briankwest |
 
 ---
 

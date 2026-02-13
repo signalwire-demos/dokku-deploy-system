@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770991300-f9c129",
+      "timestamp": "2026-02-13T14:01:40Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "d4fc16a",
+        "sha_full": "d4fc16a14444951755339bf3945f42a70ffc618d",
+        "message": "Fix auto-select step transition, adults validation, and IATA regex"
+      },
+      "duration": "1m 58s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21989504835",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21989504835"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770989483-8958f3",
       "timestamp": "2026-02-13T13:31:23Z",
       "action": "deploy",
@@ -2578,8 +2601,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 112,
-    "successful": 87,
+    "total_deploys": 113,
+    "successful": 88,
     "failed": 25
   }
 }

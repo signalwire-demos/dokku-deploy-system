@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1770989483-8958f3",
+      "timestamp": "2026-02-13T13:31:23Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "4e2a247",
+        "sha_full": "4e2a247ba5bbe214eb8908b19a4ced3205334db5",
+        "message": "Add book_flight filler and update README for current state"
+      },
+      "duration": "2m 2s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "21988585923",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/21988585923"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770927597-2adeb2",
       "timestamp": "2026-02-12T20:19:57Z",
       "action": "deploy",
@@ -2555,8 +2578,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 111,
-    "successful": 86,
+    "total_deploys": 112,
+    "successful": 87,
     "failed": 25
   }
 }

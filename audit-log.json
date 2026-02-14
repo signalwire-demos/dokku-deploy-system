@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771050473-fce476",
+      "timestamp": "2026-02-14T06:27:53Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "c01bf32",
+        "sha_full": "c01bf3242965a3c7d64414ca340fb6d8d880b255",
+        "message": "update"
+      },
+      "duration": "2m 6s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22012677723",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22012677723"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1770997359-fac11f",
       "timestamp": "2026-02-13T15:42:39Z",
       "action": "deploy",
@@ -2670,8 +2693,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 116,
-    "successful": 91,
+    "total_deploys": 117,
+    "successful": 92,
     "failed": 25
   }
 }

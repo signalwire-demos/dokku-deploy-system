@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771176838-a06600",
+      "timestamp": "2026-02-15T17:33:58Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "96754d0",
+        "sha_full": "96754d0d7ed7c9f2af581ba2638f459b44ef4fb6",
+        "message": "Align SDK patterns with Voyager: update_global_data, bare shell greeting, targeted state updates"
+      },
+      "duration": "0m 31s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22040024084",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/22040024084"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771050722-ca9188",
       "timestamp": "2026-02-14T06:32:02Z",
       "action": "deploy",
@@ -2716,8 +2739,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 118,
-    "successful": 93,
+    "total_deploys": 119,
+    "successful": 94,
     "failed": 25
   }
 }

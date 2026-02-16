@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771255070-2509be",
+      "timestamp": "2026-02-16T15:17:50Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "22e79bc",
+        "sha_full": "22e79bcf16e2f290e11c827d3f28902e73cc4d55",
+        "message": "Add valid_steps to all steps for SWML diagram/testing visibility"
+      },
+      "duration": "1m 50s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22068114738",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22068114738"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771253815-50afca",
       "timestamp": "2026-02-16T14:56:55Z",
       "action": "deploy",
@@ -2785,8 +2808,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 121,
-    "successful": 96,
+    "total_deploys": 122,
+    "successful": 97,
     "failed": 25
   }
 }

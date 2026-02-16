@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771278707-3cf7db",
+      "timestamp": "2026-02-16T21:51:47Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "ad37b84",
+        "sha_full": "ad37b843b7fd67f8556092dbdc750c71e2d6959c",
+        "message": "Use relative paths for OpenGraph images"
+      },
+      "duration": "3m 25s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22078432202",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22078432202"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771278455-989716",
       "timestamp": "2026-02-16T21:47:35Z",
       "action": "deploy",
@@ -3268,8 +3291,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 142,
-    "successful": 105,
+    "total_deploys": 143,
+    "successful": 106,
     "failed": 37
   }
 }

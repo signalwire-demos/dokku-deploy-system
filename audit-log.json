@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771253815-50afca",
+      "timestamp": "2026-02-16T14:56:55Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "c28450b",
+        "sha_full": "c28450bc83ef43db255d8648387d2ec4dd3bb12b",
+        "message": "Replace info_gatherer skills with native question steps and force all transitions"
+      },
+      "duration": "2m 6s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22067409252",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22067409252"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771177125-54e9d2",
       "timestamp": "2026-02-15T17:38:45Z",
       "action": "deploy",
@@ -2762,8 +2785,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 120,
-    "successful": 95,
+    "total_deploys": 121,
+    "successful": 96,
     "failed": 25
   }
 }

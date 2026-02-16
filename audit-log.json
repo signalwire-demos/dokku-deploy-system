@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771256426-8109dd",
+      "timestamp": "2026-02-16T15:40:26Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "6465b86",
+        "sha_full": "6465b861af469a0cf0dca4ab1657fbe8820f276d",
+        "message": "Fix step flow routing, escape paths, and forced transitions"
+      },
+      "duration": "2m 7s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22068866532",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22068866532"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771255070-2509be",
       "timestamp": "2026-02-16T15:17:50Z",
       "action": "deploy",
@@ -2808,8 +2831,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 122,
-    "successful": 97,
+    "total_deploys": 123,
+    "successful": 98,
     "failed": 25
   }
 }

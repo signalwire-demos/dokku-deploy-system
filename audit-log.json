@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771270592-a71efb",
+      "timestamp": "2026-02-16T19:36:32Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "f568e87",
+        "sha_full": "f568e874049fdff723ea84b5c3d58f5bc53cb3f0",
+        "message": "Add transcript ratings, mermaid export, and SWML bullet support"
+      },
+      "duration": "3m 38s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22075298801",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22075298801"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771268112-a71efb",
       "timestamp": "2026-02-16T18:55:12Z",
       "action": "deploy",
@@ -3038,8 +3061,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 132,
-    "successful": 101,
+    "total_deploys": 133,
+    "successful": 102,
     "failed": 31
   }
 }

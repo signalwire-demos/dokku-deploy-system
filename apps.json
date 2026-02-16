@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-16T15:40:28Z",
+  "last_updated": "2026-02-16T16:27:49Z",
   "apps": [
     {
       "name": "afterhours",
@@ -152,6 +152,21 @@
         "uptime_seconds": 0,
         "response_time_ms": 330,
         "last_check": "2026-02-11T14:00:51Z"
+      }
+    },
+    {
+      "name": "postpromptviewer",
+      "status": "failure",
+      "environment": "production",
+      "url": "https://postpromptviewer.signalwire.io",
+      "last_deploy": "2026-02-16T16:27:49Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "eaf5f61d37541815a574198d18a19816bf060028",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 1201,
+        "last_check": "2026-02-16T16:27:49Z"
       }
     }
   ]

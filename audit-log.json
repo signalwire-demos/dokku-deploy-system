@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771271971-212149",
+      "timestamp": "2026-02-16T19:59:31Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "28efb2c",
+        "sha_full": "28efb2c0a260ec623d12b612d3b74235f9b8c118",
+        "message": "Add Playwright screenshot automation and update README"
+      },
+      "duration": "3m 33s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22075849640",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22075849640"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771270592-a71efb",
       "timestamp": "2026-02-16T19:36:32Z",
       "action": "deploy",
@@ -3061,8 +3084,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 133,
-    "successful": 102,
+    "total_deploys": 134,
+    "successful": 103,
     "failed": 31
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771260505-c148e6",
+      "timestamp": "2026-02-16T16:48:25Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "5f96ed9",
+        "sha_full": "5f96ed9051d0cf4dd63e542ee2f6cb8e59177e98",
+        "message": "Remove custom domain to fix SSL setup"
+      },
+      "duration": "4m 16s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22070941463",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22070941463"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771260159-d56c8a",
       "timestamp": "2026-02-16T16:42:39Z",
       "action": "deploy",
@@ -2923,8 +2946,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 127,
-    "successful": 98,
+    "total_deploys": 128,
+    "successful": 99,
     "failed": 29
   }
 }

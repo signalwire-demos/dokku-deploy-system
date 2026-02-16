@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771283840-ceac13",
+      "timestamp": "2026-02-16T23:17:20Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "ed43192",
+        "sha_full": "ed4319270b7001d6bb409a5c542d3fb08cb7db1d",
+        "message": "Enhance State Flow to capture 100% of call transitions"
+      },
+      "duration": "3m 35s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22080246625",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22080246625"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771280328-b88973",
       "timestamp": "2026-02-16T22:18:48Z",
       "action": "deploy",
@@ -3314,8 +3337,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 144,
-    "successful": 107,
+    "total_deploys": 145,
+    "successful": 108,
     "failed": 37
   }
 }

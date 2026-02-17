@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771331211-79b1c3",
+      "timestamp": "2026-02-17T12:26:51Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "cancelled",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "a26dfd0",
+        "sha_full": "a26dfd015ee21f483c52d53158cc4c0695e92867",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22098369631",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22098369631"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771295169-688a87",
       "timestamp": "2026-02-17T02:26:09Z",
       "action": "deploy",
@@ -3406,8 +3429,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 148,
+    "total_deploys": 149,
     "successful": 111,
-    "failed": 37
+    "failed": 38
   }
 }

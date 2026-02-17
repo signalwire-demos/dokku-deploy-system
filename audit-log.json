@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771293300-27e4d3",
+      "timestamp": "2026-02-17T01:55:00Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "1f95772",
+        "sha_full": "1f957725cd84cc387b942390a69eac264dd47bc0",
+        "message": "Rewrite State Flow diagram generation to match Python reference implementation"
+      },
+      "duration": "3m 23s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22083180608",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22083180608"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771284649-84bff1",
       "timestamp": "2026-02-16T23:30:49Z",
       "action": "deploy",
@@ -3360,8 +3383,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 146,
-    "successful": 109,
+    "total_deploys": 147,
+    "successful": 110,
     "failed": 37
   }
 }

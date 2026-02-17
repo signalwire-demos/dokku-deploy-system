@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771333340-1c36c8",
+      "timestamp": "2026-02-17T13:02:20Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "40ebebc",
+        "sha_full": "40ebebc6ec34240a5dbc749d30ab4700dea9f75e",
+        "message": "Restore legend to downloaded images as SVG elements in title band"
+      },
+      "duration": "3m 42s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22099379582",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22099379582"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771332224-2a93c0",
       "timestamp": "2026-02-17T12:43:44Z",
       "action": "deploy",
@@ -3475,8 +3498,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 151,
-    "successful": 112,
+    "total_deploys": 152,
+    "successful": 113,
     "failed": 39
   }
 }

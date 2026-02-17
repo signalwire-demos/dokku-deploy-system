@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771336831-90eb8f",
+      "timestamp": "2026-02-17T14:00:31Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "2e6682f",
+        "sha_full": "2e6682f4611808c7522d86b32c41ba37f5fa526d",
+        "message": "Detect and display garbage model output in transcript"
+      },
+      "duration": "3m 39s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22101234964",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22101234964"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771335956-b5813b",
       "timestamp": "2026-02-17T13:45:56Z",
       "action": "deploy",
@@ -3590,8 +3613,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 156,
-    "successful": 114,
+    "total_deploys": 157,
+    "successful": 115,
     "failed": 42
   }
 }

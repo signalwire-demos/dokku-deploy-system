@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771295169-688a87",
+      "timestamp": "2026-02-17T02:26:09Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "1605952",
+        "sha_full": "16059520b6c160848c2ee39218ee4f79aa1d4d45",
+        "message": "Add question extraction and display for gather_submit nodes"
+      },
+      "duration": "3m 32s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22083740079",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22083740079"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771293300-27e4d3",
       "timestamp": "2026-02-17T01:55:00Z",
       "action": "deploy",
@@ -3383,8 +3406,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 147,
-    "successful": 110,
+    "total_deploys": 148,
+    "successful": 111,
     "failed": 37
   }
 }

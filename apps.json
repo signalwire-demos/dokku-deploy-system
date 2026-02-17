@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-02-17T02:26:10Z",
+  "last_updated": "2026-02-17T02:45:10Z",
   "apps": [
     {
       "name": "afterhours",
@@ -108,7 +108,7 @@
       "base_app": "goair",
       "environment": "production",
       "repo": null,
-      "status": "failure",
+      "status": "running",
       "url": "https://goair.signalwire.io",
       "last_deploy": "2026-02-16T18:55:14Z",
       "last_deploy_by": "briankwest",
@@ -138,6 +138,23 @@
       }
     },
     {
+      "name": "postpromptviewer",
+      "base_app": "postpromptviewer",
+      "environment": "production",
+      "repo": "signalwire-demos/postpromptviewer",
+      "status": "running",
+      "url": "https://postpromptviewer.signalwire.io",
+      "last_deploy": "2026-02-17T02:26:10Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "16059520b6c160848c2ee39218ee4f79aa1d4d45",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 183,
+        "last_check": "2026-02-17T02:26:10Z"
+      }
+    },
+    {
       "name": "santa",
       "base_app": "santa",
       "environment": "production",
@@ -152,36 +169,6 @@
         "uptime_seconds": 0,
         "response_time_ms": 330,
         "last_check": "2026-02-11T14:00:51Z"
-      }
-    },
-    {
-      "name": "postpromptviewer",
-      "status": "success",
-      "environment": "production",
-      "url": "https://postpromptviewer.signalwire.io",
-      "last_deploy": "2026-02-17T02:26:10Z",
-      "last_deploy_by": "briankwest",
-      "commit_sha": "16059520b6c160848c2ee39218ee4f79aa1d4d45",
-      "uptime": {
-        "status": "healthy",
-        "uptime_seconds": 0,
-        "response_time_ms": 183,
-        "last_check": "2026-02-17T02:26:10Z"
-      }
-    },
-    {
-      "name": "",
-      "status": "cancelled",
-      "environment": "",
-      "url": "",
-      "last_deploy": "2026-02-16T20:04:34Z",
-      "last_deploy_by": "briankwest",
-      "commit_sha": "6c37e94c37fd6bb52abcd929ccf191141646ccbb",
-      "uptime": {
-        "status": "unknown",
-        "uptime_seconds": 0,
-        "response_time_ms": 0,
-        "last_check": "2026-02-16T20:04:34Z"
       }
     }
   ]

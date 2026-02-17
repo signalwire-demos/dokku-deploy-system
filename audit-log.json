@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771338346-5facdb",
+      "timestamp": "2026-02-17T14:25:46Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "4fc776e",
+        "sha_full": "4fc776e6bf3d4c9315807f702fc5c29b14640240",
+        "message": "Add START node to SWML step flow diagram; always show full transcript"
+      },
+      "duration": "3m 50s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22102092917",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22102092917"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771337977-4ab5e6",
       "timestamp": "2026-02-17T14:19:37Z",
       "action": "deploy",
@@ -3636,8 +3659,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 158,
-    "successful": 116,
+    "total_deploys": 159,
+    "successful": 117,
     "failed": 42
   }
 }

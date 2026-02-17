@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 158 |
-| Successful | 116 |
+| Total Deployments | 159 |
+| Successful | 117 |
 | Failed | 42 |
-| Success Rate | 73.4% |
+| Success Rate | 73.5% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-02-17T14:25:46Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-17T14:19:37Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-17T14:00:31Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-17T13:45:56Z | deploy | goair | production | failure | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-13T13:31:23Z | deploy | goair | production | success | briankwest |
 | 2026-02-12T20:19:57Z | deploy | goair | production | success | briankwest |
 | 2026-02-12T19:55:32Z | deploy | goair | production | success | briankwest |
-| 2026-02-12T19:46:04Z | deploy | goair | production | success | briankwest |
 
 ---
 

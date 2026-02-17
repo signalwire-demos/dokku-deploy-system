@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771337977-4ab5e6",
+      "timestamp": "2026-02-17T14:19:37Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "f6bb9fe",
+        "sha_full": "f6bb9fe3e5ab55254c25fff0c758edd27cf0ded6",
+        "message": "Fix search focus loss and state flow transition counting"
+      },
+      "duration": "3m 28s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22101888638",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22101888638"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771336831-90eb8f",
       "timestamp": "2026-02-17T14:00:31Z",
       "action": "deploy",
@@ -3613,8 +3636,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 157,
-    "successful": 115,
+    "total_deploys": 158,
+    "successful": 116,
     "failed": 42
   }
 }

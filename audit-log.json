@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771427415-cb14c9",
+      "timestamp": "2026-02-18T15:10:15Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "ea13fcb",
+        "sha_full": "ea13fcb1d2da12b47d4c0c18c42e4c10e3f4e326",
+        "message": "Remove Webhook-Forced distinction — change_step nav node makes it self-evident"
+      },
+      "duration": "3m 42s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22145138747",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22145138747"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771427137-5e3415",
       "timestamp": "2026-02-18T15:05:37Z",
       "action": "deploy",
@@ -3774,8 +3797,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 164,
-    "successful": 120,
+    "total_deploys": 165,
+    "successful": 121,
     "failed": 44
   }
 }

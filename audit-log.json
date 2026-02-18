@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771453253-efb11f",
+      "timestamp": "2026-02-18T22:20:53Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "f45b8dc",
+        "sha_full": "f45b8dcc3801abfa545d0629498c7fa752934080",
+        "message": "Add recording region alignment slider and waveform drift correction"
+      },
+      "duration": "3m 45s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22159858527",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22159858527"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771452581-07f27e",
       "timestamp": "2026-02-18T22:09:41Z",
       "action": "deploy",
@@ -3958,8 +3981,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 172,
-    "successful": 124,
+    "total_deploys": 173,
+    "successful": 125,
     "failed": 48
   }
 }

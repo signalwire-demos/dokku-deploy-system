@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771457775-00ba0d",
+      "timestamp": "2026-02-18T23:36:15Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "c4e0074",
+        "sha_full": "c4e00745db154209596e56079c863631a021f85f",
+        "message": "Restore forced (tool) transitions stat card in State Flow"
+      },
+      "duration": "3m 26s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22161982138",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22161982138"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771455257-42f35f",
       "timestamp": "2026-02-18T22:54:17Z",
       "action": "deploy",
@@ -4004,8 +4027,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 174,
-    "successful": 126,
+    "total_deploys": 175,
+    "successful": 127,
     "failed": 48
   }
 }

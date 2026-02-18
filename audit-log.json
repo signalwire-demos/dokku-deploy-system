@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771380249-89a50f",
+      "timestamp": "2026-02-18T02:04:09Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "a2bdcdb",
+        "sha_full": "a2bdcdbb58851fd46c464b9154c7c5d37292239a",
+        "message": "Support enriched call_log format and fix recording alignment"
+      },
+      "duration": "3m 33s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22123470265",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22123470265"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771338346-5facdb",
       "timestamp": "2026-02-17T14:25:46Z",
       "action": "deploy",
@@ -3659,8 +3682,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 159,
-    "successful": 117,
+    "total_deploys": 160,
+    "successful": 118,
     "failed": 42
   }
 }

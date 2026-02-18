@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771422551-55e2f6",
+      "timestamp": "2026-02-18T13:49:11Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "4f94586",
+        "sha_full": "4f945863f048b6234d404e4a2243e9d7c573b6cc",
+        "message": "Draw edge from change_step/change_context nav node to its target step"
+      },
+      "duration": "3m 35s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22142223237",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22142223237"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771382099-bf1c31",
       "timestamp": "2026-02-18T02:34:59Z",
       "action": "deploy",
@@ -3728,8 +3751,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 162,
-    "successful": 119,
+    "total_deploys": 163,
+    "successful": 120,
     "failed": 43
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771455257-42f35f",
+      "timestamp": "2026-02-18T22:54:17Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "3b30821",
+        "sha_full": "3b30821c78c5afe032cca8e9d03aead2f4cd9db6",
+        "message": "Add assistant barge-in metadata display and fix layout sizing"
+      },
+      "duration": "3m 28s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22160842049",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22160842049"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771453253-efb11f",
       "timestamp": "2026-02-18T22:20:53Z",
       "action": "deploy",
@@ -3981,8 +4004,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 173,
-    "successful": 125,
+    "total_deploys": 174,
+    "successful": 126,
     "failed": 48
   }
 }

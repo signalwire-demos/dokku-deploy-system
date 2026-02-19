@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771513174-65caa6",
+      "timestamp": "2026-02-19T14:59:34Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "26851c6",
+        "sha_full": "26851c66d44cf405df7afbeb0c9997975828602c",
+        "message": "Update swml example"
+      },
+      "duration": "3m 38s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22186863940",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22186863940"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771457775-00ba0d",
       "timestamp": "2026-02-18T23:36:15Z",
       "action": "deploy",
@@ -4027,8 +4050,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 175,
-    "successful": 127,
+    "total_deploys": 176,
+    "successful": 128,
     "failed": 48
   }
 }

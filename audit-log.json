@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771599139-28b9cd",
+      "timestamp": "2026-02-20T14:52:19Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "47b6cd4",
+        "sha_full": "47b6cd4eb4da2a166885dee2a6b8e798ec9504e1",
+        "message": "Add Community and Agents SDK links to drop zone landing page"
+      },
+      "duration": "3m 26s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22228613525",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22228613525"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771598768-3e6a8d",
       "timestamp": "2026-02-20T14:46:08Z",
       "action": "deploy",
@@ -4165,8 +4188,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 181,
-    "successful": 131,
+    "total_deploys": 182,
+    "successful": 132,
     "failed": 50
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771598768-3e6a8d",
+      "timestamp": "2026-02-20T14:46:08Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "dbc4744",
+        "sha_full": "dbc47442ed3a9ce7d3ad9d2b21ab0acc012e2d2b",
+        "message": "Rewrite State Flow diagram: per-visit nodes, proper flow splitting, LR layout"
+      },
+      "duration": "3m 41s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22228386491",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/22228386491"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771597524-f05951",
       "timestamp": "2026-02-20T14:25:24Z",
       "action": "deploy",
@@ -4142,8 +4165,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 180,
-    "successful": 130,
+    "total_deploys": 181,
+    "successful": 131,
     "failed": 50
   }
 }

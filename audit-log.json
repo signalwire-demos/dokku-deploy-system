@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771877177-428512",
+      "timestamp": "2026-02-23T20:06:17Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "7c65337",
+        "sha_full": "7c6533791c5f226e6ffef07338b0dac47ebd32c8",
+        "message": "update requirements"
+      },
+      "duration": "0m 25s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22322753014",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/22322753014"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771876914-1ce9d4",
       "timestamp": "2026-02-23T20:01:54Z",
       "action": "deploy",
@@ -4372,8 +4395,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 190,
-    "successful": 135,
+    "total_deploys": 191,
+    "successful": 136,
     "failed": 55
   }
 }

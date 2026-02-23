@@ -605,7 +605,7 @@ jobs:
       - name: Configure domains
         run: |
           echo "Configuring primary domain: ${{ env.DOMAIN }}"
-          ssh dokku domains:set ${{ env.APP_NAME }} ${{ env.DOMAIN }}
+          ssh dokku domains:set ${{ env.APP_NAME }} ${{ env.DOMAIN }} || true
 
       - name: Configure resources and scaling
         run: |

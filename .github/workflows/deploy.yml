@@ -560,18 +560,17 @@ jobs:
             echo "No services manifest found"
           fi
 
-      - name: Mask variable values
-        run: |
-          echo '${{ toJSON(vars) }}' | jq -r 'values[]' 2>/dev/null | while IFS= read -r val; do
-            [ ${#val} -gt 4 ] && echo "::add-mask::$val"
-          done
-
       - name: Set environment variables
         env:
           GH_TOKEN: ${{ secrets.GH_ORG_TOKEN || github.token }}
           _GH_VARS_JSON: ${{ toJSON(vars) }}
+          _GH_SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           echo "Setting environment variables..."
+
+          # Filter out workflow infrastructure secrets that should NOT be set on apps
+          EXCLUDED_KEYS='["DOKKU_HOST","DOKKU_SSH_PRIVATE_KEY","GH_ORG_TOKEN","SLACK_WEBHOOK_URL","DISCORD_WEBHOOK_URL","DEPLOY_WEBHOOK_URLS","DEPLOY_WEBHOOK_SECRET","DD_API_KEY","PAGERDUTY_ROUTING_KEY","PREVIEW_AUTH_USER","PREVIEW_AUTH_PASSWORD","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_S3_BUCKET","github_token"]'
+          APP_SECRETS=$(echo "$_GH_SECRETS_JSON" | jq --argjson ex "$EXCLUDED_KEYS" 'with_entries(select(.key as $k | $ex | index($k) | not))')
 
           ALL_VARS="$_GH_VARS_JSON"
 
@@ -580,8 +579,8 @@ jobs:
           ENV_VARS=$(gh api "repos/${{ github.repository }}/environments/${{ env.ENVIRONMENT }}/variables" \
             --jq '[.variables[] | {(.name): .value}] | add // {}' 2>/dev/null || echo "{}")
 
-          # Merge: org/repo vars, then overlay environment vars (more specific wins)
-          MERGED=$(printf '%s\n%s' "$ALL_VARS" "$ENV_VARS" | jq -s '.[0] * .[1]')
+          # Merge: org/repo vars, then environment vars, then secrets (most specific wins)
+          MERGED=$(printf '%s\n%s\n%s' "$ALL_VARS" "$ENV_VARS" "$APP_SECRETS" | jq -s '.[0] * .[1] * .[2]')
 
           # Clear existing config to ensure a clean slate
           ssh dokku config:clear --no-restart ${{ env.APP_NAME }} 2>/dev/null || true

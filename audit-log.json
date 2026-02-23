@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771874986-28989e",
+      "timestamp": "2026-02-23T19:29:46Z",
+      "action": "deploy",
+      "app_name": "utils",
+      "environment": "production",
+      "status": "skipped",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/utils",
+      "commit": {
+        "sha": "7722219",
+        "sha_full": "7722219fd0657016351db055096bba6a638ed64c",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://utils.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22321516051",
+        "run_url": "https://github.com/signalwire-demos/utils/actions/runs/22321516051"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771874919-21f972",
       "timestamp": "2026-02-23T19:28:39Z",
       "action": "deploy",
@@ -4257,8 +4280,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 185,
+    "total_deploys": 186,
     "successful": 133,
-    "failed": 52
+    "failed": 53
   }
 }

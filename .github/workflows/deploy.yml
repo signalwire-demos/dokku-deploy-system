@@ -696,8 +696,15 @@ jobs:
           git remote set-url dokku dokku@${{ secrets.DOKKU_HOST }}:${{ env.APP_NAME }}
 
           # Push to deploy
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            git push dokku HEAD:refs/heads/main --force
+          PUSH_OUTPUT=$(GIT_SSH_COMMAND="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            git push dokku HEAD:refs/heads/main --force 2>&1) || true
+          echo "$PUSH_OUTPUT"
+
+          # If nothing changed, force a rebuild (e.g., env vars or config updated)
+          if echo "$PUSH_OUTPUT" | grep -q "Everything up-to-date"; then
+            echo "No code changes detected, forcing rebuild..."
+            ssh dokku ps:rebuild ${{ env.APP_NAME }}
+          fi
 
       - name: Run release tasks
         run: |

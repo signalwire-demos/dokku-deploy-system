@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771878134-ca69c6",
+      "timestamp": "2026-02-23T20:22:14Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "f30bca5",
+        "sha_full": "f30bca55af9dcaede6ab214f9e613f5eab83a74f",
+        "message": "Add function fillers to all SWAIG tools for natural hold speech"
+      },
+      "duration": "1m 58s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22323245277",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22323245277"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771877864-1b8280",
       "timestamp": "2026-02-23T20:17:44Z",
       "action": "deploy",
@@ -4441,8 +4464,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 193,
-    "successful": 136,
+    "total_deploys": 194,
+    "successful": 137,
     "failed": 57
   }
 }

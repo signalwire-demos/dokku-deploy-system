@@ -605,27 +605,7 @@ jobs:
       - name: Configure domains
         run: |
           echo "Configuring primary domain: ${{ env.DOMAIN }}"
-          ssh dokku domains:clear ${{ env.APP_NAME }} 2>/dev/null || true
-          ssh dokku domains:add ${{ env.APP_NAME }} ${{ env.DOMAIN }}
-
-          # Add custom domains from config.yml if present
-          if [ -f ".dokku/config.yml" ]; then
-            # Install yq if not already installed
-            which yq || sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-            sudo chmod +x /usr/local/bin/yq
-
-            # Check for environment-specific custom domains first, then global
-            ENV="${{ env.ENVIRONMENT }}"
-            CUSTOM_DOMAINS=$(yq e ".environments.${ENV}.custom_domains // .custom_domains // []" .dokku/config.yml)
-
-            if [ "$CUSTOM_DOMAINS" != "[]" ] && [ "$CUSTOM_DOMAINS" != "null" ]; then
-              echo "Adding custom domains..."
-              for domain in $(yq e ".environments.${ENV}.custom_domains // .custom_domains // [] | .[]" .dokku/config.yml); do
-                echo "  Adding: $domain"
-                ssh dokku domains:add ${{ env.APP_NAME }} "$domain" || true
-              done
-            fi
-          fi
+          ssh dokku domains:set ${{ env.APP_NAME }} ${{ env.DOMAIN }}
 
       - name: Configure resources and scaling
         run: |

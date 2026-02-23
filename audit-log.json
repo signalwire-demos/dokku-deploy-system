@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1771875598-fdf1aa",
+      "timestamp": "2026-02-23T19:39:58Z",
+      "action": "deploy",
+      "app_name": "utils",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/utils",
+      "commit": {
+        "sha": "d27b392",
+        "sha_full": "d27b3929f1ec64b95185590560b562fdc3f6ae84",
+        "message": "Fix all lint errors: unused imports, escape chars, setState patterns"
+      },
+      "duration": "3m 24s",
+      "url": "https://utils.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22321748014",
+        "run_url": "https://github.com/signalwire-demos/utils/actions/runs/22321748014"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1771875082-a896d0",
       "timestamp": "2026-02-23T19:31:22Z",
       "action": "deploy",
@@ -4303,8 +4326,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 187,
-    "successful": 133,
+    "total_deploys": 188,
+    "successful": 134,
     "failed": 54
   }
 }

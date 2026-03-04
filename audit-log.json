@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1772640798-a558d7",
+      "timestamp": "2026-03-04T16:13:18Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "0ca8ebf",
+        "sha_full": "0ca8ebf30a1ab5f3198545d4c8a0c871aa83a1a4",
+        "message": "Add apply_booking bridge step and fix disambiguation routing"
+      },
+      "duration": "2m 1s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "22677982165",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/22677982165"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1772550234-7fe8de",
       "timestamp": "2026-03-03T15:03:54Z",
       "action": "deploy",
@@ -4533,8 +4556,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 197,
-    "successful": 140,
+    "total_deploys": 198,
+    "successful": 141,
     "failed": 57
   }
 }

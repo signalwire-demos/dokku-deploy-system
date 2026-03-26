@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1774551321-8be468",
+      "timestamp": "2026-03-26T18:55:21Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "5e46925",
+        "sha_full": "5e469254bf82a8499cba01e072c66b38576a7554",
+        "message": "Add P.I.E. (PostPrompt Ingestion Engine) with DaisyUI redesign"
+      },
+      "duration": "3m 42s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "23612316744",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/23612316744"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1773247818-4f26ff",
       "timestamp": "2026-03-11T16:50:18Z",
       "action": "deploy",
@@ -4579,8 +4602,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 199,
-    "successful": 142,
+    "total_deploys": 200,
+    "successful": 143,
     "failed": 57
   }
 }

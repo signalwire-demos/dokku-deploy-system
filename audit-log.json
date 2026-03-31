@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1774985753-952689",
+      "timestamp": "2026-03-31T19:35:53Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "ba5be53",
+        "sha_full": "ba5be530b56d913c96373bab0e493181b768f1df",
+        "message": "add debug logging to /get_token endpoint for SWML handler failures"
+      },
+      "duration": "2m 18s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "23815718203",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/23815718203"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1774552124-d65a27",
       "timestamp": "2026-03-26T19:08:44Z",
       "action": "deploy",
@@ -4625,8 +4648,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 201,
-    "successful": 143,
+    "total_deploys": 202,
+    "successful": 144,
     "failed": 58
   }
 }

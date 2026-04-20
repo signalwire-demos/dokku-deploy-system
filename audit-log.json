@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1776700508-04ac04",
+      "timestamp": "2026-04-20T15:55:08Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "2e383a4",
+        "sha_full": "2e383a439c59cf4b82000dede8cf93a781401084",
+        "message": "Fix chart data accuracy and add deploy health endpoint"
+      },
+      "duration": "4m 8s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "24676224200",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/24676224200"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1776697961-94cf9e",
       "timestamp": "2026-04-20T15:12:41Z",
       "action": "deploy",
@@ -4671,8 +4694,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 203,
-    "successful": 144,
+    "total_deploys": 204,
+    "successful": 145,
     "failed": 59
   }
 }

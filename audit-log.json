@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1777586754-5fe7fd",
+      "timestamp": "2026-04-30T22:05:54Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "2b34ef3",
+        "sha_full": "2b34ef37a784bb9d5deb5ba0b6c23039e65593de",
+        "message": "Surface new fields from post-conversation payload"
+      },
+      "duration": "4m 12s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "25191467607",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/25191467607"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1776701223-9c3c5c",
       "timestamp": "2026-04-20T16:07:03Z",
       "action": "deploy",
@@ -4717,8 +4740,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 205,
-    "successful": 146,
+    "total_deploys": 206,
+    "successful": 147,
     "failed": 59
   }
 }

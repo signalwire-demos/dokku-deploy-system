@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1779374877-0c4219",
+      "timestamp": "2026-05-21T14:47:57Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "88c3a0e",
+        "sha_full": "88c3a0eb90c6d6e60079b0a1adaa7b928bf2a37a",
+        "message": "add explain_term tool so players can ask what blackjack vocabulary means"
+      },
+      "duration": "2m 17s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "26233280019",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/26233280019"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1778852190-ece329",
       "timestamp": "2026-05-15T13:36:30Z",
       "action": "deploy",
@@ -4786,8 +4809,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 208,
-    "successful": 149,
+    "total_deploys": 209,
+    "successful": 150,
     "failed": 59
   }
 }

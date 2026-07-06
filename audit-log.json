@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783359246-5e08bf",
+      "timestamp": "2026-07-06T17:34:06Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "3f0fc69",
+        "sha_full": "3f0fc69faad43439d767eacc72b90907210781be",
+        "message": "Modernize UI: replace theater theme with clean dark cinema design"
+      },
+      "duration": "2m 9s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28810658006",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/28810658006"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783357987-337493",
       "timestamp": "2026-07-06T17:13:07Z",
       "action": "deploy",
@@ -4878,8 +4901,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 212,
-    "successful": 153,
+    "total_deploys": 213,
+    "successful": 154,
     "failed": 59
   }
 }

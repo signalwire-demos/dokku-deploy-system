@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783367268-eebb5d",
+      "timestamp": "2026-07-06T19:47:48Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "ab5eaca",
+        "sha_full": "ab5eacaa07fc6496ff5ff4e311fc888a4d3d9304",
+        "message": "Merge pull request #2 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "2m 18s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28818528514",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/28818528514"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783359246-5e08bf",
       "timestamp": "2026-07-06T17:34:06Z",
       "action": "deploy",
@@ -4901,8 +4924,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 213,
-    "successful": 154,
+    "total_deploys": 214,
+    "successful": 155,
     "failed": 59
   }
 }

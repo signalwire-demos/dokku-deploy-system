@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783355050-462e29",
+      "timestamp": "2026-07-06T16:24:10Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "3fc0913",
+        "sha_full": "3fc0913302b264d8b876ef995ed367a442a57844",
+        "message": "Migrate to signalwire-sdk and browser SDK v4"
+      },
+      "duration": "2m 24s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28806392210",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/28806392210"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1779374877-0c4219",
       "timestamp": "2026-05-21T14:47:57Z",
       "action": "deploy",
@@ -4809,8 +4832,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 209,
-    "successful": 150,
+    "total_deploys": 210,
+    "successful": 151,
     "failed": 59
   }
 }

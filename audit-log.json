@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783357987-337493",
+      "timestamp": "2026-07-06T17:13:07Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "80d2d9d",
+        "sha_full": "80d2d9d53853a40f3e8c8a80e3b2504cb2e3a038",
+        "message": "Migrate to signalwire-sdk and @signalwire/js v4"
+      },
+      "duration": "2m 9s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28809413975",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/28809413975"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783356404-7f0e2e",
       "timestamp": "2026-07-06T16:46:44Z",
       "action": "deploy",
@@ -4855,8 +4878,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 211,
-    "successful": 152,
+    "total_deploys": 212,
+    "successful": 153,
     "failed": 59
   }
 }

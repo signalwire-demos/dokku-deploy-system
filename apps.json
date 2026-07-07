@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-07-07T15:25:41Z",
+  "last_updated": "2026-07-07T20:06:14Z",
   "apps": [
     {
       "name": "afterhours",
@@ -159,7 +159,7 @@
       "base_app": "santa",
       "environment": "production",
       "repo": "signalwire-demos/santa",
-      "status": "success",
+      "status": "running",
       "url": "https://santa.signalwire.io",
       "last_deploy": "2026-07-07T15:25:41Z",
       "last_deploy_by": "briankwest",
@@ -169,6 +169,23 @@
         "uptime_seconds": 0,
         "response_time_ms": 372,
         "last_check": "2026-07-07T15:25:41Z"
+      }
+    },
+    {
+      "name": "techtarot",
+      "base_app": "techtarot",
+      "environment": "production",
+      "repo": "signalwire-demos/techtarot",
+      "status": "running",
+      "url": "https://techtarot.signalwire.io",
+      "last_deploy": "2026-07-07T15:14:51Z",
+      "last_deploy_by": "briankwest",
+      "commit_sha": "512e375b247cfd733239bdbcaab8f9c23e280650",
+      "uptime": {
+        "status": "healthy",
+        "uptime_seconds": 0,
+        "response_time_ms": 196,
+        "last_check": "2026-07-07T15:14:51Z"
       }
     },
     {
@@ -186,21 +203,6 @@
         "uptime_seconds": 0,
         "response_time_ms": 305,
         "last_check": "2026-02-23T19:57:11Z"
-      }
-    },
-    {
-      "name": "techtarot",
-      "status": "success",
-      "environment": "production",
-      "url": "https://techtarot.signalwire.io",
-      "last_deploy": "2026-07-07T15:14:51Z",
-      "last_deploy_by": "briankwest",
-      "commit_sha": "512e375b247cfd733239bdbcaab8f9c23e280650",
-      "uptime": {
-        "status": "healthy",
-        "uptime_seconds": 0,
-        "response_time_ms": 196,
-        "last_check": "2026-07-07T15:14:51Z"
       }
     }
   ]

@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-07-07T09:53:56Z",
+  "last_updated": "2026-07-07T14:52:38Z",
   "repos": [
     {
       "name": "santa",
@@ -70,6 +70,15 @@
       "default_branch": "main",
       "updated_at": "2026-05-15T13:31:09Z",
       "description": "Utility to help visualize the post_prompt_data from SignalWire Voice AI Agents",
+      "has_dokku_config": true,
+      "has_deploy_workflow": false
+    },
+    {
+      "name": "techtarot",
+      "full_name": "signalwire-demos/techtarot",
+      "default_branch": "migrate/dokku-deploy",
+      "updated_at": "2026-07-07T14:51:50Z",
+      "description": "Tech Tarot using SignalWire AI Agents SDK in Python",
       "has_dokku_config": true,
       "has_deploy_workflow": false
     }

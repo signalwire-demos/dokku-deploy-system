@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783436780-300a16",
+      "timestamp": "2026-07-07T15:06:20Z",
+      "action": "deploy",
+      "app_name": "techtarot",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/techtarot",
+      "commit": {
+        "sha": "512e375",
+        "sha_full": "512e375b247cfd733239bdbcaab8f9c23e280650",
+        "message": "Add techtarot.signalwire.me as custom domain alias"
+      },
+      "duration": "2m 15s",
+      "url": "https://techtarot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28876458975",
+        "run_url": "https://github.com/signalwire-demos/techtarot/actions/runs/28876458975"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783436289-492374",
       "timestamp": "2026-07-07T14:58:09Z",
       "action": "deploy",
@@ -4947,8 +4970,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 215,
-    "successful": 156,
+    "total_deploys": 216,
+    "successful": 157,
     "failed": 59
   }
 }

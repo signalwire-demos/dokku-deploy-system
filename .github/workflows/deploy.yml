@@ -791,8 +791,11 @@ jobs:
 
               for DOMAIN in $ALL_DOMAINS; do
                 echo "  Adding domain: $DOMAIN"
-                # Check if domain was actually added (not already configured)
-                if ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN" 2>&1 | grep -q "added"; then
+                # Check if domain was actually added (not already configured).
+                # Case-insensitive: dokku reports "Added 1 domain(s)" with a
+                # capital A, which a plain grep -q "added" never matched, so
+                # the SSL re-issue for new custom domains never triggered.
+                if ssh dokku domains:add ${{ env.APP_NAME }} "$DOMAIN" 2>&1 | grep -qi "added"; then
                   DOMAINS_ADDED="true"
                   echo "  ✓ Added new domain"
                 else

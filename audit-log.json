@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783436289-492374",
+      "timestamp": "2026-07-07T14:58:09Z",
+      "action": "deploy",
+      "app_name": "techtarot",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/techtarot",
+      "commit": {
+        "sha": "cb230e5",
+        "sha_full": "cb230e551fd777d163e94d2aac2c5772fe51e1a9",
+        "message": "Restructure for signalwire-demos/techtarot + dokku-deploy-system"
+      },
+      "duration": "2m 46s",
+      "url": "https://techtarot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28875837756",
+        "run_url": "https://github.com/signalwire-demos/techtarot/actions/runs/28875837756"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783367268-eebb5d",
       "timestamp": "2026-07-06T19:47:48Z",
       "action": "deploy",
@@ -4924,8 +4947,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 214,
-    "successful": 155,
+    "total_deploys": 215,
+    "successful": 156,
     "failed": 59
   }
 }

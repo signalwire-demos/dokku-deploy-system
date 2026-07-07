@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1783437940-becf1c",
+      "timestamp": "2026-07-07T15:25:40Z",
+      "action": "deploy",
+      "app_name": "santa",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/santa",
+      "commit": {
+        "sha": "5a444ad",
+        "sha_full": "5a444ad5f18eb6ca425bbd97ce553eb3092e2ccc",
+        "message": "update domains"
+      },
+      "duration": "2m 47s",
+      "url": "https://santa.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "28877740395",
+        "run_url": "https://github.com/signalwire-demos/santa/actions/runs/28877740395"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783437288-4d22a5",
       "timestamp": "2026-07-07T15:14:48Z",
       "action": "deploy",
@@ -4993,8 +5016,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 217,
-    "successful": 158,
+    "total_deploys": 218,
+    "successful": 159,
     "failed": 59
   }
 }

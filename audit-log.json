@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1784141022-aa6075",
+      "timestamp": "2026-07-15T18:43:42Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "8d4afce",
+        "sha_full": "8d4afcedb8df726fb73c141875390d77e5469f4f",
+        "message": "Adopt SignalWire design system v2.0 tokens; fix stale-chunk failures"
+      },
+      "duration": "4m 36s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "29441358819",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/29441358819"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1784139442-004261",
       "timestamp": "2026-07-15T18:17:22Z",
       "action": "deploy",
@@ -5039,8 +5062,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 219,
-    "successful": 160,
+    "total_deploys": 220,
+    "successful": 161,
     "failed": 59
   }
 }

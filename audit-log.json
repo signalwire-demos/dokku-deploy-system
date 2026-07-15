@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1784139442-004261",
+      "timestamp": "2026-07-15T18:17:22Z",
+      "action": "deploy",
+      "app_name": "postpromptviewer",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/postpromptviewer",
+      "commit": {
+        "sha": "ae5b1ee",
+        "sha_full": "ae5b1eef097cf17df8f584750bfa078299ca3b97",
+        "message": "Align viewer with the enriched call_log format"
+      },
+      "duration": "5m 8s",
+      "url": "https://postpromptviewer.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "29439525349",
+        "run_url": "https://github.com/signalwire-demos/postpromptviewer/actions/runs/29439525349"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1783437940-becf1c",
       "timestamp": "2026-07-07T15:25:40Z",
       "action": "deploy",
@@ -5016,8 +5039,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 218,
-    "successful": 159,
+    "total_deploys": 219,
+    "successful": 160,
     "failed": 59
   }
 }

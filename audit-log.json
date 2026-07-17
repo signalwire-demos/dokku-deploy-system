@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1784312917-8ca290",
+      "timestamp": "2026-07-17T18:28:37Z",
+      "action": "deploy",
+      "app_name": "cabby",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/cabby",
+      "commit": {
+        "sha": "66b2ae9",
+        "sha_full": "66b2ae9a6d4550763fa0feacbbd56baeb2f2e0fd",
+        "message": "Merge pull request #1 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "2m 55s",
+      "url": "https://cabby.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "29603717456",
+        "run_url": "https://github.com/signalwire-demos/cabby/actions/runs/29603717456"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1784141022-aa6075",
       "timestamp": "2026-07-15T18:43:42Z",
       "action": "deploy",
@@ -5062,8 +5085,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 220,
-    "successful": 161,
+    "total_deploys": 221,
+    "successful": 162,
     "failed": 59
   }
 }

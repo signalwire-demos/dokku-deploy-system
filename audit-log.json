@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1784312925-0d81ac",
+      "timestamp": "2026-07-17T18:28:45Z",
+      "action": "deploy",
+      "app_name": "goair",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/goair",
+      "commit": {
+        "sha": "e19f34c",
+        "sha_full": "e19f34c6e33c7b99236baf14c2f1fd0daedb5732",
+        "message": "Merge pull request #1 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "2m 45s",
+      "url": "https://goair.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "29603731236",
+        "run_url": "https://github.com/signalwire-demos/goair/actions/runs/29603731236"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1784312917-8ca290",
       "timestamp": "2026-07-17T18:28:37Z",
       "action": "deploy",
@@ -5085,8 +5108,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 221,
-    "successful": 162,
+    "total_deploys": 222,
+    "successful": 163,
     "failed": 59
   }
 }

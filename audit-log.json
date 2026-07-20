@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1784580039-e722dc",
+      "timestamp": "2026-07-20T20:40:39Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "e804a1e",
+        "sha_full": "e804a1e7cbe336f029ee57175022bf95847e728c",
+        "message": "Merge pull request #1 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "2m 36s",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "29776868379",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/29776868379"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1784312925-0d81ac",
       "timestamp": "2026-07-17T18:28:45Z",
       "action": "deploy",
@@ -5108,8 +5131,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 222,
-    "successful": 163,
+    "total_deploys": 223,
+    "successful": 164,
     "failed": 59
   }
 }

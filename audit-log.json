@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1785285953-ae2563",
+      "timestamp": "2026-07-29T00:45:53Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "fe3a34c",
+        "sha_full": "fe3a34cabd810a578dcbfd19a9c9855d98ccfedc",
+        "message": "Remove docker file"
+      },
+      "duration": "3m 15s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "30411901138",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/30411901138"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1785268131-b6ad1c",
       "timestamp": "2026-07-28T19:48:51Z",
       "action": "cleanup",
@@ -5207,8 +5230,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 225,
-    "successful": 165,
+    "total_deploys": 226,
+    "successful": 166,
     "failed": 60
   }
 }

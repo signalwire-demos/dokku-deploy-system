@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1785521733-18de46",
+      "timestamp": "2026-07-31T18:15:33Z",
+      "action": "preview",
+      "app_name": "holyguacamole-pr-2",
+      "environment": "preview",
+      "status": "failure",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "a8a82dc",
+        "sha_full": "a8a82dcad2f887a88f4d8dbcb3b0ab4cb4b0c3a0",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "30654156304",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/30654156304"
+      },
+      "metadata": {
+        "pr_number": "2",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/holyguacamole"
+      }
+    },
+    {
       "id": "audit-1785286567-766e77",
       "timestamp": "2026-07-29T00:56:07Z",
       "action": "deploy",
@@ -5253,8 +5280,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 227,
+    "total_deploys": 228,
     "successful": 167,
-    "failed": 60
+    "failed": 61
   }
 }

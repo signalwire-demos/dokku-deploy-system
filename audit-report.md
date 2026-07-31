@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 227 |
+| Total Deployments | 228 |
 | Successful | 167 |
-| Failed | 60 |
-| Success Rate | 73.5% |
+| Failed | 61 |
+| Success Rate | 73.2% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-07-31T18:15:33Z | preview | holyguacamole-pr-2 | preview | failure | Len-PGH |
 | 2026-07-29T00:56:07Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-07-29T00:45:53Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-07-28T19:48:51Z | cleanup | holyguacamole-pr-1 | preview | success | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-20T14:52:19Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-20T14:46:08Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-20T14:25:24Z | deploy | goair | production | failure | briankwest |
-| 2026-02-19T22:50:40Z | deploy | postpromptviewer | production | success | briankwest |
 
 ---
 

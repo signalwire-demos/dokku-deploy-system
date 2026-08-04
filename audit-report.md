@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 238 |
+| Total Deployments | 239 |
 | Successful | 168 |
-| Failed | 70 |
-| Success Rate | 70.5% |
+| Failed | 71 |
+| Success Rate | 70.2% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-04T15:28:36Z | preview | blackjack-pr-4 | preview | failure | Len-PGH |
 | 2026-08-04T15:27:12Z | cleanup | blackjack-pr-3 | preview | success | briankwest |
 | 2026-08-04T15:04:33Z | preview | blackjack-pr-4 | preview | failure | Len-PGH |
 | 2026-08-04T14:56:44Z | preview | blackjack-pr-4 | preview | failure | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-23T20:25:06Z | deploy | cabby | production | success | briankwest |
 | 2026-02-23T20:22:14Z | deploy | goair | production | success | briankwest |
 | 2026-02-23T20:17:44Z | deploy | goair | production | failure | briankwest |
-| 2026-02-23T20:15:18Z | deploy | goair | production | failure | briankwest |
 
 ---
 

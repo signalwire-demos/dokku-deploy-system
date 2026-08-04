@@ -15,6 +15,7 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-04T15:37:29Z | cleanup | blackjack-pr-4 | preview | success | Len-PGH |
 | 2026-08-04T15:34:53Z | deploy | blackjack | production | success | briankwest |
 | 2026-08-04T15:28:36Z | preview | blackjack-pr-4 | preview | failure | Len-PGH |
 | 2026-08-04T15:27:12Z | cleanup | blackjack-pr-3 | preview | success | briankwest |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-03-03T15:03:54Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-02-23T20:31:33Z | deploy | cabby | production | success | briankwest |
 | 2026-02-23T20:25:06Z | deploy | cabby | production | success | briankwest |
-| 2026-02-23T20:22:14Z | deploy | goair | production | success | briankwest |
 
 ---
 

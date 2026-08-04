@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 231 |
+| Total Deployments | 232 |
 | Successful | 167 |
-| Failed | 64 |
-| Success Rate | 72.2% |
+| Failed | 65 |
+| Success Rate | 71.9% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-04T13:25:20Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
 | 2026-07-31T18:45:29Z | preview | holyguacamole-pr-3 | preview | failure | Len-PGH |
 | 2026-07-31T18:41:11Z | preview | holyguacamole-pr-3 | preview | failure | Len-PGH |
 | 2026-07-31T18:36:34Z | preview | holyguacamole-pr-3 | preview | failure | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-23T19:29:46Z | deploy | utils | production | skipped | briankwest |
 | 2026-02-23T19:28:39Z | deploy | utils | production | skipped | briankwest |
 | 2026-02-20T17:10:37Z | deploy | cabby | production | success | briankwest |
-| 2026-02-20T17:07:41Z | deploy | cabby | production | cancelled | briankwest |
 
 ---
 

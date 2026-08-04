@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1785855873-bf1129",
+      "timestamp": "2026-08-04T15:04:33Z",
+      "action": "preview",
+      "app_name": "blackjack-pr-4",
+      "environment": "preview",
+      "status": "failure",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "c993a22",
+        "sha_full": "c993a22cf0fe3697cca13921e61d43bf292f876f",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "30921742733",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/30921742733"
+      },
+      "metadata": {
+        "pr_number": "4",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/blackjack"
+      }
+    },
+    {
       "id": "audit-1785855404-7a49ff",
       "timestamp": "2026-08-04T14:56:44Z",
       "action": "preview",
@@ -5545,8 +5572,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 237,
+    "total_deploys": 238,
     "successful": 168,
-    "failed": 69
+    "failed": 70
   }
 }

@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-04T13:54:22Z",
+  "last_updated": "2026-08-04T14:30:58Z",
   "apps": [
     {
       "name": "afterhours",
@@ -34,6 +34,18 @@
         "response_time_ms": 215,
         "last_check": "2026-07-06T19:47:53Z"
       }
+    },
+    {
+      "name": "blackjack-pr-3",
+      "base_app": "blackjack",
+      "environment": "preview",
+      "repo": "signalwire-demos/blackjack",
+      "status": "running",
+      "url": null,
+      "last_deploy": null,
+      "last_deploy_by": null,
+      "commit_sha": null,
+      "uptime": null
     },
     {
       "name": "bobbystable",
@@ -125,7 +137,7 @@
       "base_app": "holyguacamole",
       "environment": "production",
       "repo": "signalwire-demos/holyguacamole",
-      "status": "success",
+      "status": "running",
       "url": "https://holyguacamole.signalwire.io",
       "last_deploy": "2026-08-04T13:54:22Z",
       "last_deploy_by": "briankwest",

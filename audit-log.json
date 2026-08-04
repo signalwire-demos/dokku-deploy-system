@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1785851653-2d8fec",
+      "timestamp": "2026-08-04T13:54:13Z",
+      "action": "deploy",
+      "app_name": "holyguacamole",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/holyguacamole",
+      "commit": {
+        "sha": "f372b2f",
+        "sha_full": "f372b2f23be2d94bc625325f44b30273778f954b",
+        "message": "Merge pull request #4 from signalwire-demos/len_update_avatar_videos"
+      },
+      "duration": "4m 3s",
+      "url": "https://holyguacamole.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "30915700661",
+        "run_url": "https://github.com/signalwire-demos/holyguacamole/actions/runs/30915700661"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1785851381-0e9f39",
       "timestamp": "2026-08-04T13:49:41Z",
       "action": "cleanup",
@@ -5441,8 +5464,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 233,
-    "successful": 167,
+    "total_deploys": 234,
+    "successful": 168,
     "failed": 66
   }
 }

@@ -15,6 +15,7 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-04T13:49:41Z | cleanup | holyguacamole-pr-4 | preview | success | briankwest |
 | 2026-08-04T13:39:26Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
 | 2026-08-04T13:25:20Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
 | 2026-07-31T18:45:29Z | preview | holyguacamole-pr-3 | preview | failure | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-23T19:39:58Z | deploy | utils | production | success | briankwest |
 | 2026-02-23T19:31:22Z | deploy | utils | production | skipped | briankwest |
 | 2026-02-23T19:29:46Z | deploy | utils | production | skipped | briankwest |
-| 2026-02-23T19:28:39Z | deploy | utils | production | skipped | briankwest |
 
 ---
 

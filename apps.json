@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-04T15:43:01Z",
+  "last_updated": "2026-08-04T19:45:28Z",
   "apps": [
     {
       "name": "afterhours",
@@ -23,7 +23,7 @@
       "base_app": "blackjack",
       "environment": "production",
       "repo": "signalwire-demos/blackjack",
-      "status": "success",
+      "status": "running",
       "url": "https://blackjack.signalwire.io",
       "last_deploy": "2026-08-04T15:43:01Z",
       "last_deploy_by": "Len-PGH",
@@ -36,7 +36,19 @@
       }
     },
     {
-      "name": "blackjack-pr-3",
+      "name": "blackjack-pr-5",
+      "base_app": "blackjack",
+      "environment": "preview",
+      "repo": "signalwire-demos/blackjack",
+      "status": "running",
+      "url": null,
+      "last_deploy": null,
+      "last_deploy_by": null,
+      "commit_sha": null,
+      "uptime": null
+    },
+    {
+      "name": "blackjack-pr-6",
       "base_app": "blackjack",
       "environment": "preview",
       "repo": "signalwire-demos/blackjack",

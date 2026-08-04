@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 234 |
+| Total Deployments | 235 |
 | Successful | 168 |
-| Failed | 66 |
-| Success Rate | 71.7% |
+| Failed | 67 |
+| Success Rate | 71.4% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-04T14:13:36Z | preview | blackjack-pr-3 | preview | failure | Len-PGH |
 | 2026-08-04T13:54:13Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-08-04T13:49:41Z | cleanup | holyguacamole-pr-4 | preview | success | briankwest |
 | 2026-08-04T13:39:26Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-02-23T20:01:54Z | deploy | goair | production | failure | briankwest |
 | 2026-02-23T19:57:09Z | deploy | utils | production | success | briankwest |
 | 2026-02-23T19:39:58Z | deploy | utils | production | success | briankwest |
-| 2026-02-23T19:31:22Z | deploy | utils | production | skipped | briankwest |
 
 ---
 

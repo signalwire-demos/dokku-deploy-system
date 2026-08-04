@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1785857693-2911a8",
+      "timestamp": "2026-08-04T15:34:53Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "briankwest",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "fe157f2",
+        "sha_full": "fe157f2648f3d75f2de1f8a6185730870769b420",
+        "message": "Merge pull request #3 from signalwire-demos/len_update_bj_avatar_videos"
+      },
+      "duration": "7m 17s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "30924145684",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/30924145684"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1785857316-942480",
       "timestamp": "2026-08-04T15:28:36Z",
       "action": "preview",
@@ -5625,8 +5648,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 239,
-    "successful": 168,
+    "total_deploys": 240,
+    "successful": 169,
     "failed": 71
   }
 }

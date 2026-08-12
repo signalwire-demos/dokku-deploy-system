@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1786543844-3f14ba",
+      "timestamp": "2026-08-12T14:10:44Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "cancelled",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "ab62662",
+        "sha_full": "ab626620cf7322c76f4c38848224df6c4b233b01",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "31605206749",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/31605206749"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1786543836-a1020c",
       "timestamp": "2026-08-12T14:10:36Z",
       "action": "cleanup",
@@ -5933,8 +5956,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 247,
+    "total_deploys": 248,
     "successful": 171,
-    "failed": 76
+    "failed": 77
   }
 }

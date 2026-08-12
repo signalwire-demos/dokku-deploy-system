@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 247 |
+| Total Deployments | 248 |
 | Successful | 171 |
-| Failed | 76 |
-| Success Rate | 69.2% |
+| Failed | 77 |
+| Success Rate | 68.9% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-08-12T14:10:44Z | deploy | blackjack | production | cancelled | Len-PGH |
 | 2026-08-12T14:10:36Z | cleanup | blackjack-pr-6 | preview | success | Len-PGH |
 | 2026-08-12T14:09:57Z | cleanup | blackjack-pr-5 | preview | success | Len-PGH |
 | 2026-08-05T15:16:49Z | deploy | holyguacamole | production | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-05-15T13:36:30Z | deploy | postpromptviewer | production | success | briankwest |
 | 2026-05-07T12:47:49Z | deploy | cabby | production | success | briankwest |
 | 2026-04-30T22:05:54Z | deploy | postpromptviewer | production | success | briankwest |
-| 2026-04-20T16:07:03Z | deploy | postpromptviewer | production | success | briankwest |
 
 ---
 

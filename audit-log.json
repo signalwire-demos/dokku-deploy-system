@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1786544082-7e064a",
+      "timestamp": "2026-08-12T14:14:42Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "da0029f",
+        "sha_full": "da0029fce06042d30b906e1c5b5f8a2d06c59724",
+        "message": "Merge pull request #6 from signalwire-demos/len_bj_themes"
+      },
+      "duration": "2m 51s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "31605271873",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/31605271873"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1786543844-3f14ba",
       "timestamp": "2026-08-12T14:10:44Z",
       "action": "deploy",
@@ -5956,8 +5979,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 248,
-    "successful": 171,
+    "total_deploys": 249,
+    "successful": 172,
     "failed": 77
   }
 }

@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-21T12:59:52Z",
+  "last_updated": "2026-08-21T18:45:55Z",
   "repos": [
     {
       "name": "santa",
@@ -79,6 +79,15 @@
       "default_branch": "main",
       "updated_at": "2026-07-07T15:06:29Z",
       "description": "Tech Tarot using SignalWire AI Agents SDK in Python",
+      "has_dokku_config": true,
+      "has_deploy_workflow": false
+    },
+    {
+      "name": "testbot",
+      "full_name": "signalwire-demos/testbot",
+      "default_branch": "main",
+      "updated_at": "2026-08-21T18:42:22Z",
+      "description": "Interactive SignalWire SDK conformance harness: runs a 107-capability suite against the agent SDK over a live WebRTC call and archives every assertion.",
       "has_dokku_config": true,
       "has_deploy_workflow": false
     }

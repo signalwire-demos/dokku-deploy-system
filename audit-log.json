@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790121190-2d1cea",
+      "timestamp": "2026-09-22T23:53:10Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "ad5914f",
+        "sha_full": "ad5914f756c4591b13774f68553e3a47acd492ea",
+        "message": "Old Hollywood theme port, and hold the AI during trailers (#2)"
+      },
+      "duration": "2m 4s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "35799317869",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/35799317869"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790121058-1e7cd7",
       "timestamp": "2026-09-22T23:50:58Z",
       "action": "cleanup",
@@ -6108,8 +6131,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 252,
-    "successful": 173,
+    "total_deploys": 253,
+    "successful": 174,
     "failed": 79
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790120487-e56002",
+      "timestamp": "2026-09-22T23:41:27Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "e18d3aa",
+        "sha_full": "e18d3aa9e6a32b8c3663bc72268bc29a5b103e83",
+        "message": "Merge pull request #1 from signalwire-demos/bump-browser-sdk-rc3"
+      },
+      "duration": "2m 7s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "35798365174",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/35798365174"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790120371-2ffce4",
       "timestamp": "2026-09-22T23:39:31Z",
       "action": "cleanup",
@@ -6032,8 +6055,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 250,
-    "successful": 172,
+    "total_deploys": 251,
+    "successful": 173,
     "failed": 78
   }
 }

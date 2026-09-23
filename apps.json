@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-09-23T11:16:42Z",
+  "last_updated": "2026-09-23T16:38:49Z",
   "apps": [
     {
       "name": "afterhours",
@@ -85,6 +85,18 @@
         "response_time_ms": 509,
         "last_check": "2026-09-22T23:53:18Z"
       }
+    },
+    {
+      "name": "cinebot-pr-3",
+      "base_app": "cinebot",
+      "environment": "preview",
+      "repo": "signalwire-demos/cinebot",
+      "status": "running",
+      "url": null,
+      "last_deploy": null,
+      "last_deploy_by": null,
+      "commit_sha": null,
+      "uptime": null
     },
     {
       "name": "example",

@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1790182988-dd2b7c",
+      "timestamp": "2026-09-23T17:03:08Z",
+      "action": "preview",
+      "app_name": "cinebot-pr-5",
+      "environment": "preview",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "7ebd52f",
+        "sha_full": "7ebd52f4d4cf55a08ba4e1d2968f4aa38234794b",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "35892594337",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/35892594337"
+      },
+      "metadata": {
+        "pr_number": "5",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/cinebot"
+      }
+    },
+    {
       "id": "audit-1790182442-9f7768",
       "timestamp": "2026-09-23T16:54:02Z",
       "action": "preview",
@@ -6261,8 +6288,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 257,
-    "successful": 175,
+    "total_deploys": 258,
+    "successful": 176,
     "failed": 82
   }
 }

@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 259 |
-| Successful | 176 |
+| Total Deployments | 260 |
+| Successful | 177 |
 | Failed | 83 |
-| Success Rate | 67.9% |
+| Success Rate | 68.0% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-09-23T17:08:41Z | deploy | cinebot | production | success | Len-PGH |
 | 2026-09-23T17:05:59Z | cleanup | cinebot-pr-5 | preview | success | Len-PGH |
 | 2026-09-23T17:05:50Z | cleanup | cinebot-pr-4 | preview | success | Len-PGH |
 | 2026-09-23T17:05:32Z | deploy | cinebot | production | cancelled | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-07-28T19:48:10Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-07-28T19:48:00Z | preview | holyguacamole-pr-1 | preview | failure | briankwest |
 | 2026-07-20T20:40:39Z | deploy | afterhours | production | success | briankwest |
-| 2026-07-17T18:28:45Z | deploy | goair | production | success | briankwest |
 
 ---
 

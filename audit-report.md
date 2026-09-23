@@ -15,6 +15,7 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-09-23T17:05:50Z | cleanup | cinebot-pr-4 | preview | success | Len-PGH |
 | 2026-09-23T17:05:32Z | deploy | cinebot | production | cancelled | Len-PGH |
 | 2026-09-23T17:03:08Z | preview | cinebot-pr-5 | preview | success | Len-PGH |
 | 2026-09-23T16:54:02Z | preview | cinebot-pr-4 | preview | failure | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-07-20T20:40:39Z | deploy | afterhours | production | success | briankwest |
 | 2026-07-17T18:28:45Z | deploy | goair | production | success | briankwest |
 | 2026-07-17T18:28:37Z | deploy | cabby | production | success | briankwest |
-| 2026-07-15T18:43:42Z | deploy | postpromptviewer | production | success | briankwest |
 
 ---
 

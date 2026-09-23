@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 267 |
-| Successful | 182 |
+| Total Deployments | 268 |
+| Successful | 183 |
 | Failed | 85 |
-| Success Rate | 68.1% |
+| Success Rate | 68.2% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-09-23T23:07:23Z | deploy | cinebot | production | success | Len-PGH |
 | 2026-09-23T23:06:51Z | cleanup | cinebot-pr-8 | preview | success | Len-PGH |
 | 2026-09-23T23:06:04Z | preview | cinebot-pr-8 | preview | failure | Len-PGH |
 | 2026-09-23T21:17:37Z | deploy | cinebot | production | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-08-04T13:54:13Z | deploy | holyguacamole | production | success | briankwest |
 | 2026-08-04T13:49:41Z | cleanup | holyguacamole-pr-4 | preview | success | briankwest |
 | 2026-08-04T13:39:26Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
-| 2026-08-04T13:25:20Z | preview | holyguacamole-pr-4 | preview | failure | Len-PGH |
 
 ---
 

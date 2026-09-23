@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790204843-1f5aaa",
+      "timestamp": "2026-09-23T23:07:23Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "8d1e85b",
+        "sha_full": "8d1e85b48437d16948c817a66d095f14c80b4047",
+        "message": "Theme picker with a Streaming theme, and a corrected README (#8)"
+      },
+      "duration": "1m 45s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "35931749641",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/35931749641"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790204811-94cf66",
       "timestamp": "2026-09-23T23:06:51Z",
       "action": "cleanup",
@@ -6641,8 +6664,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 267,
-    "successful": 182,
+    "total_deploys": 268,
+    "successful": 183,
     "failed": 85
   }
 }

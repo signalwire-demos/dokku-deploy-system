@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790181976-b814ce",
+      "timestamp": "2026-09-23T16:46:16Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "2262623",
+        "sha_full": "22626235fd4b46810a583dc53e500f7ae3943d5a",
+        "message": "Make conversation state per-call, and stop leaking the watchlist (#3)"
+      },
+      "duration": "2m 16s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "35890696688",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/35890696688"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790181838-e85f18",
       "timestamp": "2026-09-23T16:43:58Z",
       "action": "preview",
@@ -6211,8 +6234,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 255,
-    "successful": 174,
+    "total_deploys": 256,
+    "successful": 175,
     "failed": 81
   }
 }

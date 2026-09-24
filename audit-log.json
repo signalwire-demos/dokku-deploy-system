@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790265171-7ab6c4",
+      "timestamp": "2026-09-24T15:52:51Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "ab76214",
+        "sha_full": "ab76214cc005dba37eaaff6023e217ba90358c00",
+        "message": "Fix wrong-film search, missing trailers, and unprompted playback (#9)"
+      },
+      "duration": "2m 5s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "36022972313",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/36022972313"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790264999-5fe56e",
       "timestamp": "2026-09-24T15:49:59Z",
       "action": "cleanup",
@@ -6767,8 +6790,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 271,
-    "successful": 186,
+    "total_deploys": 272,
+    "successful": 187,
     "failed": 85
   }
 }

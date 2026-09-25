@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790362114-8e2b56",
+      "timestamp": "2026-09-25T18:48:34Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "8e9cbb6",
+        "sha_full": "8e9cbb6a1c736bc1497342f001ce061c80a4a9bb",
+        "message": "Merge pull request #1 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "3m 28s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "36175254097",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/36175254097"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790362089-fde7e1",
       "timestamp": "2026-09-25T18:48:09Z",
       "action": "deploy",
@@ -6813,8 +6836,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 273,
-    "successful": 188,
+    "total_deploys": 274,
+    "successful": 189,
     "failed": 85
   }
 }

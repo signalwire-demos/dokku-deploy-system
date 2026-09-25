@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790362089-fde7e1",
+      "timestamp": "2026-09-25T18:48:09Z",
+      "action": "deploy",
+      "app_name": "example",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "0ed051d",
+        "sha_full": "0ed051dcbe4c7c9bb803721fb53e5325b0ff7fd8",
+        "message": "Merge pull request #1 from Len-PGH/migrate/signalwire-sdk-v4"
+      },
+      "duration": "2m 11s",
+      "url": "https://example.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "36175397226",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/36175397226"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790265171-7ab6c4",
       "timestamp": "2026-09-24T15:52:51Z",
       "action": "deploy",
@@ -6790,8 +6813,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 272,
-    "successful": 187,
+    "total_deploys": 273,
+    "successful": 188,
     "failed": 85
   }
 }

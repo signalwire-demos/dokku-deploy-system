@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790364872-a4860a",
+      "timestamp": "2026-09-25T19:34:32Z",
+      "action": "deploy",
+      "app_name": "santa",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/santa",
+      "commit": {
+        "sha": "c7693a3",
+        "sha_full": "c7693a366eac11de9a52abf18257be8989121013",
+        "message": "Add explicit permissions to Preview workflow (#2)"
+      },
+      "duration": "2m 59s",
+      "url": "https://santa.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "36180006003",
+        "run_url": "https://github.com/signalwire-demos/santa/actions/runs/36180006003"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790364778-22cd0c",
       "timestamp": "2026-09-25T19:32:58Z",
       "action": "deploy",
@@ -7084,8 +7107,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 282,
-    "successful": 197,
+    "total_deploys": 283,
+    "successful": 198,
     "failed": 85
   }
 }

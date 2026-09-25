@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1790364745-f73497",
+      "timestamp": "2026-09-25T19:32:25Z",
+      "action": "deploy",
+      "app_name": "example",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "6ddd253",
+        "sha_full": "6ddd2533412a96f8aefcee9758a1ad3a1778f64b",
+        "message": "Add explicit permissions to Preview workflow (#2)"
+      },
+      "duration": "2m 1s",
+      "url": "https://example.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "36180001117",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/36180001117"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1790364623-c9b828",
       "timestamp": "2026-09-25T19:30:23Z",
       "action": "cleanup",
@@ -7038,8 +7061,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 280,
-    "successful": 195,
+    "total_deploys": 281,
+    "successful": 196,
     "failed": 85
   }
 }

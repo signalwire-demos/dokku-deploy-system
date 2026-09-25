@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1790364153-faca1c",
+      "timestamp": "2026-09-25T19:22:33Z",
+      "action": "preview",
+      "app_name": "example-pr-2",
+      "environment": "preview",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "0bfb331",
+        "sha_full": "0bfb33168911c51a40fa3deae355b08da523c90b",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "36178653900",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/36178653900"
+      },
+      "metadata": {
+        "pr_number": "2",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/example"
+      }
+    },
+    {
       "id": "audit-1790364121-b4f4e3",
       "timestamp": "2026-09-25T19:22:01Z",
       "action": "preview",
@@ -6959,8 +6986,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 279,
-    "successful": 194,
+    "total_deploys": 280,
+    "successful": 195,
     "failed": 85
   }
 }

@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794935346-4dd910",
+      "timestamp": "2026-11-17T17:09:06Z",
+      "action": "deploy",
+      "app_name": "santa",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/santa",
+      "commit": {
+        "sha": "431dafe",
+        "sha_full": "431dafe38fb53de74460a33aa5520ed13b303e0e",
+        "message": "Merge pull request #3 from signalwire-demos"
+      },
+      "duration": "2m 42s",
+      "url": "https://santa.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44133081829",
+        "run_url": "https://github.com/signalwire-demos/santa/actions/runs/44133081829"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794935165-92c571",
       "timestamp": "2026-11-17T17:06:05Z",
       "action": "cleanup",
@@ -7395,8 +7418,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 293,
-    "successful": 208,
+    "total_deploys": 294,
+    "successful": 209,
     "failed": 85
   }
 }

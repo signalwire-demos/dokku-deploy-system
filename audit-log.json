@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794953143-285e81",
+      "timestamp": "2026-11-17T22:05:43Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "failure",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "02338aa",
+        "sha_full": "02338aad8b98dac8ec0bfb961063c3affa41b610",
+        "message": ""
+      },
+      "duration": "",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44186029569",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/44186029569"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794953079-4b337b",
       "timestamp": "2026-11-17T22:04:39Z",
       "action": "cleanup",
@@ -7806,8 +7829,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 304,
+    "total_deploys": 305,
     "successful": 216,
-    "failed": 88
+    "failed": 89
   }
 }

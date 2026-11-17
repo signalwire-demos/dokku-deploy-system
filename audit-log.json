@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794953286-985c32",
+      "timestamp": "2026-11-17T22:08:06Z",
+      "action": "deploy",
+      "app_name": "cinebot",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/cinebot",
+      "commit": {
+        "sha": "ab6911e",
+        "sha_full": "ab6911e70f1ae4d3c869d319988c360b94c3b218",
+        "message": "Update the browser SDK to 4.0.0-rc.5 (#10)"
+      },
+      "duration": "1m 53s",
+      "url": "https://cinebot.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44186504887",
+        "run_url": "https://github.com/signalwire-demos/cinebot/actions/runs/44186504887"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794953235-5465d1",
       "timestamp": "2026-11-17T22:07:15Z",
       "action": "cleanup",
@@ -7930,8 +7953,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 306,
-    "successful": 216,
+    "total_deploys": 307,
+    "successful": 217,
     "failed": 90
   }
 }

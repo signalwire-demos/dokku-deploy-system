@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794952079-282770",
+      "timestamp": "2026-11-17T21:47:59Z",
+      "action": "deploy",
+      "app_name": "example",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/example",
+      "commit": {
+        "sha": "beb1ef0",
+        "sha_full": "beb1ef0a01c10fe8a7e639f9dc855b90a98ad117",
+        "message": "Update the browser SDK to 4.0.0-rc.5 (#3)"
+      },
+      "duration": "2m 12s",
+      "url": "https://example.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44183030018",
+        "run_url": "https://github.com/signalwire-demos/example/actions/runs/44183030018"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794951942-163f1c",
       "timestamp": "2026-11-17T21:45:42Z",
       "action": "cleanup",
@@ -7628,8 +7651,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 300,
-    "successful": 213,
+    "total_deploys": 301,
+    "successful": 214,
     "failed": 87
   }
 }

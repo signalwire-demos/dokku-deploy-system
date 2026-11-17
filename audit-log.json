@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794953330-2545a9",
+      "timestamp": "2026-11-17T22:08:50Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "9d35332",
+        "sha_full": "9d35332a7907e55f564e0a82d2b6e924a8d65854",
+        "message": "Merge pull request #3 from signalwire-demos/ci-preview-workflow-permissions"
+      },
+      "duration": "1m 14s",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44186685439",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/44186685439"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794953315-2734bb",
       "timestamp": "2026-11-17T22:08:35Z",
       "action": "deploy",
@@ -7976,8 +7999,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 308,
-    "successful": 218,
+    "total_deploys": 309,
+    "successful": 219,
     "failed": 90
   }
 }

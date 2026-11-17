@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 292 |
-| Successful | 207 |
+| Total Deployments | 293 |
+| Successful | 208 |
 | Failed | 85 |
-| Success Rate | 70.8% |
+| Success Rate | 70.9% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-11-17T17:01:39Z | preview | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T16:58:24Z | preview | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T16:53:02Z | preview | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T16:46:08Z | preview | santa-pr-3 | preview | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-09-23T16:43:54Z | cleanup | cinebot-pr-3 | preview | success | Len-PGH |
 | 2026-09-23T16:16:28Z | preview | cinebot-pr-3 | preview | failure | Len-PGH |
 | 2026-09-22T23:53:10Z | deploy | cinebot | production | success | Len-PGH |
-| 2026-09-22T23:50:58Z | cleanup | cinebot-pr-2 | preview | success | Len-PGH |
 
 ---
 

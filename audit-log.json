@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1794952588-6d1eb5",
+      "timestamp": "2026-11-17T21:56:28Z",
+      "action": "preview",
+      "app_name": "afterhours-pr-3",
+      "environment": "preview",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "5379672",
+        "sha_full": "537967256e66f3e2928d0833825ada36c7e313f2",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "44184598490",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/44184598490"
+      },
+      "metadata": {
+        "pr_number": "3",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/afterhours"
+      }
+    },
+    {
       "id": "audit-1794952079-282770",
       "timestamp": "2026-11-17T21:47:59Z",
       "action": "deploy",
@@ -7651,8 +7678,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 301,
-    "successful": 214,
+    "total_deploys": 302,
+    "successful": 215,
     "failed": 87
   }
 }

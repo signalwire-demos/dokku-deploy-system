@@ -15,6 +15,7 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-11-17T17:06:05Z | cleanup | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T17:01:39Z | preview | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T16:58:24Z | preview | santa-pr-3 | preview | success | Len-PGH |
 | 2026-11-17T16:53:02Z | preview | santa-pr-3 | preview | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-09-23T16:43:58Z | preview | cinebot-pr-4 | preview | failure | Len-PGH |
 | 2026-09-23T16:43:54Z | cleanup | cinebot-pr-3 | preview | success | Len-PGH |
 | 2026-09-23T16:16:28Z | preview | cinebot-pr-3 | preview | failure | Len-PGH |
-| 2026-09-22T23:53:10Z | deploy | cinebot | production | success | Len-PGH |
 
 ---
 

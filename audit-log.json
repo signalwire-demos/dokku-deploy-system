@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794946870-634b80",
+      "timestamp": "2026-11-17T20:21:10Z",
+      "action": "deploy",
+      "app_name": "santa",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/santa",
+      "commit": {
+        "sha": "decac5e",
+        "sha_full": "decac5e8ab730e277c8a97403b472e1064a8b64c",
+        "message": "Merge pull request #4 from signalwire-demos/harden-webhook-auth"
+      },
+      "duration": "2m 38s",
+      "url": "https://santa.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44167776208",
+        "run_url": "https://github.com/signalwire-demos/santa/actions/runs/44167776208"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794946710-1fac25",
       "timestamp": "2026-11-17T20:18:30Z",
       "action": "cleanup",
@@ -7471,8 +7494,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 295,
-    "successful": 210,
+    "total_deploys": 296,
+    "successful": 211,
     "failed": 85
   }
 }

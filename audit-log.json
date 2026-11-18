@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794973019-e9df3b",
+      "timestamp": "2026-11-18T03:36:59Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "e85d801",
+        "sha_full": "e85d801eca2ea72dfba9fac0c00774dc3c9f9593",
+        "message": "Update the vendored browser SDK to 4.0.0-rc.5 (#7)"
+      },
+      "duration": "3m 18s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44231180047",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/44231180047"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794972809-6c3f3d",
       "timestamp": "2026-11-18T03:33:29Z",
       "action": "cleanup",
@@ -8133,8 +8156,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 313,
-    "successful": 221,
+    "total_deploys": 314,
+    "successful": 222,
     "failed": 92
   }
 }

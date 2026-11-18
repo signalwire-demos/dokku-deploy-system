@@ -1,6 +1,33 @@
 {
   "entries": [
     {
+      "id": "audit-1794972433-389c5e",
+      "timestamp": "2026-11-18T03:27:13Z",
+      "action": "preview",
+      "app_name": "techtarot-pr-1",
+      "environment": "preview",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/techtarot",
+      "commit": {
+        "sha": "21777d3",
+        "sha_full": "21777d3baf59d06e61ccd052ff047d8fe4810846",
+        "message": ""
+      },
+      "duration": "",
+      "url": "",
+      "note": "",
+      "workflow": {
+        "run_id": "44230091377",
+        "run_url": "https://github.com/signalwire-demos/techtarot/actions/runs/44230091377"
+      },
+      "metadata": {
+        "pr_number": "1",
+        "pr_author": "Len-PGH",
+        "repo": "signalwire-demos/techtarot"
+      }
+    },
+    {
       "id": "audit-1794971855-086f43",
       "timestamp": "2026-11-18T03:17:35Z",
       "action": "preview",
@@ -8053,8 +8080,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 311,
-    "successful": 219,
+    "total_deploys": 312,
+    "successful": 220,
     "failed": 92
   }
 }

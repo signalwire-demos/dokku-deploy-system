@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1794974037-d59b8f",
+      "timestamp": "2026-11-18T03:53:57Z",
+      "action": "deploy",
+      "app_name": "bobbystable",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/bobbystable",
+      "commit": {
+        "sha": "02338aa",
+        "sha_full": "02338aad8b98dac8ec0bfb961063c3affa41b610",
+        "message": "Merge pull request #3 from signalwire-demos/bump-signalwire-js-rc5"
+      },
+      "duration": "2m 51s",
+      "url": "https://bobbystable.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "44186029569",
+        "run_url": "https://github.com/signalwire-demos/bobbystable/actions/runs/44186029569"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794973800-923e82",
       "timestamp": "2026-11-18T03:50:00Z",
       "action": "deploy",
@@ -8202,8 +8225,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 316,
-    "successful": 224,
+    "total_deploys": 317,
+    "successful": 225,
     "failed": 92
   }
 }

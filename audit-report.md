@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 310 |
+| Total Deployments | 311 |
 | Successful | 219 |
-| Failed | 91 |
-| Success Rate | 70.6% |
+| Failed | 92 |
+| Success Rate | 70.4% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-11-18T03:17:35Z | preview | techtarot-pr-1 | preview | failure | Len-PGH |
 | 2026-11-18T03:17:31Z | preview | blackjack-pr-7 | preview | failure | Len-PGH |
 | 2026-11-17T22:08:50Z | deploy | afterhours | production | success | Len-PGH |
 | 2026-11-17T22:08:35Z | deploy | holyguacamole | production | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-09-25T18:50:18Z | deploy | santa | production | success | Len-PGH |
 | 2026-09-25T18:48:34Z | deploy | bobbystable | production | success | Len-PGH |
 | 2026-09-25T18:48:09Z | deploy | example | production | success | Len-PGH |
-| 2026-09-24T15:52:51Z | deploy | cinebot | production | success | Len-PGH |
 
 ---
 

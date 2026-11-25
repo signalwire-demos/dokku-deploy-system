@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1795639925-38b902",
+      "timestamp": "2026-11-25T20:52:05Z",
+      "action": "deploy",
+      "app_name": "afterhours",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/afterhours",
+      "commit": {
+        "sha": "b8ca8ab",
+        "sha_full": "b8ca8abff9a4708b023c39077a49c18358ad287e",
+        "message": "Bump the signalwire-sdk floor to 3.7.4"
+      },
+      "duration": "1m 49s",
+      "url": "https://afterhours.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "45698602531",
+        "run_url": "https://github.com/signalwire-demos/afterhours/actions/runs/45698602531"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1794974037-d59b8f",
       "timestamp": "2026-11-18T03:53:57Z",
       "action": "deploy",
@@ -8225,8 +8248,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 317,
-    "successful": 225,
+    "total_deploys": 318,
+    "successful": 226,
     "failed": 92
   }
 }

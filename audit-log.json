@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1795645845-6b11ad",
+      "timestamp": "2026-11-25T22:30:45Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "0d40a6d",
+        "sha_full": "0d40a6d04d6b2404b59a81bc23aa6681fe20dcb0",
+        "message": "Sign SWAIG function tokens with a key every replica derives the same way"
+      },
+      "duration": "2m 40s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "45713360427",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/45713360427"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1795643652-7ba339",
       "timestamp": "2026-11-25T21:54:12Z",
       "action": "deploy",
@@ -8317,8 +8340,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 321,
-    "successful": 229,
+    "total_deploys": 322,
+    "successful": 230,
     "failed": 92
   }
 }

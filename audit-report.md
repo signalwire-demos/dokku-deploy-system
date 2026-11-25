@@ -6,15 +6,16 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 | Metric | Value |
 |--------|-------|
-| Total Deployments | 321 |
-| Successful | 229 |
+| Total Deployments | 322 |
+| Successful | 230 |
 | Failed | 92 |
-| Success Rate | 71.3% |
+| Success Rate | 71.4% |
 
 ## Recent Activity (Last 50)
 
 | Time | Action | App | Environment | Status | Actor |
 |------|--------|-----|-------------|--------|-------|
+| 2026-11-25T22:30:45Z | deploy | blackjack | production | success | Len-PGH |
 | 2026-11-25T21:54:12Z | deploy | blackjack | production | success | Len-PGH |
 | 2026-11-25T21:18:48Z | deploy | blackjack | production | success | Len-PGH |
 | 2026-11-25T21:01:13Z | deploy | blackjack | production | success | Len-PGH |
@@ -64,7 +65,6 @@ Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 | 2026-10-06T16:10:11Z | deploy | afterhours | production | success | Len-PGH |
 | 2026-10-06T16:05:39Z | deploy | afterhours | production | success | Len-PGH |
 | 2026-09-25T19:34:32Z | deploy | santa | production | success | Len-PGH |
-| 2026-09-25T19:32:58Z | deploy | bobbystable | production | success | Len-PGH |
 
 ---
 

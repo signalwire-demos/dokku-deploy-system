@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1795643652-7ba339",
+      "timestamp": "2026-11-25T21:54:12Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "934d50c",
+        "sha_full": "934d50cde5497c5646aa81bc6be2d0f3fd8326da",
+        "message": "Share the per-guest voice pick between processes instead of holding it in memory"
+      },
+      "duration": "2m 39s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "45707979480",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/45707979480"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1795641528-bb9b97",
       "timestamp": "2026-11-25T21:18:48Z",
       "action": "deploy",
@@ -8294,8 +8317,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 320,
-    "successful": 228,
+    "total_deploys": 321,
+    "successful": 229,
     "failed": 92
   }
 }

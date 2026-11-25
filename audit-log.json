@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "id": "audit-1795640473-d5c3ca",
+      "timestamp": "2026-11-25T21:01:13Z",
+      "action": "deploy",
+      "app_name": "blackjack",
+      "environment": "production",
+      "status": "success",
+      "actor": "Len-PGH",
+      "repository": "signalwire-demos/blackjack",
+      "commit": {
+        "sha": "df8f816",
+        "sha_full": "df8f81626f3db7aa7a01806532b0f38a0f198aff",
+        "message": "Bump the signalwire-sdk floor to 3.7.4 and floor starlette and idna"
+      },
+      "duration": "2m 59s",
+      "url": "https://blackjack.signalwire.io",
+      "note": "",
+      "workflow": {
+        "run_id": "45699836489",
+        "run_url": "https://github.com/signalwire-demos/blackjack/actions/runs/45699836489"
+      },
+      "metadata": {}
+    },
+    {
       "id": "audit-1795639925-38b902",
       "timestamp": "2026-11-25T20:52:05Z",
       "action": "deploy",
@@ -8248,8 +8271,8 @@
     }
   ],
   "stats": {
-    "total_deploys": 318,
-    "successful": 226,
+    "total_deploys": 319,
+    "successful": 227,
     "failed": 92
   }
 }
